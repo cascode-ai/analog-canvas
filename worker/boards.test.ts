@@ -1,5 +1,5 @@
-// Selection boards (docs/specs/selection-boards.md): read by link, made by an
-// administrator, changed by signed-in accounts with every change recorded.
+// The selection board (docs/specs/selection-boards.md): read by anyone, made by
+// its first change, changed by signed-in accounts with every change recorded.
 
 import { createEmptyProject } from "@icm/model";
 import {
@@ -124,26 +124,40 @@ describe("selection boards", () => {
   async function makeBoard(
     entries = ["entry-a", `${ORIGIN}/g/entry-b`],
     slots = 3,
+    cookie = admin,
   ) {
-    const response = await call(env, "/api/boards", {
+    const response = await call(env, "/api/board/changes", {
       method: "POST",
-      cookie: admin,
-      body: { title: "Season 1", slots, entries },
+      cookie,
+      body: {
+        changes: [
+          { kind: "slots", slots },
+          { kind: "rename", title: "Season 1" },
+          ...entries.map((entry) => ({ kind: "add", entry })),
+        ],
+      },
     });
     expect(response.status).toBe(200);
-    return (await json(response)).board.id as string;
   }
 
-  it("lets an administrator make a board that anyone with its link reads", async () => {
-    const id = await makeBoard();
-    expect(id).toMatch(/^[A-Za-z0-9]{24}$/u);
-    const read = await json(
-      await call(env, `/api/boards/${id}`, { origin: null }),
-    );
+  it("shows one board, at /boards, that anyone reads and its first change makes", async () => {
+    const empty = await json(await call(env, "/api/board", { origin: null }));
+    expect(empty.board).toMatchObject({
+      title: "Selection board",
+      slots: 50,
+      revision: 0,
+      lockedAt: null,
+    });
+    expect(empty.items).toEqual([]);
+    expect(empty.viewer).toMatchObject({ signedIn: false, canEdit: false });
+
+    await makeBoard();
+    const read = await json(await call(env, "/api/board", { origin: null }));
     expect(read.board).toMatchObject({
       title: "Season 1",
       slots: 3,
       lockedAt: null,
+      revision: 1,
     });
     expect(read.board.createdById).toBeUndefined();
     expect(
@@ -156,43 +170,66 @@ describe("selection boards", () => {
       ["entry-a", "Five-transistor OTA", "Five-transistor OTA author"],
       ["entry-b", "Bandgap", "Bandgap author"],
     ]);
-    expect(read.viewer).toMatchObject({ signedIn: false, canEdit: false });
     expect(read.events.map((event: any) => event.action)).toEqual([
       "add",
       "add",
+      "rename",
+      "slots",
       "create",
     ]);
 
-    const page = await call(env, `/boards/${id}`, { origin: null });
+    const page = await call(env, "/boards", { origin: null });
     expect(page.headers.get("content-type")).toContain("text/html");
     expect(page.headers.get("x-robots-tag")).toBe("noindex");
+    const html = await page.text();
+    expect(html).toContain('<html lang="en">');
+    expect(html).not.toMatch(/[一-鿿]/u);
+    const old = await call(env, "/boards/AbCdEfGhIjKlMnOpQrStUvWx", {
+      origin: null,
+    });
+    expect(old.status).toBe(301);
+    expect(old.headers.get("location")).toBe(`${ORIGIN}/boards`);
     expect(
       (
-        await call(env, "/api/boards/NotABoardIdAtAll12345678", {
-          origin: null,
+        await call(env, "/api/board", {
+          method: "POST",
+          cookie: admin,
+          body: { title: "Another" },
         })
       ).status,
     ).toBe(404);
   });
 
-  it("refuses to make a board for anyone but an administrator", async () => {
-    const body = { title: "Mine", slots: 5 };
-    expect(
-      (await call(env, "/api/boards", { method: "POST", body })).status,
-    ).toBe(401);
-    const refused = await call(env, "/api/boards", {
-      method: "POST",
-      cookie: collaborator,
-      body,
-    });
-    expect(refused.status).toBe(403);
-    expect(await json(refused)).toEqual({ error: "admin-only" });
+  it("lets any collaborator start the board, and keeps an earlier board as the board", async () => {
+    await makeBoard(["entry-a"], 5, collaborator);
+    let read = await json(await call(env, "/api/board"));
+    expect(read.board.createdBy).toBe("friend");
+
+    env = environment();
+    seed(env, "entry-a", "Five-transistor OTA");
+    const earlier = await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/board-create",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          id: "EarlierBoardKeptAsTheOne",
+          title: "Earlier board",
+          slots: 10,
+          entries: ["entry-a"],
+          actor: { id: "someone", name: "someone", admin: true },
+        }),
+      },
+    );
+    expect(earlier.status).toBe(200);
+    read = await json(await call(env, "/api/board"));
+    expect(read.board).toMatchObject({ title: "Earlier board", slots: 10 });
+    expect(read.items.map((item: any) => item.entryId)).toEqual(["entry-a"]);
   });
 
   it("records who adds, replaces, notes, moves and removes", async () => {
-    const id = await makeBoard();
+    await makeBoard();
     const change = async (changes: unknown[]) =>
-      call(env, `/api/boards/${id}/changes`, {
+      call(env, `/api/board/changes`, {
         method: "POST",
         cookie: collaborator,
         body: { changes },
@@ -212,7 +249,7 @@ describe("selection boards", () => {
     expect(board.viewer).toMatchObject({
       signedIn: true,
       canEdit: true,
-      canUnlock: false,
+      canUnlock: true,
     });
 
     board = await json(
@@ -264,15 +301,14 @@ describe("selection boards", () => {
   });
 
   it("takes only public entries, each once, within the slots, all or none", async () => {
-    const id = await makeBoard();
+    await makeBoard();
     const change = async (changes: unknown[]) =>
-      call(env, `/api/boards/${id}/changes`, {
+      call(env, `/api/board/changes`, {
         method: "POST",
         cookie: collaborator,
         body: { changes },
       });
-    const before = (await json(await call(env, `/api/boards/${id}`))).board
-      .revision;
+    const before = (await json(await call(env, "/api/board"))).board.revision;
 
     let refused = await change([{ kind: "add", entry: "entry-hidden" }]);
     expect(refused.status).toBe(404);
@@ -294,21 +330,20 @@ describe("selection boards", () => {
       400,
     );
 
-    const after = await json(await call(env, `/api/boards/${id}`));
+    const after = await json(await call(env, "/api/board"));
     expect(after.board.revision).toBe(before);
     expect(after.items).toHaveLength(2);
   });
 
   it("refuses changes from signed-out readers and other sites", async () => {
-    const id = await makeBoard();
+    await makeBoard();
     const body = { changes: [{ kind: "add", entry: "entry-c" }] };
     expect(
-      (await call(env, `/api/boards/${id}/changes`, { method: "POST", body }))
-        .status,
+      (await call(env, `/api/board/changes`, { method: "POST", body })).status,
     ).toBe(401);
     expect(
       (
-        await call(env, `/api/boards/${id}/changes`, {
+        await call(env, `/api/board/changes`, {
           method: "POST",
           cookie: collaborator,
           origin: "https://elsewhere.example",
@@ -318,10 +353,10 @@ describe("selection boards", () => {
     ).toBe(403);
   });
 
-  it("locks a board until its maker or an administrator unlocks it", async () => {
-    const id = await makeBoard();
+  it("locks the board until any collaborator unlocks it", async () => {
+    await makeBoard();
     const change = async (cookie: string, changes: unknown[]) =>
-      call(env, `/api/boards/${id}/changes`, {
+      call(env, `/api/board/changes`, {
         method: "POST",
         cookie,
         body: { changes },
@@ -332,31 +367,27 @@ describe("selection boards", () => {
         await change(collaborator, [{ kind: "add", entry: "entry-c" }]),
       ),
     ).toEqual({ error: "board-locked" });
-    expect(
-      await json(await change(collaborator, [{ kind: "unlock" }])),
-    ).toEqual({ error: "not-allowed" });
-    const unlocked = await json(await change(admin, [{ kind: "unlock" }]));
+    const unlocked = await json(
+      await change(collaborator, [{ kind: "unlock" }]),
+    );
     expect(unlocked.board.lockedAt).toBeNull();
     expect(unlocked.viewer.canUnlock).toBe(true);
   });
 
   it("serves previews only of the entries on the board, and exports the list", async () => {
-    const id = await makeBoard();
-    const shown = await call(
-      env,
-      `/api/boards/${id}/preview/entry-a?v=rev-entry-a`,
-      { origin: null },
-    );
+    await makeBoard();
+    const shown = await call(env, `/api/board/preview/entry-a?v=rev-entry-a`, {
+      origin: null,
+    });
     expect(shown.status).toBe(200);
     expect(shown.headers.get("content-type")).toBe("image/svg+xml");
     expect(await shown.text()).toMatch(/^<svg/u);
     expect(
-      (await call(env, `/api/boards/${id}/preview/entry-c`, { origin: null }))
-        .status,
+      (await call(env, `/api/board/preview/entry-c`, { origin: null })).status,
     ).toBe(404);
 
     const exported = await json(
-      await call(env, `/api/boards/${id}/export`, { origin: null }),
+      await call(env, `/api/board/export`, { origin: null }),
     );
     expect(
       exported.items.map((item: any) => [
@@ -387,8 +418,8 @@ describe("selection boards", () => {
     // A wall entry by that id is not the dataset's circuit.
     seed(env, "ct-003", "Not in the dataset");
 
-    const id = await makeBoard(["entry-a", `${ORIGIN}/g/ct-001`], 4);
-    let board = await json(await call(env, `/api/boards/${id}`));
+    await makeBoard(["entry-a", `${ORIGIN}/g/ct-001`], 4);
+    let board = await json(await call(env, "/api/board"));
     expect(
       board.items.map((item: any) => [
         item.entryId,
@@ -419,7 +450,7 @@ describe("selection boards", () => {
     expect(board.entryNames["ct-001"]).toBe("Folded cascode");
 
     const change = async (changes: unknown[]) =>
-      call(env, `/api/boards/${id}/changes`, {
+      call(env, `/api/board/changes`, {
         method: "POST",
         cookie: collaborator,
         body: { changes },
@@ -456,20 +487,17 @@ describe("selection boards", () => {
       "entry-a": "Five-transistor OTA",
     });
 
-    const shown = await call(
-      env,
-      `/api/boards/${id}/preview/ct-001?v=rev-ct-001`,
-      { origin: null },
-    );
+    const shown = await call(env, `/api/board/preview/ct-001?v=rev-ct-001`, {
+      origin: null,
+    });
     expect(shown.status).toBe(200);
     expect(await shown.text()).toMatch(/^<svg/u);
     expect(
-      (await call(env, `/api/boards/${id}/preview/ct-002`, { origin: null }))
-        .status,
+      (await call(env, `/api/board/preview/ct-002`, { origin: null })).status,
     ).toBe(404);
 
     const exported = await json(
-      await call(env, `/api/boards/${id}/export`, { origin: null }),
+      await call(env, `/api/board/export`, { origin: null }),
     );
     expect(
       exported.items.map((item: any) => [
@@ -486,7 +514,7 @@ describe("selection boards", () => {
   });
 
   it("forgets a deleted account's name on every board", async () => {
-    const id = await makeBoard();
+    await makeBoard();
     const me = await env
       .AUTH!.getByName("auth")
       .fetch(
@@ -500,7 +528,7 @@ describe("selection boards", () => {
         body: JSON.stringify({ userId }),
       },
     );
-    const read = await json(await call(env, `/api/boards/${id}`));
+    const read = await json(await call(env, "/api/board"));
     expect(read.board.createdBy).toBe("(deleted account)");
     expect(new Set(read.events.map((event: any) => event.actor))).toEqual(
       new Set(["(deleted account)"]),
@@ -521,22 +549,20 @@ describe("selection boards", () => {
     expect(entryIdOf("two words")).toBeNull();
   });
 
-  it("returns a sign-in started on a board to that board", async () => {
+  it("returns a sign-in started on the board to the board", async () => {
     const auth = new DeployedAuthDO(sqliteState(), {
       GH_OAUTH_CLIENT_ID: "client",
       GH_OAUTH_CLIENT_SECRET: "secret",
     } as AuthEnv);
     const started = await auth.fetch(
       new Request(
-        `${ORIGIN}/api/auth/github/start?return=${encodeURIComponent("/boards/AbCdEfGhIjKlMnOpQrStUvWx")}`,
+        `${ORIGIN}/api/auth/github/start?return=${encodeURIComponent("/boards")}`,
       ),
     );
     const state = new URL(started.headers.get("location")!).searchParams.get(
       "state",
     )!;
-    expect(decodeURIComponent(state.split(".")[1]!)).toBe(
-      "/boards/AbCdEfGhIjKlMnOpQrStUvWx",
-    );
+    expect(decodeURIComponent(state.split(".")[1]!)).toBe("/boards");
   });
 
   it("draws each entry plain: no colour, no frames or notes", async () => {
@@ -563,11 +589,11 @@ describe("selection boards", () => {
     seed(env, "entry-coloured", "Coloured", "public", {
       project: JSON.stringify(raw),
     });
-    const id = await makeBoard(["entry-coloured"]);
+    await makeBoard(["entry-coloured"]);
     const svg = await (
       await call(
         env,
-        `/api/boards/${id}/preview/entry-coloured?v=rev-entry-coloured`,
+        `/api/board/preview/entry-coloured?v=rev-entry-coloured`,
         { origin: null },
       )
     ).text();
@@ -590,8 +616,8 @@ describe("selection boards", () => {
       project: partsProjectText("With an op-amp", ["opamp", "pnp", "resistor"]),
       tags: ",bandgap,",
     });
-    const id = await makeBoard(["entry-flat", "entry-block"]);
-    let board = await json(await call(env, `/api/boards/${id}`));
+    await makeBoard(["entry-flat", "entry-block"]);
+    let board = await json(await call(env, "/api/board"));
     expect(board.types).toContain("Amplifiers");
     expect(board.types).not.toContain("Design Attributes");
     expect(
@@ -608,7 +634,7 @@ describe("selection boards", () => {
     ]);
 
     const change = async (changes: unknown[]) =>
-      call(env, `/api/boards/${id}/changes`, {
+      call(env, `/api/board/changes`, {
         method: "POST",
         cookie: collaborator,
         body: { changes },
@@ -638,7 +664,7 @@ describe("selection boards", () => {
     ).toEqual({
       error: "bad-type",
     });
-    const exported = await json(await call(env, `/api/boards/${id}/export`));
+    const exported = await json(await call(env, `/api/board/export`));
     expect(
       exported.items.map((item: any) => [
         item.type,

@@ -4,7 +4,7 @@ Status: `accepted`
 
 Primary owner: Gallery, Auth and regional replication.
 
-Private Statistics bookmarks and link-shared [Selection Boards](selection-boards.md)
+Private Statistics bookmarks and the shared [Selection Board](selection-boards.md)
 follow accounts through both entrances. Publication snapshots remain separate;
 command authorization follows [regional actions](regional-actions.md).
 

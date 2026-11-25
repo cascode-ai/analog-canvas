@@ -1,7 +1,6 @@
-// The pages of selection boards (docs/specs/selection-boards.md), served whole by
-// worker/boards.ts: /boards, where an administrator makes a board, and
-// /boards/<id>, the board itself. Everything they show comes from /api/boards and
-// is set as text, never as markup.
+// The selection board's page (docs/specs/selection-boards.md), served whole by
+// worker/boards.ts at /boards. Everything it shows comes from /api/board and is set
+// as text, never as markup.
 
 const STYLE = String.raw`
 /* The Gallery's tokens (apps/editor/src/styles.css); the Gallery has no dark theme, nor do these pages. */
@@ -155,14 +154,6 @@ h1 input.inline { width: min(100%, 36ch); font-size: 20px; font-weight: 600; }
 .dialog input, .dialog textarea { width: 100%; }
 .dialog .row { display: flex; justify-content: flex-end; gap: 8px; }
 
-.page { max-width: 640px; margin: 0 auto; padding: 28px 22px 48px; }
-.lead { margin: 6px 0 18px; color: var(--muted); line-height: 1.5; }
-form.make { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); }
-form.make label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
-form.make input, form.make textarea { color: var(--text); font-size: 13px; font-weight: 400; }
-form.make textarea { min-height: 160px; resize: vertical; }
-form.make button { justify-self: start; height: 32px; padding: 0 16px; }
-
 /* Narrow, the map sits above the tiles and the header keeps one row. */
 @media (max-width: 760px) {
   .layout { display: block; }
@@ -184,9 +175,9 @@ form.make button { justify-self: start; height: 32px; padding: 0 16px; }
 `;
 
 const CHROME = String.raw`<header class="chrome">
-  <a class="brand" href="/" title="回到 Gallery"><span class="brand-mark" aria-hidden="true"></span><b>Analog Canvas</b></a>
-  <a class="pill" href="/editor" title="打开编辑器"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.9 2.6 3.5 3.5-6.8 6.8-4.1.7.7-4.1 6.7-6.9Zm-1.6 1.6 3.5 3.5M3.2 12.8l2.5-.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Editor</span></a>
-  <span class="crumb">选题板</span>
+  <a class="brand" href="/" title="Back to the Gallery"><span class="brand-mark" aria-hidden="true"></span><b>Analog Canvas</b></a>
+  <a class="pill" href="/editor" title="Open the editor"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m9.9 2.6 3.5 3.5-6.8 6.8-4.1.7.7-4.1 6.7-6.9Zm-1.6 1.6 3.5 3.5M3.2 12.8l2.5-.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Editor</span></a>
+  <span class="crumb">Selection board</span>
   <div class="who" id="who"></div>
 </header>`;
 
@@ -215,26 +206,24 @@ async function boardCommand(path, body, account) {
   return response;
 }
 var MESSAGES = {
-  "entry-not-public": "找不到这个条目，或它不在公开的 Gallery 上",
-  "entry-already-on-board": "这道题已经在板上了",
-  "board-full": "名额已满",
-  "board-locked": "板已锁定，不能再改",
-  "sign-in-required": "请先登录",
-  "blocked": "这个账号不能修改",
-  "not-allowed": "只有创建者或管理员能解锁",
-  "slots-below-items": "名额不能少于已有的题数",
-  "bad-slots": "名额要在 1 到 500 之间",
-  "bad-changes": "没认出这个链接或编号",
-  "bad-entry": "没认出这个链接或编号",
-  "missing-title": "请填写名字",
-  "admin-only": "只有管理员能新建选题板",
-  "board-not-found": "没有这个选题板，链接可能不完整",
-  "cross-origin": "请在本站页面上操作"
+  "entry-not-public": "No such entry, or it is not public in the Gallery",
+  "entry-already-on-board": "Already on the board",
+  "board-full": "The board is full",
+  "board-locked": "The board is locked",
+  "sign-in-required": "Sign in first",
+  "blocked": "This account cannot make changes",
+  "slots-below-items": "Slots cannot be fewer than the entries on the board",
+  "bad-slots": "Slots must be between 1 and 500",
+  "bad-changes": "Not a Gallery link or entry ID",
+  "bad-entry": "Not a Gallery link or entry ID",
+  "missing-title": "Give the board a name",
+  "board-changed": "Someone else just changed the board; reload and try again",
+  "cross-origin": "Make changes from this site's own page"
 };
 function message(payload) {
-  var text = MESSAGES[payload && payload.error] || (payload && payload.error) || "出错了";
-  if (payload && payload.entryId) text += "：" + payload.entryId;
-  if (payload && payload.entry) text += "：" + payload.entry;
+  var text = MESSAGES[payload && payload.error] || (payload && payload.error) || "Something went wrong";
+  if (payload && payload.entryId) text += ": " + payload.entryId;
+  if (payload && payload.entry) text += ": " + payload.entry;
   return text;
 }
 function el(tag, attrs, children) {
@@ -251,13 +240,13 @@ function el(tag, attrs, children) {
 function signInLinks(path) {
   var back = encodeURIComponent(path);
   return [
-    el("a", { href: "/api/auth/github/start?return=" + back, text: "用 GitHub 登录" }),
-    el("a", { href: "/api/auth/google/start?return=" + back, text: "用 Google 登录" }),
-    el("a", { href: "/", target: "_blank", rel: "noopener", text: "其他登录方式" })
+    el("a", { href: "/api/auth/github/start?return=" + back, text: "Sign in with GitHub" }),
+    el("a", { href: "/api/auth/google/start?return=" + back, text: "Sign in with Google" }),
+    el("a", { href: "/", target: "_blank", rel: "noopener", text: "Other ways to sign in" })
   ];
 }
 function account(name) {
-  return el("a", { class: "account", href: "/account", title: "你的账号", "data-initial": (name || "?").trim().charAt(0).toUpperCase(), text: name });
+  return el("a", { class: "account", href: "/account", title: "Your account", "data-initial": (name || "?").trim().charAt(0).toUpperCase(), text: name });
 }
 function splitEntries(text) {
   return text.split(/[\s,，]+/).map(function (part) { return part.trim(); }).filter(Boolean);
@@ -266,12 +255,12 @@ function splitEntries(text) {
 
 export const BOARD_PAGE =
   String.raw`<!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>选题板</title>
+<title>Selection board</title>
 <style>` +
   STYLE +
   String.raw`</style>
@@ -285,11 +274,11 @@ export const BOARD_PAGE =
   <main class="main">
     <div class="recent" id="recent"></div>
     <div class="history" id="history" hidden><ol id="events"></ol></div>
-    <div class="head"><h1 id="title">选题板</h1><div class="meta" id="meta"></div></div>
+    <div class="head"><h1 id="title">Selection board</h1><div class="meta" id="meta"></div></div>
     <div class="add" id="add" hidden>
-      <textarea id="add-entries" rows="1" placeholder="粘贴 Gallery 链接或编号，一次可以贴多个"></textarea>
-      <input id="add-note" placeholder="备注（选填，比如入选理由）">
-      <button class="primary" id="add-go">加入</button>
+      <textarea id="add-entries" rows="1" placeholder="Paste Gallery links or entry IDs, several at once if you like"></textarea>
+      <input id="add-note" placeholder="Note (optional, e.g. why it was picked)">
+      <button class="primary" id="add-go">Add</button>
     </div>
     <p class="status" id="status"></p>
     <div class="grid" id="grid"></div>
@@ -299,24 +288,20 @@ export const BOARD_PAGE =
 ` +
   SHARED +
   String.raw`
-var id = location.pathname.split("/").filter(Boolean)[1];
-var api = "/api/boards/" + encodeURIComponent(id);
+var api = "/api/board";
 var state = null, busy = false, lightbox = null;
 // What the map filters the grid by: one value per dimension, or null.
 var filter = { type: null, size: null, level: null };
-var TYPE_LABELS = { "Amplifiers": "放大器", "Buffers": "缓冲器", "Bias & references": "偏置与基准", "Filters": "滤波器",
-  "Conversion": "数据转换", "Clock & timing": "时钟与定时", "Logic & memory": "逻辑与存储", "Power": "电源",
-  "RF & communications": "射频与通信", "Sampling": "采样", "Sensors": "传感器", "Devices & models": "器件与模型", "Computing": "计算" };
 var SIZES = [["≤5", 0, 5], ["6–10", 6, 10], ["11–20", 11, 20], ["21–40", 21, 40], [">40", 41, Infinity]];
 function typeOf(item) { return item.type || (item.entry && item.entry.tagType) || null; }
-function typeLabel(type) { return type ? (TYPE_LABELS[type] || type) : "未分类"; }
+function typeLabel(type) { return type || "Unclassified"; }
 function sizeOf(item) {
   var n = item.entry ? item.entry.transistors : null;
-  if (n === null || n === undefined) return "未知";
+  if (n === null || n === undefined) return "Unknown";
   for (var i = 0; i < SIZES.length; i++) if (n >= SIZES[i][1] && n <= SIZES[i][2]) return SIZES[i][0];
-  return "未知";
+  return "Unknown";
 }
-function levelOf(item) { var l = item.entry && item.entry.levels; return l === "single" ? "单层" : l === "multi" ? "多层" : "未知"; }
+function levelOf(item) { var l = item.entry && item.entry.levels; return l === "single" ? "Single-level" : l === "multi" ? "Multi-level" : "Unknown"; }
 function shown(item) {
   return (filter.type === null || typeLabel(typeOf(item)) === filter.type)
     && (filter.size === null || sizeOf(item) === filter.size)
@@ -336,54 +321,54 @@ function canvas(entryId) { return "/g/" + encodeURIComponent(entryId); }
 async function load() {
   var response = await fetch(api, { cache: "no-store" });
   var payload = await response.json().catch(function () { return {}; });
-  if (!response.ok) { say(message(payload), true); $("title").textContent = "选题板"; return; }
+  if (!response.ok) { say(message(payload), true); $("title").textContent = "Selection board"; return; }
   state = payload;
   render();
 }
 async function change(changes, done) {
   if (busy) return;
-  busy = true; say("保存中 …");
+  busy = true; say("Saving …");
   try {
-    var response = await boardCommand(api + "/changes", { changes: changes, expectedRevision: state.board.revision }, state.viewer.accountId);
+    var response = await boardCommand(api + "/changes", state.board.revision > 0 ? { changes: changes, expectedRevision: state.board.revision } : { changes: changes }, state.viewer.accountId);
     var payload = await response.json().catch(function () { return {}; });
     if (!response.ok) { say(message(payload), true); return; }
-    state = payload; render(); say(done || "已保存");
+    state = payload; render(); say(done || "Saved");
   } finally { busy = false; }
 }
 
 function render() {
   var board = state.board, viewer = state.viewer, items = state.items;
-  document.title = board.title + " · 选题板";
+  document.title = board.title + " · Selection board";
   var title = $("title");
   title.textContent = board.title;
   title.className = editable() ? "editable" : "";
-  title.title = editable() ? "点击改名" : "";
+  title.title = editable() ? "Click to rename" : "";
   title.onclick = editable() ? function () {
-    inlineEdit(title, board.title, {}, function (next) { change([{ kind: "rename", title: next }], "已改名"); });
+    inlineEdit(title, board.title, {}, function (next) { change([{ kind: "rename", title: next }], "Renamed"); });
   } : null;
   var meta = $("meta"); meta.textContent = "";
   var slots = el("span", { text: String(board.slots) });
   if (editable()) {
     slots.className = "editable";
-    slots.title = "点击改名额";
+    slots.title = "Click to change the slots";
     slots.onclick = function () {
-      inlineEdit(slots, String(board.slots), { type: "number" }, function (next) { change([{ kind: "slots", slots: Number(next) }], "名额已改"); });
+      inlineEdit(slots, String(board.slots), { type: "number" }, function (next) { change([{ kind: "slots", slots: Number(next) }], "Slots changed"); });
     };
   }
-  meta.append(items.length + " / ", slots, " 道 · " + board.createdBy + " 创建于 " + when(board.createdAt));
-  meta.append(el("a", { href: api + "/export", target: "_blank", rel: "noopener", text: "导出名单（JSON）" }));
-  if (board.lockedAt) meta.append(el("span", { class: "badge warn", text: "已锁定" }));
-  if (board.lockedAt && viewer.canUnlock) meta.append(el("button", { text: "解锁", onclick: function () { change([{ kind: "unlock" }], "已解锁"); } }));
+  meta.append(items.length + " / ", slots, " entries" + (board.createdAt ? " · started by " + board.createdBy + " on " + when(board.createdAt) : ""));
+  meta.append(el("a", { href: api + "/export", target: "_blank", rel: "noopener", text: "Export the list (JSON)" }));
+  if (board.lockedAt) meta.append(el("span", { class: "badge warn", text: "Locked" }));
+  if (board.lockedAt && viewer.canUnlock) meta.append(el("button", { text: "Unlock", onclick: function () { change([{ kind: "unlock" }], "Unlocked"); } }));
   var who = $("who"); who.textContent = "";
   if (viewer.signedIn) who.append(account(viewer.name));
-  else signInLinks(location.pathname).forEach(function (a) { a.title = "登录后才能修改"; who.append(a); });
+  else signInLinks(location.pathname).forEach(function (a) { a.title = "Sign in to make changes"; who.append(a); });
 
   var recent = $("recent"); recent.textContent = "";
   var latest = state.events[0];
   if (latest) {
     recent.append(
-      el("span", { class: "text", title: sentence(latest) }, [el("b", { text: "最近改动 " }), when(latest.at) + " · " + sentence(latest)]),
-      el("button", { text: $("history").hidden ? "全部改动（" + state.events.length + "）" : "收起", onclick: function () { $("history").hidden = !$("history").hidden; render(); } })
+      el("span", { class: "text", title: sentence(latest) }, [el("b", { text: "Latest change " }), when(latest.at) + " · " + sentence(latest)]),
+      el("button", { text: $("history").hidden ? "All changes (" + state.events.length + ")" : "Hide", onclick: function () { $("history").hidden = !$("history").hidden; render(); } })
     );
   }
 
@@ -394,7 +379,7 @@ function render() {
 
   renderMap(items);
   var grid = $("grid"); grid.textContent = "";
-  if (!items.length) grid.append(el("div", { class: "empty", text: editable() ? "还没有题。把 Gallery 链接贴到上面，点“加入”。" : "还没有题。" }));
+  if (!items.length) grid.append(el("div", { class: "empty", text: editable() ? "No entries yet. Paste Gallery links above and click Add." : viewer.signedIn ? "No entries yet." : "No entries yet. Sign in to add some." }));
   items.forEach(function (item, index) { if (shown(item)) grid.append(card(item, index, items.length)); });
 }
 
@@ -408,7 +393,7 @@ function renderMap(items) {
     var max = 1;
     for (var k in c) max = Math.max(max, c[k]);
     return el("section", { class: "group" }, [el("h3", { text: title })].concat(keys.filter(function (k) { return c[k]; }).map(function (k) {
-      return el("button", { class: "bar", "aria-pressed": filter[dimension] === k ? "true" : "false", title: k + "：" + c[k] + " 道",
+      return el("button", { class: "bar", "aria-pressed": filter[dimension] === k ? "true" : "false", title: k + ": " + c[k] + (c[k] === 1 ? " entry" : " entries"),
         onclick: function () { filter[dimension] = filter[dimension] === k ? null : k; render(); } }, [
         el("span", { class: "lab", text: k }),
         el("span", { class: "track" }, [el("span", { class: "fill", style: "width:" + Math.round(100 * c[k] / max) + "%" })]),
@@ -417,20 +402,20 @@ function renderMap(items) {
     })));
   }
   var types = counts(function (item) { return typeLabel(typeOf(item)); });
-  var typeKeys = Object.keys(types).filter(function (k) { return k !== "未分类"; })
-    .sort(function (a, b) { return types[b] - types[a] || a.localeCompare(b); }).concat(["未分类"]);
+  var typeKeys = Object.keys(types).filter(function (k) { return k !== "Unclassified"; })
+    .sort(function (a, b) { return types[b] - types[a] || a.localeCompare(b); }).concat(["Unclassified"]);
   var active = filter.type !== null || filter.size !== null || filter.level !== null;
   var showing = items.filter(shown).length;
   map.append(el("div", { class: "side" }, [
     el("div", { class: "side-head" }, [
-      el("h2", { text: "分类图谱" }),
-      active ? el("button", { class: "clear", text: "清除筛选", onclick: function () { filter = { type: null, size: null, level: null }; render(); } }) : null
+      el("h2", { text: "Map" }),
+      active ? el("button", { class: "clear", text: "Clear filters", onclick: function () { filter = { type: null, size: null, level: null }; render(); } }) : null
     ]),
-    el("p", { class: "side-note", text: active ? "显示 " + showing + " / " + items.length + " 道" : "共 " + items.length + " 道，点一类只看它" }),
+    el("p", { class: "side-note", text: active ? "Showing " + showing + " / " + items.length : items.length + (items.length === 1 ? " entry" : " entries") + "; click a bar to show only it" }),
     el("div", { class: "groups" }, [
-      column("电路类型", "type", types, typeKeys),
-      column("晶体管数量", "size", counts(sizeOf), SIZES.map(function (s) { return s[0]; }).concat(["未知"])),
-      column("单层 / 多层", "level", counts(levelOf), ["单层", "多层", "未知"])
+      column("Circuit type", "type", types, typeKeys),
+      column("Transistors", "size", counts(sizeOf), SIZES.map(function (s) { return s[0]; }).concat(["Unknown"])),
+      column("Levels", "level", counts(levelOf), ["Single-level", "Multi-level", "Unknown"])
     ])
   ]));
 }
@@ -439,17 +424,17 @@ function chips(item) {
   var type = typeOf(item), auto = !item.type && type;
   var typeChip;
   if (editable()) {
-    typeChip = el("select", { title: auto ? "按 Gallery 标签自动归类，可以改" : "电路类型", onchange: function (e) {
+    typeChip = el("select", { title: auto ? "Taken from the entry's Gallery tags; you can change it" : "Circuit type", onchange: function (e) {
       var next = e.target.value || null;
-      change([{ kind: "type", itemId: item.id, type: next }], next ? "已归为「" + typeLabel(next) + "」" : "已改为未分类");
-    } }, [el("option", { value: "", text: "未分类" })].concat((state.types || []).map(function (t) {
-      return el("option", { value: t, text: typeLabel(t) + (auto && t === type ? "（自动）" : "") });
+      change([{ kind: "type", itemId: item.id, type: next }], next ? "Classified as " + typeLabel(next) : "Marked unclassified");
+    } }, [el("option", { value: "", text: "Unclassified" })].concat((state.types || []).map(function (t) {
+      return el("option", { value: t, text: typeLabel(t) + (auto && t === type ? " (auto)" : "") });
     })));
     typeChip.value = type || "";
   } else typeChip = el("span", { class: "chip", text: typeLabel(type) });
   return el("div", { class: "chips" }, [
     typeChip,
-    el("span", { class: "chip", text: item.entry.transistors === null ? "晶体管 ?" : "晶体管 " + item.entry.transistors }),
+    el("span", { class: "chip", text: item.entry.transistors === null ? "? transistors" : item.entry.transistors + (item.entry.transistors === 1 ? " transistor" : " transistors") }),
     el("span", { class: "chip", text: levelOf(item) })
   ]);
 }
@@ -457,52 +442,52 @@ function nameOf(entryId) { return (state.entryNames && state.entryNames[entryId]
 function sentence(event) {
   var who = event.actor + " ";
   switch (event.action) {
-    case "create": return who + "创建了这个板「" + event.detail + "」";
-    case "add": return who + "加入了「" + nameOf(event.entryId) + "」" + (event.detail ? "，备注：" + event.detail : "");
-    case "replace": return who + "把「" + nameOf(event.previousEntryId) + "」换成了「" + nameOf(event.entryId) + "」" + (event.detail ? "，备注：" + event.detail : "");
-    case "remove": return who + "移出了「" + nameOf(event.previousEntryId) + "」";
-    case "type": return who + (event.detail ? "把「" + nameOf(event.entryId) + "」归为「" + typeLabel(event.detail) + "」" : "取消了「" + nameOf(event.entryId) + "」的类型");
-    case "note": return who + "给「" + nameOf(event.entryId) + "」写了备注：" + (event.detail || "（清空）");
-    case "move": return who + "把「" + nameOf(event.entryId) + "」从第 " + event.detail.replace("→", " 位挪到第 ") + " 位";
-    case "rename": return who + "把板改名为「" + event.detail + "」";
-    case "slots": return who + "把名额改成 " + event.detail;
-    case "lock": return who + "锁定了这个板";
-    case "unlock": return who + "解锁了这个板";
+    case "create": return who + "started the board \u201c" + event.detail + "\u201d";
+    case "add": return who + "added \u201c" + nameOf(event.entryId) + "\u201d" + (event.detail ? ", note: " + event.detail : "");
+    case "replace": return who + "replaced \u201c" + nameOf(event.previousEntryId) + "\u201d with \u201c" + nameOf(event.entryId) + "\u201d" + (event.detail ? ", note: " + event.detail : "");
+    case "remove": return who + "removed \u201c" + nameOf(event.previousEntryId) + "\u201d";
+    case "type": return who + (event.detail ? "classified \u201c" + nameOf(event.entryId) + "\u201d as " + typeLabel(event.detail) : "cleared the type of \u201c" + nameOf(event.entryId) + "\u201d");
+    case "note": return who + "noted \u201c" + nameOf(event.entryId) + "\u201d: " + (event.detail || "(cleared)");
+    case "move": return who + "moved \u201c" + nameOf(event.entryId) + "\u201d from #" + event.detail.replace("→", " to #");
+    case "rename": return who + "renamed the board \u201c" + event.detail + "\u201d";
+    case "slots": return who + "set the slots to " + event.detail;
+    case "lock": return who + "locked the board";
+    case "unlock": return who + "unlocked the board";
     default: return who + event.action;
   }
 }
 
 function card(item, index, count) {
   var entry = item.entry;
-  var thumb = el("button", { class: "thumb", title: entry ? "放大看" : "", onclick: function () { if (entry) open(item); } }, [
-    entry ? el("img", { src: preview(item), alt: entry.name, loading: "lazy" }) : el("div", { class: "gone", text: "这道题已不在公开的 Gallery 上" }),
+  var thumb = el("button", { class: "thumb", title: entry ? "Enlarge" : "", onclick: function () { if (entry) open(item); } }, [
+    entry ? el("img", { src: preview(item), alt: entry.name, loading: "lazy" }) : el("div", { class: "gone", text: "No longer public in the Gallery" }),
     el("span", { class: "n", text: String(index + 1) })
   ]);
   var body = el("div", { class: "body" }, [
     el("div", { class: "name" }, [entry ? entry.name : item.entryId, entry && entry.ai ? el("span", { class: "mark ai", text: "AI" }) : null]),
-    entry ? el("div", { class: "small", text: "作者 " + entry.author + (entry.components ? " · 元件 " + entry.components : "") }) : null,
-    el("div", { class: "small", text: item.addedBy + " 放入 · " + when(item.addedAt) }),
+    entry ? el("div", { class: "small", text: "by " + entry.author + (entry.components ? " · " + entry.components + (entry.components === 1 ? " part" : " parts") : "") }) : null,
+    el("div", { class: "small", text: "added by " + item.addedBy + " · " + when(item.addedAt) }),
     entry ? chips(item) : null,
     item.note ? el("div", { class: "note", text: item.note }) : null
   ]);
-  var actions = el("div", { class: "actions" }, [el("a", { class: "pill", href: canvas(item.entryId), target: "_blank", rel: "noopener", text: "在 Canvas 打开 ↗" })]);
+  var actions = el("div", { class: "actions" }, [el("a", { class: "pill", href: canvas(item.entryId), target: "_blank", rel: "noopener", text: "Open in Canvas ↗" })]);
   if (editable()) {
     var tools = el("div", { class: "tools" });
-    tools.append(el("button", { text: "换", onclick: function () {
-      ask("把「" + (entry ? entry.name : item.entryId) + "」换成哪道题？", { placeholder: "贴 Gallery 链接或编号" }).then(function (next) {
-        if (next && next.trim()) change([{ kind: "replace", itemId: item.id, entry: next.trim() }], "已换");
+    tools.append(el("button", { text: "Replace", onclick: function () {
+      ask("Replace \u201c" + (entry ? entry.name : item.entryId) + "\u201d with:", { placeholder: "A Gallery link or entry ID" }).then(function (next) {
+        if (next && next.trim()) change([{ kind: "replace", itemId: item.id, entry: next.trim() }], "Replaced");
       });
     } }));
-    tools.append(el("button", { text: "备注", onclick: function () {
-      ask("备注", { value: item.note, multiline: true }).then(function (note) {
-        if (note !== null && note !== item.note) change([{ kind: "note", itemId: item.id, note: note }], "备注已存");
+    tools.append(el("button", { text: "Note", onclick: function () {
+      ask("Note", { value: item.note, multiline: true }).then(function (note) {
+        if (note !== null && note !== item.note) change([{ kind: "note", itemId: item.id, note: note }], "Note saved");
       });
     } }));
-    tools.append(el("button", { text: "↑", title: "往前挪", disabled: index === 0, onclick: function () { change([{ kind: "move", itemId: item.id, to: index - 1 }], "已挪动"); } }));
-    tools.append(el("button", { text: "↓", title: "往后挪", disabled: index === count - 1, onclick: function () { change([{ kind: "move", itemId: item.id, to: index + 1 }], "已挪动"); } }));
-    tools.append(el("button", { text: "移出", onclick: function () {
-      confirmBox("把「" + (entry ? entry.name : item.entryId) + "」移出这个板？", "移出").then(function (yes) {
-        if (yes) change([{ kind: "remove", itemId: item.id }], "已移出");
+    tools.append(el("button", { text: "↑", title: "Move up", disabled: index === 0, onclick: function () { change([{ kind: "move", itemId: item.id, to: index - 1 }], "Moved"); } }));
+    tools.append(el("button", { text: "↓", title: "Move down", disabled: index === count - 1, onclick: function () { change([{ kind: "move", itemId: item.id, to: index + 1 }], "Moved"); } }));
+    tools.append(el("button", { text: "Remove", onclick: function () {
+      confirmBox("Remove \u201c" + (entry ? entry.name : item.entryId) + "\u201d from the board?", "Remove").then(function (yes) {
+        if (yes) change([{ kind: "remove", itemId: item.id }], "Removed");
       });
     } }));
     actions.append(tools);
@@ -518,9 +503,9 @@ function open(item) {
       el("div", { class: "img" }, [el("img", { src: preview(item), alt: item.entry.name })]),
       el("div", { class: "cap" }, [
         el("b", { text: item.entry.name }),
-        el("span", { class: "small", text: "作者 " + item.entry.author }),
-        el("a", { class: "pill", href: canvas(item.entryId), target: "_blank", rel: "noopener", text: "在 Canvas 打开 ↗" }),
-        el("button", { text: "关闭", onclick: close })
+        el("span", { class: "small", text: "by " + item.entry.author }),
+        el("a", { class: "pill", href: canvas(item.entryId), target: "_blank", rel: "noopener", text: "Open in Canvas ↗" }),
+        el("button", { text: "Close", onclick: close })
       ])
     ])
   ]);
@@ -566,12 +551,12 @@ function ask(title, options) {
     field.value = options.value || "";
     if (options.placeholder) field.placeholder = options.placeholder;
     function finish(value) { if (dialog) { dialog.remove(); dialog = null; } resolve(value); }
-    var ok = el("button", { class: "primary", text: options.ok || "确定", onclick: function () { finish(options.confirmOnly ? "" : field.value); } });
+    var ok = el("button", { class: "primary", text: options.ok || "OK", onclick: function () { finish(options.confirmOnly ? "" : field.value); } });
     dialog = el("div", { class: "lightbox", onclick: function (e) { if (e.target === dialog) finish(null); } }, [
       el("div", { class: "box dialog" }, [
         el("b", { text: title }),
         options.confirmOnly ? null : field,
-        el("div", { class: "row" }, [el("button", { text: "取消", onclick: function () { finish(null); } }), ok])
+        el("div", { class: "row" }, [el("button", { text: "Cancel", onclick: function () { finish(null); } }), ok])
       ])
     ]);
     dialog.cancel = function () { finish(null); };
@@ -592,9 +577,9 @@ document.addEventListener("keydown", function (e) {
 
 $("add-go").addEventListener("click", function () {
   var entries = splitEntries($("add-entries").value);
-  if (!entries.length) return say("先贴 Gallery 链接或编号", true);
+  if (!entries.length) return say("Paste a Gallery link or entry ID first", true);
   var note = $("add-note").value.trim();
-  change(entries.map(function (entry) { return { kind: "add", entry: entry, note: note }; }), "已加入 " + entries.length + " 道").then(function () {
+  change(entries.map(function (entry) { return { kind: "add", entry: entry, note: note }; }), "Added " + entries.length + (entries.length === 1 ? " entry" : " entries")).then(function () {
     if (!$("status").classList.contains("bad")) { $("add-entries").value = ""; $("add-note").value = ""; }
   });
 });
@@ -608,68 +593,6 @@ setInterval(async function () {
   if (payload.board.revision !== state.board.revision) { state = payload; render(); }
 }, 10000);
 load();
-</script>
-</body>
-</html>
-`;
-
-export const BOARDS_HOME_PAGE =
-  String.raw`<!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>选题板</title>
-<style>` +
-  STYLE +
-  String.raw`</style>
-</head>
-<body>
-` +
-  CHROME +
-  String.raw`
-<div class="page">
-  <h1>选题板</h1>
-  <p class="lead">一个选题板是一串 Gallery 电路的有序名单，拿到链接的人都能看；登录后可以加、换、删，每次改动都记下是谁做的。</p>
-  <p class="status" id="status"></p>
-  <div id="main"></div>
-</div>
-<script>
-` +
-  SHARED +
-  String.raw`
-function $(name) { return document.getElementById(name); }
-(async function () {
-  var me = await fetch("/api/auth/me", { cache: "no-store" }).then(function (r) { return r.json(); }).catch(function () { return {}; });
-  var user = me && me.user;
-  var who = $("who");
-  if (user) who.append(account(user.displayName));
-  else signInLinks("/boards").forEach(function (a) { who.append(a); });
-  if (!user || !user.isAdmin) {
-    $("main").append(el("p", { class: "empty", text: "只有管理员能新建选题板。要看或修改一个板，请向管理员要它的链接。" }));
-    return;
-  }
-  var title = el("input", { required: "required", maxlength: "120", placeholder: "比如：第一赛季评分基准" });
-  var slots = el("input", { type: "number", min: "1", max: "500", value: "50" });
-  var entries = el("textarea", { placeholder: "可选：一开始就放进去的 Gallery 链接或编号，每行一个" });
-  var go = el("button", { class: "primary", type: "submit", text: "新建选题板" });
-  var form = el("form", { class: "make" }, [
-    el("label", null, ["名字", title]),
-    el("label", null, ["名额", slots]),
-    el("label", null, ["初始名单", entries]),
-    go
-  ]);
-  form.addEventListener("submit", async function (event) {
-    event.preventDefault();
-    go.disabled = true; $("status").textContent = "新建中 …"; $("status").className = "status";
-    var response = await boardCommand("/api/boards", { title: title.value.trim(), slots: Number(slots.value), entries: splitEntries(entries.value) }, user.id);
-    var payload = await response.json().catch(function () { return {}; });
-    if (!response.ok) { $("status").textContent = message(payload); $("status").className = "status bad"; go.disabled = false; return; }
-    location.href = "/boards/" + payload.board.id;
-  });
-  $("main").append(form);
-})();
 </script>
 </body>
 </html>

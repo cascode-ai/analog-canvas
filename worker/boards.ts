@@ -1,13 +1,13 @@
-// Selection boards (docs/specs/selection-boards.md) at /boards/<id>: an ordered list
-// of Gallery entries. Anyone holding a board's link sees its entries' names, authors
-// and previews; any signed-in account that is not blocked may change it, and every
-// change is recorded under that account. An administrator makes a board at /boards.
+// The selection board (docs/specs/selection-boards.md) at /boards: one ordered list
+// of Gallery entries. Anyone sees its entries' names, authors and previews; any
+// signed-in account that is not blocked may change it, and every change is recorded
+// under that account. Its first change makes it.
 // A board may hold reference datasets' circuits (ag-308, ct-001…) beside the wall's:
 // the board's own store keeps their ids, and their names, facts and drawings come
 // from each dataset's store here.
 
 import { sessionUserOf, type SessionUser } from "./auth";
-import { BOARDS_HOME_PAGE, BOARD_PAGE } from "./boards-page";
+import { BOARD_PAGE } from "./boards-page";
 import { parseProject } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import {
@@ -68,16 +68,13 @@ function edgeCache(): Cache | null {
   );
 }
 
-/** A board's id is its link: 24 letters and digits, about 143 bits. */
-const BOARD_ID = /^[A-Za-z0-9]{24}$/u;
 /** A Gallery entry id as the wall and /g/<id> name it. */
 const ENTRY_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{2,63}$/u;
 
-function newBoardId(): string {
-  const alphabet =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(24));
-  return Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join("");
+/** The one board's id in the store (gallery-store-boards.ts mainBoardId). */
+export async function mainBoardIdOf(env: GalleryEnv): Promise<string> {
+  const { payload } = await callGallery<{ id: string }>(env, "board-main", {});
+  return payload.id;
 }
 
 /**
@@ -148,13 +145,12 @@ async function editor(
   return user;
 }
 
-/** What the page may offer this reader; the board keeps who made it to itself. */
+/** What the page may offer this reader; the board keeps its maker's account to itself. */
 export function withViewer(
   payload: Record<string, unknown>,
   user: SessionUser | null,
 ) {
   const board = { ...(payload.board as Record<string, unknown>) };
-  const madeIt = user !== null && board.createdById === user.id;
   delete board.createdById;
   return {
     ...payload,
@@ -165,7 +161,7 @@ export function withViewer(
           accountId: user.id,
           name: user.displayName,
           canEdit: true,
-          canUnlock: user.isAdmin || madeIt,
+          canUnlock: true,
           admin: user.isAdmin,
         }
       : {
@@ -275,59 +271,23 @@ export async function routeBoardsRequest(
   const method = request.method;
 
   if (url.pathname === "/boards" || url.pathname === "/boards/") {
-    return method === "GET" ? page(BOARDS_HOME_PAGE) : null;
+    return method === "GET" ? page(BOARD_PAGE) : null;
   }
-  const pageMatch = /^\/boards\/([^/]+)\/?$/u.exec(url.pathname);
-  if (pageMatch && method === "GET") {
-    return BOARD_ID.test(pageMatch[1]!) ? page(BOARD_PAGE) : null;
-  }
+  // A link from when there were several boards opens the one board.
+  if (/^\/boards\/[^/]+\/?$/u.test(url.pathname) && method === "GET")
+    return Response.redirect(`${url.origin}/boards`, 301);
 
-  if (!url.pathname.startsWith("/api/boards")) return null;
+  if (url.pathname !== "/api/board" && !url.pathname.startsWith("/api/board/"))
+    return null;
   const segments = url.pathname
-    .slice("/api/boards".length)
+    .slice("/api/board".length)
     .split("/")
     .filter(Boolean)
     .map((segment) => decodeURIComponent(segment));
+  const boardId = await mainBoardIdOf(env);
 
-  // POST /api/boards — an administrator makes a board.
-  if (segments.length === 0) {
-    if (method !== "POST") return json({ error: "method-not-allowed" }, 405);
-    const user = await editor(request, env);
-    if (user instanceof Response) return user;
-    if (!user.isAdmin) return json({ error: "admin-only" }, 403);
-    const body = await readBody(request);
-    if (!body) return json({ error: "bad-request" }, 400);
-    const entries: string[] = [];
-    for (const value of Array.isArray(body.entries) ? body.entries : []) {
-      const id = entryIdOf(value);
-      if (!id) return json({ error: "bad-entry", entry: String(value) }, 400);
-      entries.push(id);
-    }
-    const { status, payload } = await callGallery<Record<string, unknown>>(
-      env,
-      "board-create",
-      {
-        id: newBoardId(),
-        title: body.title,
-        slots: body.slots ?? 50,
-        entries,
-        datasetPublic: await datasetPublicIds(env, entries),
-        actor: actorOf(user),
-      },
-    );
-    return json(
-      status === 200
-        ? withViewer(await withDatasetEntries(env, payload), user)
-        : payload,
-      status,
-    );
-  }
-
-  const boardId = segments[0]!;
-  if (!BOARD_ID.test(boardId)) return json({ error: "board-not-found" }, 404);
-
-  // GET /api/boards/<id> — the board, for anyone holding its link.
-  if (segments.length === 1 && method === "GET") {
+  // GET /api/board — the board, for anyone.
+  if (segments.length === 0 && method === "GET") {
     const { status, payload } = await callGallery<Record<string, unknown>>(
       env,
       "board-read",
@@ -342,8 +302,8 @@ export async function routeBoardsRequest(
     );
   }
 
-  // POST /api/boards/<id>/changes — add, replace, remove, move, note, rename, lock.
-  if (segments.length === 2 && segments[1] === "changes") {
+  // POST /api/board/changes — add, replace, remove, move, note, rename, lock.
+  if (segments.length === 1 && segments[0] === "changes") {
     if (method !== "POST") return json({ error: "method-not-allowed" }, 405);
     const user = await editor(request, env);
     if (user instanceof Response) return user;
@@ -371,8 +331,8 @@ export async function routeBoardsRequest(
     );
   }
 
-  // GET /api/boards/<id>/export — the list in order, for scripts.
-  if (segments.length === 2 && segments[1] === "export" && method === "GET") {
+  // GET /api/board/export — the list in order, for scripts.
+  if (segments.length === 1 && segments[0] === "export" && method === "GET") {
     const { status, payload } = await callGallery<{
       board?: {
         title: string;
@@ -422,9 +382,9 @@ export async function routeBoardsRequest(
     });
   }
 
-  // GET /api/boards/<id>/preview/<entry id> — an entry's preview while it is on the board.
-  if (segments.length === 3 && segments[1] === "preview" && method === "GET") {
-    const entryId = segments[2]!.replace(/\.svg$/u, "");
+  // GET /api/board/preview/<entry id> — an entry's preview while it is on the board.
+  if (segments.length === 2 && segments[0] === "preview" && method === "GET") {
+    const entryId = segments[1]!.replace(/\.svg$/u, "");
     if (!ENTRY_ID.test(entryId)) return json({ error: "not-found" }, 404);
     type Drawing = {
       dataset?: boolean;
@@ -433,11 +393,10 @@ export async function routeBoardsRequest(
       svgText?: string;
       projectText?: string;
     };
-    let { status, payload } = await callGallery<Drawing>(
-      env,
-      "board-preview",
-      { id: boardId, entryId },
-    );
+    let { status, payload } = await callGallery<Drawing>(env, "board-preview", {
+      id: boardId,
+      entryId,
+    });
     // On the board, and a reference dataset's circuit: its drawing is in its own store.
     const source = gallerySourceOfEntryId(entryId);
     if (status === 200 && payload.dataset && source)
