@@ -1700,20 +1700,25 @@ function WorkspaceEditor({
     request: CellInterfaceConfirmation;
     snapshot: typeof project;
   } | null>(null);
-  const { commitStructure, transact, gateConnectivity, transactConnectivity } =
-    createEditorTransactionCommands({
-      project,
-      document,
-      resolver,
-      ...(documentContactEvidence
-        ? { contactEvidence: documentContactEvidence }
-        : {}),
-      dispatchProjectTransaction,
-      transactDocument,
-      getCurrentInteractionKind: () => getCurrentInteractionState().kind,
-      cancelAllTransientInteraction,
-      setStatus,
-    });
+  const {
+    commitStructure,
+    transact,
+    gateConnectivity,
+    commitComponentPlacement,
+    transactConnectivity,
+  } = createEditorTransactionCommands({
+    project,
+    document,
+    resolver,
+    ...(documentContactEvidence
+      ? { contactEvidence: documentContactEvidence }
+      : {}),
+    dispatchProjectTransaction,
+    transactDocument,
+    getCurrentInteractionKind: () => getCurrentInteractionState().kind,
+    cancelAllTransientInteraction,
+    setStatus,
+  });
   const {
     renameCell,
     renameCellTerminal,
@@ -3206,6 +3211,17 @@ function WorkspaceEditor({
     ? (placementResolver.resolve(pendingSymbolId)?.definition ??
       findPaletteSymbol(document.presentation.styleProfileId, pendingSymbolId))
     : undefined;
+  const processFill = (
+    edits: readonly SchematicEdit[],
+    placement?: Parameters<typeof placementProcessFill>[4],
+  ) =>
+    placementProcessFill(
+      project,
+      netlistPreferences.preferences,
+      document.id,
+      edits,
+      placement,
+    );
   const {
     beginRetainedInstancePlacement: beginRetainedInstancePlacementFromHook,
     cancelComponentInsert: cancelComponentInsertFromHook,
@@ -3237,18 +3253,14 @@ function WorkspaceEditor({
     transact,
     transactConnectivity,
     gateConnectivity,
+    commitComponentPlacement: (edits, effect) =>
+      commitComponentPlacement(edits, effect, processFill),
     transactProject: (transactionId, edits) =>
       commitStructure(transactionId, edits),
     // A device drawn while working in a process is that process's device.
     processModelTarget: (symbolId) =>
       placementModelTarget(project, netlistPreferences.preferences, symbolId),
-    processFill: (edits) =>
-      placementProcessFill(
-        project,
-        netlistPreferences.preferences,
-        document.id,
-        edits,
-      ),
+    processFill,
     selectOnly,
     cancelAllTransientInteraction,
     cancelCanvasDrag: () => canvasDragSessionRef.current?.cancel(),

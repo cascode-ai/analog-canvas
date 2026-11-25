@@ -109,6 +109,10 @@ export interface UseComponentPlacementOptions {
       expectedElectricalEffect?: ExpectedElectricalEffect;
     },
   ) => TransactionResult | null;
+  commitComponentPlacement: (
+    edits: readonly SchematicEdit[],
+    effect: ExpectedElectricalEffect | undefined,
+  ) => boolean;
   /** The routing gate transactConnectivity runs, without committing. */
   gateConnectivity: (
     intent: RoutingOperationIntent,
@@ -269,20 +273,10 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
         annotation,
       })),
     ];
-    const gated = options.gateConnectivity(
-      "connect",
+    const committed = options.commitComponentPlacement(
       placementEdits,
-      contact.expectedElectricalEffect
-        ? { expectedElectricalEffect: contact.expectedElectricalEffect }
-        : {},
+      contact.expectedElectricalEffect,
     );
-    if (!gated) return;
-    // A part the Process maps to a reviewed subcircuit arrives bound to it,
-    // its definition in the same transaction, as the Agent's parts do.
-    const filled = options.processFill(gated);
-    const committed = filled
-      ? options.transactProject("place-component", filled)
-      : options.transact([...gated], { preserveInteraction: true }).ok;
     if (!committed) return;
     options.selectOnly("instance", [id]);
     options.setComponentPreviewPoint(position);
