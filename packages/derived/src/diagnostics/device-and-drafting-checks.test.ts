@@ -432,4 +432,255 @@ describe("drafting imitation and custom supply ERC checks (#2613)", () => {
       ),
     ).toEqual([]);
   });
+
+  it("flags output, input, and clock Net Labels without a formal Port (#2557) and clears them once a Port is declared", () => {
+    const project = createEmptyProject("io-no-port", "IO Without Port");
+    const doc = project.documents[0]!;
+    doc.instances.push(
+      {
+        id: "M1",
+        symbolId: "pmos",
+        reference: "M1",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "M2",
+        symbolId: "nmos",
+        reference: "M2",
+        placement: {
+          position: { x: 100, y: 240 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "R1",
+        symbolId: "resistor",
+        reference: "R1",
+        placement: {
+          position: { x: 260, y: 170 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "S1",
+        symbolId: "switch-ctrl",
+        reference: "S1",
+        placement: {
+          position: { x: 400, y: 170 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "S2",
+        symbolId: "switch-ctrl",
+        reference: "S2",
+        placement: {
+          position: { x: 520, y: 170 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    doc.nets.push(
+      {
+        id: "net-vin",
+        terminals: [
+          { instanceId: "M1", pinName: "G" },
+          { instanceId: "M2", pinName: "G" },
+          { instanceId: "R1", pinName: "1" },
+        ],
+      },
+      {
+        id: "net-vout",
+        terminals: [
+          { instanceId: "M1", pinName: "D" },
+          { instanceId: "M2", pinName: "D" },
+        ],
+      },
+      {
+        id: "net-phi",
+        terminals: [
+          { instanceId: "S1", pinName: "CTRL" },
+          { instanceId: "S2", pinName: "CTRL" },
+        ],
+      },
+      {
+        id: "net-mid",
+        terminals: [
+          { instanceId: "R1", pinName: "2" },
+          { instanceId: "S1", pinName: "1" },
+        ],
+      },
+    );
+    doc.connectivityEvidence.push(
+      {
+        id: "claim-vin",
+        kind: "name-claim",
+        netId: "net-vin",
+        name: "Vin",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "label-vin" },
+      },
+      {
+        id: "claim-vout",
+        kind: "name-claim",
+        netId: "net-vout",
+        name: "Vout+",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "label-vout" },
+      },
+      {
+        id: "claim-phi",
+        kind: "name-claim",
+        netId: "net-phi",
+        name: "Φ1",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "label-phi" },
+      },
+      {
+        id: "claim-mid",
+        kind: "name-claim",
+        netId: "net-mid",
+        name: "mid",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "label-mid" },
+      },
+    );
+
+    const hits = runErc(project).filter(
+      (item) => item.code === "ERC_IO_LABEL_WITHOUT_PORT",
+    );
+    expect(hits.map((item) => item.parameters.netName).sort()).toEqual([
+      "Vin",
+      "Vout+",
+      "Φ1",
+    ]);
+    expect(hits.every((item) => item.severity === "warning")).toBe(true);
+    expect(hits.every((item) => item.gateEligible === false)).toBe(true);
+
+    // Declaring formal Cell terminals clears the warnings.
+    doc.netlist = {
+      name: "top",
+      terminals: [
+        {
+          id: "term-vin",
+          name: "Vin",
+          netId: "net-vin",
+          direction: "input",
+          interfaceInstanceIds: ["P_VIN"],
+        },
+        {
+          id: "term-vout",
+          name: "Vout+",
+          netId: "net-vout",
+          direction: "output",
+          interfaceInstanceIds: ["P_VOUT"],
+        },
+        {
+          id: "term-phi",
+          name: "Φ1",
+          netId: "net-phi",
+          direction: "input",
+          interfaceInstanceIds: ["P_PHI"],
+        },
+      ],
+      formalParameters: [],
+    };
+    expect(
+      runErc(project).filter(
+        (item) => item.code === "ERC_IO_LABEL_WITHOUT_PORT",
+      ),
+    ).toEqual([]);
+  });
+
+  it("stays quiet on portless testbenches with an independent voltage source (#2557)", () => {
+    const project = createEmptyProject("tb-rc", "RC Testbench");
+    const doc = project.documents[0]!;
+    doc.instances.push(
+      {
+        id: "V1",
+        symbolId: "voltage-source",
+        reference: "V1",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "R1",
+        symbolId: "resistor",
+        reference: "R1",
+        placement: {
+          position: { x: 220, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "C1",
+        symbolId: "capacitor",
+        reference: "C1",
+        placement: {
+          position: { x: 340, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    doc.nets.push(
+      {
+        id: "net-in",
+        terminals: [
+          { instanceId: "V1", pinName: "pos" },
+          { instanceId: "R1", pinName: "1" },
+        ],
+      },
+      {
+        id: "net-out",
+        terminals: [
+          { instanceId: "R1", pinName: "2" },
+          { instanceId: "C1", pinName: "1" },
+        ],
+      },
+      {
+        id: "net-gnd",
+        terminals: [
+          { instanceId: "V1", pinName: "neg" },
+          { instanceId: "C1", pinName: "2" },
+        ],
+      },
+    );
+    doc.connectivityEvidence.push(
+      {
+        id: "claim-in",
+        kind: "name-claim",
+        netId: "net-in",
+        name: "Vin",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "label-in" },
+      },
+      {
+        id: "claim-out",
+        kind: "name-claim",
+        netId: "net-out",
+        name: "Vout",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "label-out" },
+      },
+    );
+
+    expect(
+      runErc(project).filter(
+        (item) => item.code === "ERC_IO_LABEL_WITHOUT_PORT",
+      ),
+    ).toEqual([]);
+  });
 });
