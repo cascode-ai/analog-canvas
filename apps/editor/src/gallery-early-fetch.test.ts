@@ -152,7 +152,7 @@ describe("the landing page's early Gallery requests (#1592)", () => {
       ["", saved({ netlistable: true }), true],
       ["", saved({ liked: true }), false],
       ["", saved({ attention: true }), false],
-      ["", saved({ parts: ["6-10"] }), false],
+      ["", saved({ parts: ["11-20"] }), false],
       ["", saved({ author: "Ada" }), false],
       ["", saved({ ownerUserId: "user-1" }), false],
       ["?netlist=1", null, false],

@@ -875,7 +875,7 @@ test("quick filter counts sit right-aligned, and a filter that empties the wall 
         attention: 2,
         netlistable: 12,
         liked: 0,
-        componentRanges: { "0-5": 1, "6-10": 0, "11-15": 0, "16-25": 0 },
+        componentRanges: { "0-10": 1, "11-20": 0, "21-30": 0, "31-40": 0 },
       },
     };
   });
@@ -884,8 +884,8 @@ test("quick filter counts sit right-aligned, and a filter that empties the wall 
     page.getByTestId(`gallery-filter-${key}`),
   );
   await expect(quick[1]!.locator(".gallery-sidebar-count")).toHaveText("12");
-  const small = page.getByTestId("gallery-filter-parts-0-5");
-  await expect(small).toContainText("≤ 5");
+  const small = page.getByTestId("gallery-filter-parts-0-10");
+  await expect(small).toContainText("≤ 10");
   await expect(small.locator(".gallery-sidebar-count")).toHaveText("1");
 
   // At the narrowest sidebar every count still ends on one edge, clear of
@@ -1035,7 +1035,7 @@ test("a remembered narrowing loads the wall with its one early request", async (
     sessionStorage.setItem(
       "icm.gallery-filters.v1",
       JSON.stringify({
-        parts: ["6-10"],
+        parts: ["11-20"],
         withoutNetlist: true,
         ai: "human",
         source: "analoggenie",
@@ -1048,7 +1048,7 @@ test("a remembered narrowing loads the wall with its one early request", async (
   // arrived, and the wall took that answer instead of asking again. The
   // netlist side is never remembered, so it narrows nothing here.
   await page.waitForLoadState("networkidle");
-  expect(lists).toEqual(["?source=analoggenie&ai=0&parts=6-10"]);
+  expect(lists).toEqual(["?source=analoggenie&ai=0&parts=11-20"]);
   expect(firstListAsked).toBeLessThan(wallCodeArrived);
 });
 

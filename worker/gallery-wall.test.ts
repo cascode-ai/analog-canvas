@@ -110,9 +110,9 @@ it("reuses Community counts while reads still see current likes and withdrawals"
   expect((await read(viewer)).total).toBe(0);
 });
 
-/** Counts per part-count size, with `small` drawings of at most five parts. */
+/** Counts per part-count size, with `small` drawings of at most ten parts. */
 function sizes(small: number, rest: Partial<Record<string, number>> = {}) {
-  return { "0-5": small, "6-10": 0, "11-15": 0, "16-25": 0, "26-": 0, ...rest };
+  return { "0-10": small, "11-20": 0, "21-30": 0, "31-40": 0, "41-": 0, ...rest };
 }
 
 /** A drawing of `parts` resistors and a Ground, which is not a part. */
@@ -1356,8 +1356,8 @@ describe("netlist marks and thumbs", () => {
     const submit = (name: string, parts: number) =>
       submitOne(env, name, { cookie, text: partsProjectText(name, parts) });
     const small = await submit("Small", 3);
-    const medium = await submit("Medium", 7);
-    const large = await submit("Large", 12);
+    const medium = await submit("Medium", 15);
+    const large = await submit("Large", 25);
     const list = async (query: string) => {
       const response = await route(
         env,
@@ -1379,12 +1379,12 @@ describe("netlist marks and thumbs", () => {
       Object.fromEntries(
         all.entries.map((entry) => [entry.id, entry.componentCount]),
       ),
-    ).toEqual({ [small]: 3, [medium]: 7, [large]: 12 });
+    ).toEqual({ [small]: 3, [medium]: 15, [large]: 25 });
     expect(all.filterCounts.componentRanges).toEqual(
-      sizes(1, { "6-10": 1, "11-15": 1 }),
+      sizes(1, { "11-20": 1, "21-30": 1 }),
     );
 
-    const one = await list("parts=6-10");
+    const one = await list("parts=11-20");
     expect(ids(one)).toEqual([medium]);
     expect(one.total).toBe(1);
     // The size counts leave the size choice out, so the other sizes still
@@ -1393,8 +1393,8 @@ describe("netlist marks and thumbs", () => {
       all.filterCounts.componentRanges,
     );
     // Several sizes mean any of them.
-    expect(ids(await list("parts=0-5,11-15"))).toEqual([small, large].sort());
-    expect((await list("parts=16-25,26-")).total).toBe(0);
+    expect(ids(await list("parts=0-10,21-30"))).toEqual([small, large].sort());
+    expect((await list("parts=31-40,41-")).total).toBe(0);
     // A size this build does not know narrows nothing.
     expect((await list("parts=huge")).total).toBe(3);
   });

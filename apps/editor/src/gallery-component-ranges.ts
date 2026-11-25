@@ -11,7 +11,7 @@ export interface GalleryComponentRange {
   min: number;
   /** Absent for the open-ended largest size. */
   max: number | null;
-  /** As the sidebar shows it: ≤ 5, 6–10, 26+. */
+  /** As the sidebar shows it: ≤ 10, 11–20, 41+. */
   label: string;
 }
 

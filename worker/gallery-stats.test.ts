@@ -184,7 +184,7 @@ describe("the Gallery's statistics", () => {
         { tag: "amplifier", circuits: 1 },
         { tag: "ota", circuits: 1 },
       ],
-      sizes: expect.arrayContaining([{ key: "0-5", circuits: 3 }]),
+      sizes: expect.arrayContaining([{ key: "0-10", circuits: 3 }]),
       transistorBins: expect.arrayContaining([
         { key: "0", circuits: 1 },
         { key: "1-5", circuits: 2 },
