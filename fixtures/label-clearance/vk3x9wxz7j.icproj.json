@@ -1,0 +1,927 @@
+{
+  "schemaVersion": 87,
+  "id": "ivanov-fig7-11b",
+  "name": "Diode-Connected MOS Voltage-Limiting Cell",
+  "topDocumentId": "fig7-11b",
+  "defaults": {
+    "instance": {
+      "mirror": "none",
+      "rotation": 0
+    },
+    "instancesByType": {},
+    "label": {
+      "alignment": "middle",
+      "locked": false,
+      "rotation": 0
+    },
+    "routeLeg": {
+      "mode": "manual"
+    }
+  },
+  "documents": [
+    {
+      "id": "fig7-11b",
+      "name": "dut",
+      "netlist": {
+        "formalParameters": [
+          {
+            "defaultValue": "{20u}",
+            "name": "P_M_w"
+          },
+          {
+            "defaultValue": "{1u}",
+            "name": "P_M_l"
+          }
+        ],
+        "name": "dut",
+        "terminals": [
+          {
+            "direction": "passive",
+            "id": "terminal-in",
+            "interfaceInstanceIds": [
+              "in"
+            ],
+            "name": "in",
+            "netId": "n-in"
+          },
+          {
+            "direction": "passive",
+            "id": "terminal-out",
+            "interfaceInstanceIds": [
+              "out"
+            ],
+            "name": "out",
+            "netId": "n-out"
+          },
+          {
+            "direction": "passive",
+            "id": "edu-terminal-M",
+            "interfaceInstanceIds": [
+              "edu-body-pin-M"
+            ],
+            "name": "BODY_M",
+            "netId": "edu-body-M"
+          }
+        ]
+      },
+      "presentation": {
+        "compactness": "compact",
+        "grid": 1,
+        "labelSubscriptAfterFirst": false,
+        "labelSubscriptItalic": false,
+        "styleProfileId": "razavi-textbook-v1"
+      },
+      "instances": [
+        {
+          "type": "nmos",
+          "name": "M1",
+          "id": "M",
+          "variant": "textbook-3terminal",
+          "coordinate": [
+            110,
+            100
+          ],
+          "parameters": {
+            "L": "{P_M_l}",
+            "W": "{P_M_w}"
+          },
+          "target": {
+            "definitionId": "trial-pdk-IV_SKY_N_SI",
+            "kind": "external-subcircuit"
+          },
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  134,
+                  137
+                ],
+                "offset": [
+                  24,
+                  37
+                ]
+              },
+              "bind": {
+                "kind": "net-name",
+                "netId": "n-in"
+              },
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "in"
+                    ],
+                    "styles": [
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "net-label-1",
+              "kind": "net-label",
+              "netId": "n-in",
+              "order": 0
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  134,
+                  105
+                ],
+                "offset": [
+                  24,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "M"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "1"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "text3",
+              "kind": "instance-label",
+              "order": 2,
+              "sizeScale": 1
+            }
+          ]
+        },
+        {
+          "type": "port",
+          "id": "in",
+          "coordinate": [
+            120,
+            120
+          ],
+          "rotation": 270
+        },
+        {
+          "type": "port",
+          "id": "out",
+          "coordinate": [
+            120,
+            72
+          ],
+          "rotation": 90,
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  134,
+                  77
+                ],
+                "offset": [
+                  14,
+                  5
+                ]
+              },
+              "bind": {
+                "kind": "net-name",
+                "netId": "n-out"
+              },
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "out"
+                    ],
+                    "styles": [
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "net-label-2",
+              "kind": "net-label",
+              "netId": "n-out",
+              "order": 1
+            }
+          ]
+        },
+        {
+          "type": "port",
+          "id": "edu-body-pin-M",
+          "variant": "inline-formal-owner",
+          "coordinate": [
+            106,
+            100
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "end": {
+            "terminal": [
+              "out",
+              "P"
+            ]
+          },
+          "id": "w1",
+          "legId": "route-leg-e853fca3fa1cc50c",
+          "start": {
+            "terminal": [
+              "M",
+              "D"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "j1"
+          },
+          "id": "w2",
+          "legId": "route-leg-bbee8ab417cea719",
+          "start": {
+            "terminal": [
+              "M",
+              "G"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "j2"
+          },
+          "id": "w3",
+          "legId": "route-leg-a5a52cbd9b771a1a",
+          "start": {
+            "junction": "j1"
+          }
+        },
+        {
+          "end": {
+            "terminal": [
+              "out",
+              "P"
+            ]
+          },
+          "id": "w4",
+          "legId": "route-leg-ce333ad02d55e117",
+          "start": {
+            "junction": "j2"
+          }
+        }
+      ],
+      "connections": {
+        "contacts": [
+          [
+            {
+              "terminal": [
+                "edu-body-pin-M",
+                "P"
+              ]
+            },
+            {
+              "terminal": [
+                "M",
+                "B"
+              ]
+            }
+          ],
+          [
+            {
+              "terminal": [
+                "in",
+                "P"
+              ]
+            },
+            {
+              "terminal": [
+                "M",
+                "S"
+              ]
+            }
+          ]
+        ],
+        "unrouted": []
+      },
+      "nets": [
+        {
+          "at": {
+            "terminal": [
+              "in",
+              "P"
+            ]
+          },
+          "id": "n-in"
+        },
+        {
+          "at": {
+            "terminal": [
+              "M",
+              "D"
+            ]
+          },
+          "id": "n-out"
+        },
+        {
+          "at": {
+            "terminal": [
+              "edu-body-pin-M",
+              "P"
+            ]
+          },
+          "id": "edu-body-M"
+        }
+      ],
+      "junctions": [
+        {
+          "coordinate": [
+            70,
+            100
+          ],
+          "id": "j1",
+          "role": "route-anchor"
+        },
+        {
+          "coordinate": [
+            70,
+            72
+          ],
+          "id": "j2",
+          "role": "route-anchor"
+        }
+      ],
+      "annotations": [],
+      "drafting": {
+        "objects": []
+      },
+      "connectivityEvidence": [
+        {
+          "id": "name-claim-1",
+          "kind": "name-claim",
+          "name": "in",
+          "netId": "n-in",
+          "owner": {
+            "annotationId": "net-label-1",
+            "kind": "net-label"
+          },
+          "scope": "local"
+        },
+        {
+          "id": "name-claim-2",
+          "kind": "name-claim",
+          "name": "out",
+          "netId": "n-out",
+          "owner": {
+            "annotationId": "net-label-2",
+            "kind": "net-label"
+          },
+          "scope": "local"
+        }
+      ],
+      "sourceStatus": "connectivity-modified",
+      "revision": 10
+    }
+  ],
+  "componentDefinitions": [
+    {
+      "electrical": {
+        "capabilities": {
+          "supportsBulkBinding": true,
+          "supportsModel": true,
+          "supportsValueAnnotation": true
+        },
+        "deviceClass": "mos",
+        "dialects": [
+          "spice",
+          "spectre"
+        ],
+        "id": "nmos",
+        "mosBulkClass": "nmos",
+        "parameters": [
+          {
+            "defaultValue": "1u",
+            "displayRole": "width",
+            "editor": "text",
+            "help": "Total channel width",
+            "label": "W",
+            "name": "w",
+            "placeholder": "1u",
+            "required": true,
+            "unitHint": "m"
+          },
+          {
+            "defaultValue": "150n",
+            "displayRole": "length",
+            "editor": "text",
+            "help": "Channel length",
+            "label": "L",
+            "name": "l",
+            "placeholder": "150n",
+            "required": true,
+            "unitHint": "m"
+          },
+          {
+            "defaultValue": "1",
+            "displayRole": "finger-count",
+            "editor": "decimal",
+            "help": "Finger count, so finger width is W / NF",
+            "label": "NF",
+            "name": "nf",
+            "placeholder": "1",
+            "required": false
+          },
+          {
+            "defaultValue": "1",
+            "displayRole": "multiplier",
+            "editor": "decimal",
+            "help": "Parallel multiplier",
+            "label": "M",
+            "name": "m",
+            "placeholder": "1",
+            "required": false
+          }
+        ],
+        "pinOrder": [
+          "D",
+          "G",
+          "S",
+          "B"
+        ],
+        "referencePrefix": "M",
+        "seriesInsertionPinPair": [
+          "D",
+          "S"
+        ],
+        "symbolId": "nmos",
+        "targetPolicy": "required-model"
+      },
+      "symbol": {
+        "defaultVariantId": "textbook-3terminal",
+        "id": "nmos",
+        "name": "NMOS",
+        "pins": [
+          {
+            "at": [
+              10,
+              -20
+            ],
+            "direction": "north",
+            "name": "D",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "drain"
+          },
+          {
+            "at": [
+              -20,
+              0
+            ],
+            "direction": "west",
+            "name": "G",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "gate"
+          },
+          {
+            "at": [
+              10,
+              20
+            ],
+            "direction": "south",
+            "name": "S",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "source"
+          },
+          {
+            "at": [
+              20,
+              0
+            ],
+            "direction": "east",
+            "name": "B",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "bulk"
+          }
+        ],
+        "primitives": [
+          {
+            "kind": "polyline",
+            "points": [
+              [
+                -4.244186,
+                -6.976744
+              ],
+              [
+                10,
+                -6.976744
+              ],
+              [
+                10,
+                -20
+              ]
+            ],
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            }
+          },
+          {
+            "kind": "polyline",
+            "part": "source-arrow-host",
+            "points": [
+              [
+                -4.244186,
+                6.976744
+              ],
+              [
+                10,
+                6.976744
+              ],
+              [
+                10,
+                20
+              ]
+            ],
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            }
+          },
+          {
+            "fill": "foreground",
+            "kind": "polygon",
+            "part": "gate-bar",
+            "points": [
+              [
+                -11.802326,
+                -9.593023
+              ],
+              [
+                -11.802326,
+                9.593023
+              ],
+              [
+                -8.895349,
+                9.593023
+              ],
+              [
+                -8.895349,
+                -9.593023
+              ]
+            ],
+            "stroke": "none"
+          },
+          {
+            "fill": "foreground",
+            "kind": "polygon",
+            "part": "gate-bar",
+            "points": [
+              [
+                -6.569767,
+                -12.5
+              ],
+              [
+                -6.569767,
+                12.5
+              ],
+              [
+                -3.662791,
+                12.5
+              ],
+              [
+                -3.662791,
+                -12.5
+              ]
+            ],
+            "stroke": "none"
+          },
+          {
+            "from": [
+              -8.895349,
+              0
+            ],
+            "kind": "line",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            },
+            "to": [
+              -20,
+              0
+            ]
+          },
+          {
+            "from": [
+              -3.662791,
+              0
+            ],
+            "kind": "line",
+            "part": "bulk-lead",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            },
+            "to": [
+              10,
+              0
+            ]
+          },
+          {
+            "from": [
+              16.395349,
+              0
+            ],
+            "kind": "line",
+            "part": "bulk-lead",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            },
+            "to": [
+              20,
+              0
+            ]
+          },
+          {
+            "fill": "foreground",
+            "kind": "polygon",
+            "part": "bulk-lead",
+            "points": [
+              [
+                10,
+                0
+              ],
+              [
+                16.395349,
+                -3.488372
+              ],
+              [
+                16.395349,
+                3.488372
+              ]
+            ],
+            "stroke": "none"
+          }
+        ],
+        "schemaVersion": 1,
+        "variants": [
+          {
+            "additionalPrimitives": [
+              {
+                "kind": "polyline",
+                "part": "source-arrow",
+                "points": [
+                  [
+                    -3.662791,
+                    6.976744
+                  ],
+                  [
+                    10,
+                    6.976744
+                  ],
+                  [
+                    10,
+                    20
+                  ]
+                ],
+                "style": {
+                  "lineCap": "butt",
+                  "lineJoin": "miter",
+                  "strokeRole": "normal"
+                }
+              },
+              {
+                "fill": "foreground",
+                "kind": "polygon",
+                "part": "source-arrow",
+                "points": [
+                  [
+                    10.581395,
+                    6.976744
+                  ],
+                  [
+                    1.27907,
+                    2.906977
+                  ],
+                  [
+                    1.27907,
+                    11.046512
+                  ]
+                ],
+                "stroke": "none"
+              }
+            ],
+            "auxiliaryPins": [
+              {
+                "at": [
+                  -4,
+                  0
+                ],
+                "direction": "east",
+                "name": "B",
+                "routing": {
+                  "escape": "outward",
+                  "preferredLanding": [
+                    0,
+                    0
+                  ]
+                }
+              }
+            ],
+            "hiddenPinNames": [
+              "B"
+            ],
+            "hiddenPrimitiveParts": [
+              "bulk-lead",
+              "source-arrow-host"
+            ],
+            "id": "textbook-3terminal"
+          }
+        ],
+        "viewBox": {
+          "height": 48,
+          "width": 48,
+          "x": -24,
+          "y": -24
+        }
+      }
+    },
+    {
+      "symbol": {
+        "id": "port",
+        "name": "Port",
+        "pins": [
+          {
+            "at": [
+              0,
+              0
+            ],
+            "direction": "east",
+            "name": "P",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "port"
+          }
+        ],
+        "primitives": [
+          {
+            "center": [
+              -7.086614,
+              0
+            ],
+            "fill": "none",
+            "kind": "circle",
+            "part": "inline-original-port-artwork-0",
+            "radius": 2.47907,
+            "stroke": "foreground",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            }
+          },
+          {
+            "from": [
+              0,
+              0
+            ],
+            "kind": "line",
+            "part": "inline-original-port-artwork-1",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            },
+            "to": [
+              -4.607544,
+              0
+            ]
+          }
+        ],
+        "schemaVersion": 1,
+        "variants": [
+          {
+            "additionalPrimitives": [],
+            "hiddenPinNames": [],
+            "hiddenPrimitiveParts": [
+              "inline-original-port-artwork-0",
+              "inline-original-port-artwork-1"
+            ],
+            "id": "inline-formal-owner"
+          }
+        ],
+        "viewBox": {
+          "height": 14,
+          "width": 18,
+          "x": -14,
+          "y": -7
+        }
+      }
+    }
+  ],
+  "externalSubcircuitDefinitions": [
+    {
+      "formalParameters": [
+        {
+          "defaultValue": "20u",
+          "name": "W"
+        },
+        {
+          "defaultValue": "1u",
+          "name": "L"
+        },
+        {
+          "defaultValue": "1",
+          "name": "MULT"
+        }
+      ],
+      "id": "trial-pdk-IV_SKY_N_SI",
+      "implementation": {
+        "entry": "IV_SKY_N_SI",
+        "kind": "source",
+        "sourceId": "trial-numeric-pdk"
+      },
+      "interfaceStatus": "declared",
+      "name": "IV_SKY_N_SI",
+      "terminals": [
+        {
+          "direction": "passive",
+          "id": "trial-pdk-IV_SKY_N_SI-0",
+          "name": "D"
+        },
+        {
+          "direction": "passive",
+          "id": "trial-pdk-IV_SKY_N_SI-1",
+          "name": "G"
+        },
+        {
+          "direction": "passive",
+          "id": "trial-pdk-IV_SKY_N_SI-2",
+          "name": "S"
+        },
+        {
+          "direction": "passive",
+          "id": "trial-pdk-IV_SKY_N_SI-3",
+          "name": "B"
+        }
+      ]
+    }
+  ],
+  "simulationFolders": [],
+  "source": {
+    "dialect": "none",
+    "entry": null,
+    "files": [],
+    "sourcePolicy": "copy"
+  },
+  "symbolLibrary": {
+    "hash": "razavi-reference-v1",
+    "id": "razavi-symbols",
+    "version": "1"
+  },
+  "structureRevision": 2,
+  "modelSources": [
+    {
+      "dependencies": [],
+      "entry": "models.spice",
+      "files": [
+        {
+          "path": "models.spice",
+          "text": "* Wrapper subcircuits only. They call SKY130 devices (sky130_fd_pr__*) by name;\n* the reader's SKY130 PDK library supplies them.\n.subckt IV_SKY_N_SI D G S B params: W=20u L=1u MULT=1\n.param FINGER_W={min(10u,max(1u,W))}\n.param WRAP_PARALLEL_M={MULT*W/FINGER_W}\nXPDK D G S B sky130_fd_pr__nfet_g5v0d10v5 W={FINGER_W*1e6} L={L*1e6} m={WRAP_PARALLEL_M}\n.ends IV_SKY_N_SI\n"
+        }
+      ],
+      "id": "trial-numeric-pdk",
+      "language": "spice",
+      "revision": 4
+    }
+  ]
+}

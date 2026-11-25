@@ -83,13 +83,23 @@ const DEFAULT_SLOTS: Readonly<
 /** A label the pass left where it is, and why (#1414). */
 export interface LabelLeftInPlace {
   labelId: string;
-  instanceId: string;
+  /** The part or Pin it labels; null for a Net label or free text. */
+  instanceId: string | null;
   /**
    * moved: by hand, without includeManual; clear: by hand, and nothing the
    * label findings report; crowded: by hand and reported, with no clear
-   * place to repair it to (#2619).
+   * place to repair it to (#2619); unarranged: reported, but of a kind a
+   * repair does not move (a Net label, free text, a block's name) or a
+   * Pin's or supply's name with no clear side at its end.
    */
-  reason: "locked" | "rotated" | "custom" | "moved" | "clear" | "crowded";
+  reason:
+    | "locked"
+    | "rotated"
+    | "custom"
+    | "moved"
+    | "clear"
+    | "crowded"
+    | "unarranged";
 }
 
 /**
@@ -118,9 +128,12 @@ export interface ArrangeInstanceLabelsOptions {
   avoidCollisions?: boolean | undefined;
   referenceStyle?: "preserve" | "first-letter-subscript" | undefined;
   /**
-   * Re-place labels moved by hand that the label findings report (a wire, a
-   * part or a label over or crowding it, far from its part, run on), only to
-   * a place they leave clear (#2619); clear, locked and custom ones stay.
+   * Repair: only parts with a label the label findings report (a wire, a
+   * part or a label over or crowding it) are arranged, those moved by hand
+   * included; every other label stays where it is and is in the way. A
+   * part's labels move together, beside their own part and nearer it than
+   * any other, to a place they leave clear, or stay (#2619). A block's name
+   * stays in its box; a Pin's or supply's name only turns about its end.
    */
   includeManual?: boolean | undefined;
   /**
@@ -266,6 +279,25 @@ export function arrangeInstanceLabelsReport(
     return ids;
   };
 
+  // A repair (includeManual) moves only what the label findings report:
+  // a wire, a part or another label drawn over a label or crowding it, a
+  // label far from its part or run on into a neighbour's. In a Gallery dry
+  // run an includeManual pass moved 3,555 labels of parts nothing reported,
+  // in 1,287 drawings (#2619).
+  const repairOnly = options.includeManual === true;
+  const reportedLabel = (label: Annotation) => !context.clearAt(label);
+  const reportedIds = new Set(
+    repairOnly
+      ? context.visible.filter(reportedLabel).map((label) => label.id)
+      : [],
+  );
+  const reportedParts = new Set(
+    [...reportedIds].flatMap((id) => {
+      const part = partLabels.get(id);
+      return part ? [part.instanceId] : [];
+    }),
+  );
+
   // Every visible Reference and value of the parts, eligible or not: a
   // label this pass may not move still takes its space from its siblings.
   const ownLabels = new Map<string, Annotation[]>();
@@ -295,6 +327,10 @@ export function arrangeInstanceLabelsReport(
       return null;
     };
     if (!part) return null;
+    // A repair leaves a part nothing reports as it is, and a block's name
+    // where its author wrote it: only its own box is its place (#2619).
+    if (repairOnly && isCellNameLabel(original))
+      return reportedIds.has(original.id) ? leave("unarranged") : null;
     if (original.locked) return leave("locked");
     if (original.rotation !== 0) return leave("rotated");
     const instance = document.instances.find((i) => i.id === ownerId)!;
@@ -385,12 +421,16 @@ export function arrangeInstanceLabelsReport(
     // author put it stays there.
     const repairs =
       options.includeManual === true || options.repairManual === true;
+    if (repairOnly && !reportedParts.has(ownerId))
+      return placed || inReferenceSlot || inSideRows ? null : leave("clear");
+    // A repair moves a reported part's labels as one group, hand-moved
+    // ones too, so a name never leaves its value behind (#2619).
     const repair =
       !placed &&
       !inReferenceSlot &&
       !inSideRows &&
       repairs &&
-      violatesClearance(original);
+      (repairOnly || violatesClearance(original));
     const inDefaultRow = placed || repair;
     const inValueRow = !inReferenceSlot && (inDefaultRow || inSideRows);
     if (!inValueRow && !inReferenceSlot)
@@ -874,6 +914,141 @@ export function arrangeInstanceLabelsReport(
       return arrangement;
     };
 
+    /**
+     * The repaired group: the nearest arrangement, of the labels where they
+     * stand, their default rows or another side's, each shifted a little,
+     * that every rule of a repair accepts, or null.
+     */
+    const repairGroup = (): Annotation[] | null => {
+      const originals = group.map((label) => ({
+        ...label.annotation,
+        anchor: label.original.anchor,
+        alignment: label.original.alignment,
+      }));
+      const from = originals.map((label) => context.measure(label).position);
+      const fromBoxes = originals.map(box);
+      const fixedBoxes = fixed.map(box);
+      // How far apart the part's labels may stand: a row's reach, or as far
+      // as they already were.
+      const reach = (a: Rect, b: Rect) => Math.max(grid, rectangleGap(a, b));
+      const allowed = fromBoxes.map((ink) =>
+        fixedBoxes.map((f) => reach(ink, f)),
+      );
+      const pairs = fromBoxes.map((ink) =>
+        fromBoxes.map((other) => reach(ink, other)),
+      );
+      const owned = (ink: Rect) => {
+        if (!owner) return false;
+        const own = rectangleGap(ink, owner);
+        return (
+          own <= grid * OWNER_REACH_STEPS &&
+          context.symbols.every(
+            (symbol) =>
+              symbol.id === instance.id ||
+              rectangleGap(ink, symbol.bounds) > own,
+          )
+        );
+      };
+      const accepts = (boxes: readonly Rect[], labels: readonly Annotation[]) =>
+        boxes.every(owned) &&
+        boxes.every((ink, index) =>
+          fixedBoxes.every(
+            (f, other) => rectangleGap(ink, f) <= allowed[index]![other]!,
+          ),
+        ) &&
+        boxes.every((ink, index) =>
+          boxes.every(
+            (other, j) => rectangleGap(ink, other) <= pairs[index]![j]!,
+          ),
+        ) &&
+        boxes.every((ink, index) => {
+          const siblings = [
+            ...fixedBoxes,
+            ...boxes.filter((_, other) => other !== index),
+          ];
+          return (
+            !isReported(labels[index]!, ink, siblings) &&
+            uncrowdedAt(ink, labels[index]!, siblings) &&
+            !context.enclosedAt(ink)
+          );
+        }) &&
+        !between(boxes);
+      const bases = [
+        { arrangement: originals, shifts: nearbyShifts(grid) },
+        { arrangement: preferred, shifts: nearbyShifts(grid, 5) },
+        ...(fixed.length
+          ? []
+          : INSTANCE_LABEL_SIDES.flatMap((side) => {
+              const arrangement = onSide(side);
+              return arrangement
+                ? [{ arrangement, shifts: nearbyShifts(grid, 5) }]
+                : [];
+            })),
+      ];
+      // Nearest first: how far the arrangement stands from the labels, and
+      // then how far it is shifted, so a name in its default row is not
+      // dragged toward a value moved far off.
+      const candidates = bases.flatMap(({ arrangement, shifts }, base) => {
+        const away = Math.max(
+          ...arrangement.map((label, index) => {
+            const p = context.measure(label).position;
+            return Math.hypot(p.x - from[index]!.x, p.y - from[index]!.y);
+          }),
+        );
+        return [{ x: 0, y: 0 }, ...shifts].map((shift) => ({
+          base,
+          shift,
+          distance: away + Math.hypot(shift.x, shift.y),
+        }));
+      });
+      candidates.sort((a, b) => a.distance - b.distance || a.base - b.base);
+      const baseBoxes = bases.map(({ arrangement }) => arrangement.map(box));
+      for (const { base, shift, distance } of candidates) {
+        if (distance === 0) continue;
+        const boxes = baseBoxes[base]!.map((b) => ({
+          ...b,
+          x: b.x + shift.x,
+          y: b.y + shift.y,
+        }));
+        if (!accepts(boxes, originals)) continue;
+        const arrangement = bases[base]!.arrangement.map((label, index) => {
+          const position = context.measure(label).position;
+          return at(group[index]!, {
+            position: { x: position.x + shift.x, y: position.y + shift.y },
+            alignment: label.alignment,
+          });
+        });
+        // Placed on the annotation grid, as measured there.
+        if (accepts(arrangement.map(box), arrangement)) return arrangement;
+      }
+      return null;
+    };
+
+    // A repair keeps every rule a Gallery dry run found broken (#2619): a
+    // part's labels move as one group, nearest where they stand first, only
+    // to a place where none meets or crowds a wire, a part, a dot or any
+    // other label, beside their own part and nearer it than any other, and
+    // its name stays by its value; with no such place they stay.
+    if (repairOnly || group.some((label) => label.repair)) {
+      const repaired = repairGroup();
+      if (!repaired)
+        for (const label of group)
+          if (label.repair || reportedIds.has(label.original.id))
+            left.push({
+              labelId: label.original.id,
+              instanceId: ownerId,
+              reason: "crowded",
+            });
+      for (const [index, label] of group.entries()) {
+        const next = repaired?.[index];
+        if (!next || JSON.stringify(next) === JSON.stringify(label.original))
+          continue;
+        edits.push({ kind: "upsert_schematic_annotation", annotation: next });
+        context.accept(next);
+      }
+      continue;
+    }
+
     // A side asked for comes first; "outside" faces away from the centre
     // line, and a part on it keeps its default rows.
     const asked =
@@ -1080,6 +1255,32 @@ export function arrangeInstanceLabelsReport(
     ...arrangePinNames(),
     ...arrangeSupplyNames(),
   );
+  // A repair names every label still reported that it left: those it
+  // could not clear, and Net labels, free text and names it does not move.
+  if (repairOnly) {
+    const moved = new Set(
+      edits.flatMap((edit) =>
+        edit.kind === "upsert_schematic_annotation" ? [edit.annotation.id] : [],
+      ),
+    );
+    const named = new Set(left.map((label) => label.labelId));
+    for (const label of context.visible) {
+      if (
+        !reportedIds.has(label.id) ||
+        moved.has(label.id) ||
+        named.has(label.id)
+      )
+        continue;
+      const anchored = owners.get(label.id);
+      const owner =
+        anchored && document.instances.some((item) => item.id === anchored)
+          ? anchored
+          : null;
+      if (owner !== null && !ids.has(owner)) continue;
+      if (!reportedLabel(label)) continue;
+      left.push({ labelId: label.id, instanceId: owner, reason: "unarranged" });
+    }
+  }
   return { edits, leftInPlace: left };
 
   /**
@@ -1105,6 +1306,7 @@ export function arrangeInstanceLabelsReport(
         instance.symbolVariantId,
       );
       if (!found || found.locked || !resolved) return [];
+      if (repairOnly) return repairSupplyName(instance, resolved, found);
       // An arranged supply name reads upright.
       const upsideDown = found.rotation > 90 && found.rotation < 270;
       const name: Annotation = { ...found, rotation: 0 };
@@ -1151,6 +1353,54 @@ export function arrangeInstanceLabelsReport(
       context.accept(next);
       return [{ kind: "upsert_schematic_annotation", annotation: next }];
     });
+  }
+
+  /**
+   * A repair's supply name: a reported VDD name goes over its bar or back
+   * beside it, whichever is wholly clear, or stays; it is never turned. A
+   * repair had moved VDD names across a neighbour's labels (#2619).
+   */
+  function repairSupplyName(
+    instance: SchematicDocument["instances"][number],
+    resolved: NonNullable<ReturnType<SymbolResolver["resolve"]>>,
+    found: Annotation,
+  ): SchematicEdit[] {
+    const bar = context.symbols.find(
+      (symbol) => symbol.id === instance.id,
+    )?.bounds;
+    if (
+      !reportedIds.has(found.id) ||
+      instance.symbolId !== "vdd-port" ||
+      found.rotation !== 0 ||
+      !bar
+    )
+      return [];
+    const beside = defaultVddPowerLabelPlacement(instance, resolved, grid);
+    const clearOfBar = bar.y - grid / 2;
+    const over = annotationAt(found, {
+      position: { x: bar.x + bar.width / 2, y: clearOfBar },
+      alignment: "middle",
+    });
+    const overInk = context.measure(over).inkBounds;
+    const places = [
+      annotationAt(over, {
+        position: {
+          x: bar.x + bar.width / 2,
+          y: clearOfBar - (overInk.y + overInk.height - clearOfBar),
+        },
+        alignment: "middle",
+      }),
+      ...(beside ? [annotationAt(found, beside)] : []),
+    ];
+    const next = places.find(
+      (place) =>
+        JSON.stringify(place) !== JSON.stringify(found) &&
+        !context.conflicts(place).length &&
+        context.clearAt(place),
+    );
+    if (!next) return [];
+    context.accept(next);
+    return [{ kind: "upsert_schematic_annotation", annotation: next }];
   }
 
   /**
@@ -1303,7 +1553,8 @@ export function arrangeInstanceLabelsReport(
         label.anchor.kind !== "object" ||
         !ids.has(label.anchor.objectId) ||
         label.locked ||
-        label.rotation !== 0
+        label.rotation !== 0 ||
+        (repairOnly && !reportedIds.has(label.id))
       )
         continue;
       const ownerId = label.anchor.objectId;
@@ -1349,26 +1600,48 @@ export function arrangeInstanceLabelsReport(
       const restyled: Annotation = look
         ? { ...label, formatOverride: look }
         : label;
+      // A repair turns a reported name to a side of its Pin's end that is
+      // wholly clear, or leaves it: an input's v_in⁻ had been moved onto
+      // the transistor beside its Port, fewer conflicts than on its wire
+      // (#2619).
+      const origin = instance.placement.position;
+      const anchor = label.anchor;
+      const onSide = (candidate: InstanceLabelPlacement): Annotation => ({
+        ...restyled,
+        alignment: candidate.alignment,
+        anchor: {
+          ...anchor,
+          localOffset: {
+            x: candidate.position.x - origin.x,
+            y: candidate.position.y - origin.y,
+          },
+          fallbackPosition: candidate.position,
+        },
+      });
+      if (repairOnly) {
+        const clearSide = candidates
+          .map(onSide)
+          .find(
+            (placed) =>
+              !context.conflicts(placed).length && context.clearAt(placed),
+          );
+        if (clearSide && JSON.stringify(clearSide) !== JSON.stringify(label)) {
+          changed.push({
+            kind: "upsert_schematic_annotation",
+            annotation: clearSide,
+          });
+          context.accept(clearSide);
+        }
+        continue;
+      }
       let fewest =
         options.avoidCollisions === false
           ? 0
           : context.conflicts(restyled).length;
-      const origin = instance.placement.position;
       let best = restyled;
       if (fewest)
         for (const candidate of candidates) {
-          const placed: Annotation = {
-            ...restyled,
-            alignment: candidate.alignment,
-            anchor: {
-              ...label.anchor,
-              localOffset: {
-                x: candidate.position.x - origin.x,
-                y: candidate.position.y - origin.y,
-              },
-              fallbackPosition: candidate.position,
-            },
-          };
+          const placed = onSide(candidate);
           const conflicts = context.conflicts(placed).length;
           if (conflicts < fewest) {
             best = placed;
@@ -1393,15 +1666,15 @@ interface Conflicts {
 
 const shiftsByGrid = new Map<number, readonly Point[]>();
 /**
- * Shifts of a label within three grid steps, a fifth of a step apart,
- * nearest first: where a label the diagnostics report looks for a clear
- * spot.
+ * Shifts of a label within `reach` fifths of a grid step (three steps by
+ * default), a fifth of a step apart, nearest first: where a label the
+ * diagnostics report looks for a clear spot.
  */
-function nearbyShifts(grid: number): readonly Point[] {
-  let shifts = shiftsByGrid.get(grid);
+function nearbyShifts(grid: number, reach = 15): readonly Point[] {
+  const key = grid * 1000 + reach;
+  let shifts = shiftsByGrid.get(key);
   if (!shifts) {
     const step = grid / 5;
-    const reach = 15;
     const all: Point[] = [];
     for (let x = -reach; x <= reach; x++)
       for (let y = -reach; y <= reach; y++)
@@ -1410,11 +1683,17 @@ function nearbyShifts(grid: number): readonly Point[] {
       (a, b) =>
         Math.hypot(a.x, a.y) - Math.hypot(b.x, b.y) || a.y - b.y || a.x - b.x,
     );
-    shiftsByGrid.set(grid, shifts);
+    shiftsByGrid.set(key, shifts);
   }
   return shifts;
 }
 
+/**
+ * How far, in grid steps, a repaired label may stand from its own part: a
+ * group's two rows above it. A repair had moved a block's name 270 units,
+ * and names onto the next transistor's side (#2619).
+ */
+const OWNER_REACH_STEPS = 2;
 /** How much nearer another part a label may stand than its own part. */
 const ASSOCIATION_MARGIN = 5;
 /** Least gaps between a label and its part's own wires, as between two

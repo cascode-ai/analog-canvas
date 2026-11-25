@@ -299,7 +299,8 @@ the open Project when Publish opens; the Worker does not.
 - The Publish dialog lists each failure with its count and up to 8 findings
   ("… and N more"). **Arrange labels** runs `arrange-labels` with
   `includeManual` on the parts whose labels `label-clearance` names (free text
-  and Net labels stay), as one undoable transaction, then evaluates the
+  and Net labels stay; only reported parts move, by the repair rules of
+  names-and-labels.md), as one undoable transaction, then evaluates the
   advice again and says what is left. Publish stays enabled throughout.
 - An Agent's `publish-gallery-entry`/`update-gallery-entry` answers the same
   failures as `advice`, only to an adapter that reads it (MCP 0.17.128 and
