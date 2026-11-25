@@ -1,4 +1,8 @@
-import { createEmptyProject, type CircuitProject } from "@icm/model";
+import {
+  createEmptyProject,
+  createSimulationFolder,
+  type CircuitProject,
+} from "@icm/model";
 import { InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -289,5 +293,82 @@ describe("evaluateSubmissionGates", () => {
       ] as never,
     } as never;
     expect(gates(diagram).ok).toBe(true);
+  });
+
+  it("warns about spec-less scratch folders alongside @spec testbenches and broken circuit bindings (#2617)", () => {
+    const target = project();
+    const document = target.documents[0]!;
+    document.instances = [dualInstance("I1", "R1"), dualInstance("I2", "R2")];
+    document.nets = [
+      {
+        id: "n1",
+        terminals: [
+          { instanceId: "I1", pinName: "L" },
+          { instanceId: "I2", pinName: "L" },
+        ],
+      },
+      {
+        id: "n2",
+        terminals: [
+          { instanceId: "I1", pinName: "R" },
+          { instanceId: "I2", pinName: "R" },
+        ],
+      },
+    ];
+    const primary = createSimulationFolder({
+      id: "f-primary",
+      name: "Primary TB",
+      profileId: "hosted-sky130-ngspice-v1",
+      documentId: document.id,
+    });
+    primary.input.files.find((f) => f.path === primary.input.entry)!.text +=
+      "\n* @spec vout range 0.4 0.6 unit=V\n";
+    const scratch = createSimulationFolder({
+      id: "f-scratch",
+      name: "Old Scratch",
+      profileId: "hosted-sky130-ngspice-v1",
+      documentId: document.id,
+    });
+    const broken = createSimulationFolder({
+      id: "f-broken",
+      name: "Deleted Cell TB",
+      profileId: "hosted-sky130-ngspice-v1",
+      documentId: "missing-doc",
+    });
+    target.simulationFolders = [primary, scratch, broken];
+
+    const report = gates(target);
+    expect(report.ok).toBe(false);
+    expect(report.failures).toEqual([
+      expect.objectContaining({
+        code: "stale-simulation-folders",
+        count: 2,
+        examples: [
+          "Old Scratch (no @spec)",
+          "Deleted Cell TB (missing Cell missing-doc)",
+        ],
+      }),
+    ]);
+
+    // Keeping only valid folders with @spec clears the advisory.
+    target.simulationFolders = [primary];
+    expect(gates(target)).toEqual({ ok: true, failures: [] });
+
+    // Multi-folder interactive examples where no folder declares @spec and all
+    // bindings exist remain quiet.
+    const demoA = createSimulationFolder({
+      id: "f-demo-a",
+      name: "DC Sweep",
+      profileId: "hosted-sky130-ngspice-v1",
+      documentId: document.id,
+    });
+    const demoB = createSimulationFolder({
+      id: "f-demo-b",
+      name: "AC Sweep",
+      profileId: "hosted-sky130-ngspice-v1",
+      documentId: document.id,
+    });
+    target.simulationFolders = [demoA, demoB];
+    expect(gates(target)).toEqual({ ok: true, failures: [] });
   });
 });
