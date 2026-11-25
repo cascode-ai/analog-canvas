@@ -82,6 +82,9 @@ class FakeHost:
     def active(self, unit):
         return unit in self.active_units
 
+    def check_backup_space(self):
+        pass
+
     def backup(self, target):
         self.calls.append(('backup', target.name))
 
@@ -649,6 +652,34 @@ class ReleaseTest(unittest.TestCase):
         result = release.tick(self.args(0), host, FakeProduction(self.files), now=1000)
         self.assertEqual((result['status'], result['failedCommit']), ('backup-failed', NEW))
         self.assertEqual(self.current.resolve().name, OLD)
+
+    def test_low_backup_space_retries_the_same_release_without_repeated_download_or_handover(self):
+        host, production = FakeHost(), FakeProduction(self.files)
+        args = self.args(0)
+        # Space disappears between assembling the candidate and seeding its backup.
+        with patch.object(host, 'backup', side_effect=release._maintenance.BackupHeadroom('backup-headroom')):
+            first = release.tick(args, host, production, now=1000)
+        self.assertEqual(first['status'], 'backup-headroom')
+        pathlib.Path(args.state).write_text(json.dumps(first))
+        production.requests.clear()
+        with patch.object(host, 'check_backup_space', side_effect=release._maintenance.BackupHeadroom('backup-headroom')):
+            waiting = release.tick(args, host, production, now=1060)
+        self.assertEqual(waiting['status'], 'backup-headroom')
+        manifest = f'/regional-release/{NEW}/release.json'
+        self.assertNotIn(manifest, production.requests)
+        self.assertEqual(self.current.resolve().name, OLD)
+        self.assertEqual(host.calls, [])
+        pathlib.Path(args.state).write_text(json.dumps(waiting))
+        installed = release.tick(args, host, production, now=1120)
+        self.assertEqual((installed['status'], self.current.resolve().name), ('installed', NEW))
+        self.assertIn(manifest, production.requests)
+
+    def test_unreadable_backup_directory_quarantines_candidate_before_download(self):
+        host = FakeHost()
+        with patch.object(host, 'check_backup_space', side_effect=PermissionError()):
+            result = release.tick(self.args(0), host, FakeProduction(self.files))
+        self.assertEqual((result['status'], result['failedCommit']), ('backup-failed', NEW))
+        self.assertEqual(host.calls, [])
 
     def test_uncertain_writes_report_failure_without_stopping_the_serving_release(self):
         host = FakeHost()

@@ -329,7 +329,9 @@ names and port numbers enter the monitor state, never configuration bodies.
   Capture checks free space before seeding. The budget includes the live data
   size, the largest of the last three compressed archives plus 25%, and 1 GiB
   of operating space. With no archive history, use the live size to estimate
-  the compressed size. Compression checks the remaining free space before each
+  the compressed size. When this budget is unavailable before handover, the
+  timer checks space before downloading the candidate and retries that same
+  verified release once space returns. Compression checks the remaining free space before each
   write and preserves the stopped-state copy if it reaches the 1 GiB reserve.
   Low space for the next capture alerts after five minutes outside capture.
   Less than 1 GiB free alerts after two minutes at any time.

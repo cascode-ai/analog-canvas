@@ -4,6 +4,7 @@ The live seed is NEVER a backup. Only a successful final copy with the sole
 writer stopped can be published. Compression happens after service resumes.
 """
 import datetime
+import errno
 import hashlib
 import http.client
 import json
@@ -248,7 +249,11 @@ def prune_archives(backups):
             shutil.rmtree(path)
 
 
-def check_capture_space(data, backups):
+class BackupHeadroom(RuntimeError):
+    """The backup seed has not started and can be retried when disk space returns."""
+
+
+def check_capture_space(data, backups, *, preparing=True):
     # rsync materializes sparse files and hard links. Count each directory
     # entry's apparent size without reading live database contents.
     def apparent_size(path):
@@ -264,12 +269,13 @@ def check_capture_space(data, backups):
     recent = sorted(backups.glob('20*/state.tar.gz'), reverse=True)[:3]
     archive = max((p.stat().st_size for p in recent), default=seed)
     required = seed + archive * 5 // 4 + DISK_RESERVE
-    temp = backups / '.capacity.next'
-    temp.write_text(json.dumps({'requiredBytes': required, 'pid': os.getpid(),
-                                'processInode': pathlib.Path('/proc/self').stat().st_ino}))
-    temp.replace(backups / 'capacity.json')
+    if preparing:
+        temp = backups / '.capacity.next'
+        temp.write_text(json.dumps({'requiredBytes': required, 'pid': os.getpid(),
+                                    'processInode': pathlib.Path('/proc/self').stat().st_ino}))
+        temp.replace(backups / 'capacity.json')
     if shutil.disk_usage(backups).free < required:
-        raise RuntimeError('backup-headroom')
+        raise BackupHeadroom('backup-headroom')
 
 
 class Snapshot:
@@ -280,10 +286,19 @@ class Snapshot:
         self.captured = False
         self.index = {}
 
+    def admit_capture(self, *, create_stage=False):
+        try:
+            self.backups.mkdir(parents=True, exist_ok=True, mode=0o700)
+            check_capture_space(self.data, self.backups, preparing=create_stage)
+            if create_stage:
+                self.stage = pathlib.Path(tempfile.mkdtemp(prefix='.incomplete.', dir=self.backups))
+        except OSError as error:
+            if error.errno == errno.ENOSPC:
+                raise BackupHeadroom('backup-headroom') from error
+            raise
+
     def prepare(self):
-        self.backups.mkdir(parents=True, exist_ok=True, mode=0o700)
-        check_capture_space(self.data, self.backups)
-        self.stage = pathlib.Path(tempfile.mkdtemp(prefix='.incomplete.', dir=self.backups))
+        self.admit_capture(create_stage=True)
         # Files may vanish while the application is writing the seed. A final
         # checksum pass after shutdown must succeed without this exception.
         self.copy(final=False)
