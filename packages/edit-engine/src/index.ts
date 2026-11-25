@@ -1,3 +1,7 @@
+export {
+  readTransactionDraftWork,
+  type TransactionDraftWork,
+} from "./local-transaction-draft.js";
 export * from "./drafting-transform.js";
 export * from "./annotation-reflection.js";
 export * from "./history.js";

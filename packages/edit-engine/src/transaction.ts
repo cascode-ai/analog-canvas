@@ -1,4 +1,8 @@
 import {
+  createTransactionDraft,
+  recordTransactionDraftWork,
+} from "./local-transaction-draft.js";
+import {
   cellSymbolArtworkIssues,
   projectCellInterface,
   routeEnd,
@@ -195,7 +199,11 @@ export function executeTransaction(
   if (prepared) return prepared;
 
   const proposedRevision = document.revision + 1;
-  const draft = structuredClone(document);
+  const { document: draft, fallback } = createTransactionDraft(
+    document,
+    transaction.edits,
+    context,
+  );
   const references = createReferenceValidationCache(draft);
   // Removing a Route's geometry states its geometry too: a Junction dragged
   // onto the pin at the far end of a stub collapses that stub.
@@ -1390,6 +1398,7 @@ export function executeTransaction(
     );
   }
 
+  recordTransactionDraftWork(draft, candidate.data, fallback);
   const diff: EditDiff = {
     documentId: document.id,
     fromRevision: document.revision,

@@ -1,3 +1,4 @@
+import { writableDraftRow } from "./local-transaction-draft.js";
 import { routeEndpoints, type SchematicDocument } from "@icm/model";
 import {
   carriedContactJunctionIds,
@@ -146,8 +147,11 @@ export function followStyledContactJunctions(
   changedObjectIds: Set<string>,
 ): void {
   const ids = carriedContactJunctionIds(before, resolver, instanceIds);
-  const anchored = draft.junctions.filter((junction) => junction.contactAnchor);
-  if (ids.length === 0 && anchored.length === 0) return;
+  if (
+    !ids.length &&
+    !draft.junctions.some((junction) => junction.contactAnchor)
+  )
+    return;
   const evidence = deriveDocumentContactEvidence(before, resolver);
   for (const id of ids) {
     const contact = evidence.byEndpointKey.get(
@@ -167,8 +171,14 @@ export function followStyledContactJunctions(
       )
     )
       continue;
-    const junction = draft.junctions.find((j) => j.id === id);
-    if (!junction) continue;
+    const index = draft.junctions.findIndex((j) => j.id === id);
+    if (index < 0) continue;
+    const junction = writableDraftRow(
+      draft,
+      draft.junctions,
+      draft.junctions[index]!,
+      index,
+    );
     junction.position = { ...connection.gridLanding };
     if (connection.endpoint.kind === "terminal") {
       junction.contactAnchor = {
@@ -181,8 +191,8 @@ export function followStyledContactJunctions(
   }
   // A partial move or deletion leaves the dot at the surviving contact. A
   // stale terminal reference must never drag its color onto a separate pin.
-  for (const junction of anchored) {
-    if (ids.includes(junction.id)) continue;
+  for (const [index, junction] of draft.junctions.entries()) {
+    if (!junction.contactAnchor || ids.includes(junction.id)) continue;
     if (movedJunctionIds.has(junction.id)) {
       const anchor = resolveEndpointConnection(draft, resolver, {
         kind: "terminal",
@@ -193,7 +203,8 @@ export function followStyledContactJunctions(
         anchor.gridLanding.x !== junction.position.x ||
         anchor.gridLanding.y !== junction.position.y
       )
-        delete junction.contactAnchor;
+        delete writableDraftRow(draft, draft.junctions, junction, index)
+          .contactAnchor;
       continue;
     }
     const oldContact = evidence.byEndpointKey.get(
@@ -230,14 +241,15 @@ export function followStyledContactJunctions(
           connection?.contactPoint.x === oldContact.point.x &&
           connection.contactPoint.y === oldContact.point.y,
       );
+    const owned = writableDraftRow(draft, draft.junctions, junction, index);
     if (survivor?.endpoint.kind === "terminal") {
-      junction.contactAnchor = {
+      owned.contactAnchor = {
         instanceId: survivor.endpoint.instanceId,
         pinName: survivor.endpoint.pinName,
       };
-      junction.position = { ...survivor.gridLanding };
+      owned.position = { ...survivor.gridLanding };
     } else {
-      delete junction.contactAnchor;
+      delete owned.contactAnchor;
     }
     changedObjectIds.add(junction.id);
   }
@@ -249,7 +261,7 @@ export function reconcileJunctionContactAnchors(
   resolver: SymbolResolver,
   changedObjectIds: Set<string>,
 ): void {
-  for (const junction of document.junctions) {
+  for (const [index, junction] of document.junctions.entries()) {
     const anchor = junction.contactAnchor;
     if (!anchor) continue;
     const terminals =
@@ -280,8 +292,14 @@ export function reconcileJunctionContactAnchors(
         connection.gridLanding.y === junction.position.y
       );
     });
-    if (replacement) junction.contactAnchor = { ...replacement };
-    else delete junction.contactAnchor;
+    const owned = writableDraftRow(
+      document,
+      document.junctions,
+      junction,
+      index,
+    );
+    if (replacement) owned.contactAnchor = { ...replacement };
+    else delete owned.contactAnchor;
     changedObjectIds.add(junction.id);
   }
 }

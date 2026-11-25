@@ -1,3 +1,4 @@
+import { writableDraftRow } from "./local-transaction-draft.js";
 import type {
   Annotation,
   Point,
@@ -248,7 +249,7 @@ export function addEndpointToNet(
           terminal.memberId === endpoint.memberId,
       )
     ) {
-      net.terminals.push({
+      writableDraftRow(document, document.nets, net).terminals.push({
         instanceId: endpoint.instanceId,
         pinName: endpoint.pinName,
         ...(endpoint.memberId ? { memberId: endpoint.memberId } : {}),

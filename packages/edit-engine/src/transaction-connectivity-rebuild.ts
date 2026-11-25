@@ -1,4 +1,8 @@
 import {
+  currentDraftRow,
+  writableDraftRow,
+} from "./local-transaction-draft.js";
+import {
   routeEndpoints,
   routeElectricalConnections,
   junctionElectricalEndpoints,
@@ -61,7 +65,8 @@ function partitionNet(
     for (const key of group) byEndpoint.set(key, id);
     const members: Net["terminals"] = [];
     terminalsByNet.set(id, members);
-    if (index === 0) net.terminals = members;
+    if (index === 0)
+      writableDraftRow(draft, draft.nets, net).terminals = members;
     else draft.nets.push({ id, terminals: members });
     changed.add(id);
   });
@@ -69,7 +74,7 @@ function partitionNet(
     const id = byEndpoint.get(endpointKey({ kind: "terminal", ...terminal }));
     if (id !== undefined) terminalsByNet.get(id)!.push(terminal);
   }
-  for (const junction of draft.junctions) {
+  for (const [index, junction] of draft.junctions.entries()) {
     if (junction.members) {
       for (const member of junction.members) {
         const id = byEndpoint.get(
@@ -92,11 +97,11 @@ function partitionNet(
       endpointKey({ kind: "junction", junctionId: junction.id }),
     );
     if (id && id !== junction.netId) {
-      junction.netId = id;
+      writableDraftRow(draft, draft.junctions, junction, index).netId = id;
       changed.add(junction.id);
     }
   }
-  for (const route of draft.routes) {
+  for (const [index, route] of draft.routes.entries()) {
     if (route.members) {
       for (const edge of routeElectricalConnections(route)) {
         if (edge.netId !== net.id) continue;
@@ -117,7 +122,7 @@ function partitionNet(
       .map((e) => byEndpoint.get(endpointKey(e)))
       .find(Boolean);
     if (id && id !== route.netId) {
-      route.netId = id;
+      writableDraftRow(draft, draft.routes, route, index).netId = id;
       changed.add(route.id);
     }
   }
@@ -575,7 +580,8 @@ export function rebuildEditedConnectivity(
       edge: ReturnType<typeof routeElectricalConnections>[number];
     }>
   >();
-  for (const route of new Set(affected.edges.map((entry) => entry.route))) {
+  for (const initial of new Set(affected.edges.map((entry) => entry.route))) {
+    const route = currentDraftRow(draft, initial);
     for (const edge of routeElectricalConnections(route)) {
       if (
         !edge.endpoints.every((endpoint) =>
@@ -639,14 +645,16 @@ export function rebuildEditedConnectivity(
       }
       removeNoConnectForEndpoint(draft, e, changed);
     }
-    for (const { route, edge } of routes) {
+    for (const entry of routes) {
+      const route = currentDraftRow(draft, entry.route);
+      const edge = entry.edge;
       // The old hint can still hold this Route's name claim. Repair those
       // owners even when the hint selected an unrelated Net.
       if (edge.netId !== netId) reassignedRouteHints.add(edge.netId);
       const member = route.members?.find((item) => item.id === edge.memberId);
       if (member) member.netId = netId;
       if (route.netId !== netId && (!member || member === route.members?.[0])) {
-        route.netId = netId;
+        writableDraftRow(draft, draft.routes, route).netId = netId;
         changed.add(route.id);
       }
     }
