@@ -1,8 +1,17 @@
+import {
+  resolveDocumentLogicalNets,
+  resolveDocumentStyleProfile,
+  resolveDrawingScene,
+} from "@icm/derived";
+import { executeTransaction } from "@icm/edit-engine";
 import { createEmptyDocument } from "@icm/model";
 import type { DraftingObject, SchematicDocument } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { drawingLayerRows } from "../selection/drawing-layer-rows";
+import { drawingDragIncludes } from "../selection/drawing-order-actions";
+import { createSelectionTransformController } from "../selection/selection-transform-controller";
 import {
   proposeRectangleLabel,
   rectangleInteriorAt,
@@ -141,5 +150,95 @@ describe("proposeRectangleLabel", () => {
     // One line break is the smallest legal RichText document and flattens to
     // whitespace, so an untouched commit deletes the label again.
     expect(label.content.runs).toEqual([{ kind: "line-break" }]);
+  });
+});
+
+describe("rectangle label ownership in layers and mirroring", () => {
+  it("attaches a rectangle's label under the rectangle row and includes it in drags", () => {
+    const box = rectangle("box-1", { x: 100, y: 60 }, 80, 40);
+    const label = {
+      ...proposeRectangleLabel(box, "fir-1"),
+      content: { runs: [{ kind: "text" as const, value: "FIR" }] },
+    };
+    const document = documentWith([box, label]);
+    const scene = resolveDrawingScene(document, resolver);
+    const rows = drawingLayerRows(
+      document,
+      scene,
+      resolver,
+      resolveDocumentLogicalNets(document),
+    );
+    const boxRow = rows.find(
+      (row) => row.entry.kind === "drafting" && row.entry.id === "box-1",
+    );
+    expect(boxRow?.attached?.map((child) => child.label)).toEqual(["FIR"]);
+    expect(
+      rows.some(
+        (row) => row.entry.kind === "drafting" && row.entry.id === "fir-1",
+      ),
+    ).toBe(false);
+    expect(
+      drawingDragIncludes(document, ["box-1"], {
+        kind: "drafting",
+        id: "fir-1",
+      }),
+    ).toBe(true);
+  });
+
+  it("mirrors an off-center rectangle label's localOffset when mirroring the box and label", () => {
+    const box = rectangle("box-1", { x: 100, y: 60 }, 80, 40);
+    const label: Extract<DraftingObject, { kind: "text" }> = {
+      ...proposeRectangleLabel(box, "fir-1"),
+      anchor: {
+        kind: "object",
+        objectId: "box-1",
+        localOffset: { x: 12, y: -4 },
+        fallbackPosition: { x: 112, y: 56 },
+      },
+      content: { runs: [{ kind: "text", value: "FIR" }] },
+    };
+    let document = documentWith([box, label]);
+    const controller = createSelectionTransformController({
+      document,
+      resolver,
+      styleProfile: resolveDocumentStyleProfile(document.presentation),
+      routeGeometryRecords: [],
+      annotationGrid: 1,
+      selectedInstanceIds: [],
+      selection: {
+        instanceIds: [],
+        routeIds: [],
+        junctionIds: [],
+        annotationIds: [],
+        draftingIds: ["box-1", "fir-1"],
+      },
+      transact(edits) {
+        const result = executeTransaction(
+          document,
+          {
+            transactionId: "mirror-rect-label",
+            documentId: document.id,
+            expectedRevision: document.revision,
+            actor: { kind: "human", id: "test" },
+            edits,
+          },
+          { symbolResolver: resolver },
+        );
+        if (result.ok) document = result.document;
+        return result;
+      },
+      setStatus: vi.fn(),
+    });
+
+    controller.mirror("left-right");
+
+    const mirroredLabel = document.drafting?.objects.find(
+      (item) => item.id === "fir-1",
+    );
+    expect(
+      mirroredLabel?.kind === "text" &&
+        mirroredLabel.anchor.kind === "object" &&
+        mirroredLabel.anchor.localOffset,
+    ).toEqual({ x: -12, y: -4 });
   });
 });

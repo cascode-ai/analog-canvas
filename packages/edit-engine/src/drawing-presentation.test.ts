@@ -467,3 +467,129 @@ it("keeps the legacy box and detached label when merely reopening an old drawing
     filled.project.documents[0]!.instances[0]!.styleOverride,
   ).toBeUndefined();
 });
+
+it("keeps a rectangle's anchored label immediately above it across layer reorders and inserts", () => {
+  const project = createEmptyProject("rect-label-order", "Rect label order");
+  const document = project.documents[0]!;
+  document.drafting = {
+    objects: [
+      {
+        id: "box-rear",
+        kind: "rectangle",
+        locked: false,
+        zIndex: 0,
+        anchor: { kind: "free", position: { x: 100, y: 100 } },
+        center: { x: 100, y: 100 },
+        width: 80,
+        height: 40,
+        rotation: 0,
+        lineStyle: "solid",
+        styleOverride: { fillColor: "#d4ecff" },
+      },
+      {
+        id: "box-front",
+        kind: "rectangle",
+        locked: false,
+        zIndex: 0,
+        anchor: { kind: "free", position: { x: 110, y: 100 } },
+        center: { x: 110, y: 100 },
+        width: 80,
+        height: 40,
+        rotation: 0,
+        lineStyle: "solid",
+        styleOverride: { fillColor: "#f3e5f5" },
+      },
+      {
+        id: "fir-label",
+        kind: "text",
+        locked: false,
+        zIndex: 0,
+        anchor: {
+          kind: "object",
+          objectId: "box-rear",
+          localOffset: { x: 0, y: 0 },
+          fallbackPosition: { x: 100, y: 100 },
+        },
+        content: { runs: [{ kind: "text", value: "FIR" }] },
+        alignment: "middle",
+        rotation: 0,
+        typographyToken: "label",
+      },
+    ],
+  };
+
+  // Bringing box-rear to front must gather its anchored FIR label right above it.
+  const broughtFront = edit(project, {
+    kind: "reorder_drawing_objects",
+    objectIds: ["box-rear"],
+    position: { kind: "front" },
+  });
+  if (!broughtFront.ok) throw new Error(broughtFront.error.message);
+  const frontIds = broughtFront.project.documents[0]!.drawingOrder?.map(
+    (entry) => ("id" in entry ? entry.id : entry.kind),
+  );
+  expect(frontIds?.slice(-3)).toEqual(["box-front", "box-rear", "fir-label"]);
+
+  const resolver = createProjectSymbolResolver(
+    broughtFront.project,
+    builtInSymbols,
+  );
+  const svg = renderDocumentSvg(broughtFront.project.documents[0]!, resolver, {
+    background: "transparent",
+  });
+  expect(
+    svg.match(/data-object-id="(?:box-front|box-rear|fir-label)"/gu),
+  ).toEqual([
+    'data-object-id="box-front"',
+    'data-object-id="box-rear"',
+    'data-object-id="fir-label"',
+  ]);
+
+  // Adding a label to box-front when drawingOrder already exists places it right above box-front.
+  const labeledFront = edit(broughtFront.project, {
+    kind: "upsert_drafting_object",
+    object: {
+      id: "iir-label",
+      kind: "text",
+      locked: false,
+      zIndex: 0,
+      anchor: {
+        kind: "object",
+        objectId: "box-front",
+        localOffset: { x: 0, y: 0 },
+        fallbackPosition: { x: 110, y: 100 },
+      },
+      content: { runs: [{ kind: "text", value: "IIR" }] },
+      alignment: "middle",
+      rotation: 0,
+      typographyToken: "label",
+    },
+  });
+  if (!labeledFront.ok) throw new Error(labeledFront.error.message);
+  const insertedIds = labeledFront.project.documents[0]!.drawingOrder?.map(
+    (entry) => ("id" in entry ? entry.id : entry.kind),
+  );
+  expect(insertedIds?.slice(-4)).toEqual([
+    "box-front",
+    "iir-label",
+    "box-rear",
+    "fir-label",
+  ]);
+
+  // One forward step moves box-front + iir-label past box-rear + fir-label together.
+  const stepped = edit(labeledFront.project, {
+    kind: "reorder_drawing_objects",
+    objectIds: ["box-front"],
+    position: { kind: "forward" },
+  });
+  if (!stepped.ok) throw new Error(stepped.error.message);
+  const steppedIds = stepped.project.documents[0]!.drawingOrder?.map((entry) =>
+    "id" in entry ? entry.id : entry.kind,
+  );
+  expect(steppedIds?.slice(-4)).toEqual([
+    "box-rear",
+    "fir-label",
+    "box-front",
+    "iir-label",
+  ]);
+});

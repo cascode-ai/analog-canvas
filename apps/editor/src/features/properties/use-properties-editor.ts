@@ -1495,6 +1495,25 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
       setTextEditing(null);
     },
     cancelAdditionalParameters,
+    cancelTextEditing: () => {
+      if (textEditing?.owner === "drafting") {
+        const target = options.document.drafting?.objects.find(
+          (candidate) =>
+            candidate.id === textEditing.id && candidate.kind === "text",
+        );
+        if (
+          target?.kind === "text" &&
+          !target.locked &&
+          !target.polarity &&
+          !flattenRichText(target.content).trim()
+        ) {
+          options.transact([textDeletionEdit(textEditing)]);
+          options.clearSelectionKinds(["drafting"]);
+        }
+      }
+      setTextEditing(null);
+      options.setStatus("Cancelled text changes");
+    },
     clearTextEditing: () => setTextEditing(null),
     deleteSelectedRouteNetLabel,
     deleteTextEditing,

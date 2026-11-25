@@ -1,6 +1,6 @@
 import type { SchematicEdit } from "@icm/edit-engine";
 import type { EditorCommandRouter } from "../../commands/editor-command";
-import { annotationOwningInstanceId } from "@icm/derived";
+import { annotationOwningInstanceId, draftingLabelOwnerId } from "@icm/derived";
 import type { DrawingObjectEntry, SchematicDocument } from "@icm/model";
 
 import type { ContextMenuAction } from "./canvas-context-menu";
@@ -119,17 +119,26 @@ export function selectionForDrawingLayer(
   };
 }
 
-/** A source Instance's annotations will be gathered by the transaction. */
+/** Owned annotations and drafting labels are gathered by the transaction. */
 export function drawingDragIncludes(
   document: SchematicDocument,
   objectIds: readonly string[],
   target: DrawingObjectEntry,
 ): boolean {
   if (objectIds.includes(target.id)) return true;
-  if (target.kind !== "annotation") return false;
-  const annotation = document.annotations.find(({ id }) => id === target.id);
-  const owner = annotation && annotationOwningInstanceId(annotation);
-  return Boolean(owner && objectIds.includes(owner));
+  if (target.kind === "annotation") {
+    const annotation = document.annotations.find(({ id }) => id === target.id);
+    const owner = annotation && annotationOwningInstanceId(annotation);
+    return Boolean(owner && objectIds.includes(owner));
+  }
+  if (target.kind === "drafting") {
+    const object = document.drafting?.objects.find(
+      ({ id }) => id === target.id,
+    );
+    const owner = object && draftingLabelOwnerId(object);
+    return Boolean(owner && objectIds.includes(owner));
+  }
+  return false;
 }
 
 export function drawingOrderActions(
