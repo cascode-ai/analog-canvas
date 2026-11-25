@@ -9,7 +9,7 @@ import { executeTransaction } from "./transaction.js";
 import type {
   AppliedTransaction,
   EditExecutionContext,
-  EditTransactionResult,
+  RejectedTransaction,
 } from "./transaction-result.js";
 
 /** An engine-owned calculation, never a persisted or Agent protocol value. */
@@ -82,11 +82,23 @@ export function prepareTransaction(
   document: SchematicDocument,
   input: EditTransaction | unknown,
   context: EditExecutionContext = {},
-): {
-  result: EditTransactionResult;
-  prepared?: PreparedTransaction;
-} {
-  const result = executeTransaction(document, input, context);
+  routing?: {
+    readMembership?: Parameters<typeof executeTransaction>[3];
+    changedNetIds: Set<string>;
+  },
+):
+  | { result: RejectedTransaction; prepared?: undefined }
+  | {
+      result: AppliedTransaction;
+      membershipUnchanged: boolean;
+      prepared: PreparedTransaction;
+    } {
+  const result = executeTransaction(
+    document,
+    input,
+    context,
+    routing?.readMembership,
+  );
   if (!result.ok) return { result };
   const transaction = EditTransactionSchema.parse(input);
   const symbols = symbolDependencies(transaction, document, result.document);
@@ -102,6 +114,7 @@ export function prepareTransaction(
     detached.document = shareEqualDocumentStructure(
       document,
       detached.document,
+      routing?.changedNetIds,
     );
   const owned = freezeSnapshot(detached);
   preparations.set(prepared, {
@@ -117,7 +130,13 @@ export function prepareTransaction(
     },
   });
   latestPreparation.set(document, prepared);
-  return { result, prepared };
+  return {
+    result,
+    prepared,
+    membershipUnchanged:
+      detached.document.nets === document.nets &&
+      detached.document.junctions === document.junctions,
+  };
 }
 
 /** Only registered, matching calculations can bypass repeated work. */

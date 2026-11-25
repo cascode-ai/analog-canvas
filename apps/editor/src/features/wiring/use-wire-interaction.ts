@@ -26,7 +26,7 @@ import {
   type WireMemberChoice,
   type WireDraftStep,
   createRoutingOperationPlan,
-  gateRoutingOperationPlan,
+  gateCanvasRoutingOperation,
   proposeLooseRouteTranslation,
   proposePowerRailEndpointResize,
   proposePowerRailTranslation,
@@ -326,7 +326,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
     proposal: RoutingOperationPlan,
     transactionOptions?: { completesWireSession?: boolean },
   ): TransactionResult => {
-    const gate = gateRoutingOperationPlan(options.document, proposal, {
+    const gate = gateCanvasRoutingOperation(options.document, proposal, {
       symbolResolver: options.resolver,
       externalSubcircuitDefinitions: options.externalSubcircuitDefinitions,
     });

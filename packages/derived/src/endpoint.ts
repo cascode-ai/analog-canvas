@@ -265,6 +265,17 @@ export function endpointKey(endpoint: RouteEndpoint): string {
   }
 }
 
+/** Read an unambiguous scalar key; bus members and identifiers containing separators need the original endpoint. */
+export function scalarEndpointFromKey(key: string): RouteEndpoint | undefined {
+  if (key.includes("\u0000")) return undefined;
+  const parts = key.split(":");
+  if (parts.length === 2 && parts[0] === "junction" && parts[1])
+    return { kind: "junction", junctionId: parts[1] };
+  if (parts.length === 3 && parts[0] === "terminal" && parts[1] && parts[2])
+    return { kind: "terminal", instanceId: parts[1], pinName: parts[2] };
+  return undefined;
+}
+
 /**
  * Returns whether an endpoint participates in the visible wiring graph.
  * Electrical Net membership is intentionally not consulted or mutated here.

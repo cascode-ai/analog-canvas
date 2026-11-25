@@ -1,6 +1,6 @@
 import {
   createRoutingOperationPlan,
-  gateRoutingOperationPlan,
+  gateCanvasRoutingOperation,
 } from "@icm/edit-engine";
 import type {
   EditTransactionResult,
@@ -215,7 +215,7 @@ export function createEditorTransactionCommands({
         ? { expectedElectricalEffect: options.expectedElectricalEffect }
         : {}),
     });
-    const gate = gateRoutingOperationPlan(document, proposal, {
+    const gate = gateCanvasRoutingOperation(document, proposal, {
       ...(resolver ? { symbolResolver: resolver } : {}),
       externalSubcircuitDefinitions: project.externalSubcircuitDefinitions,
       ...(contactEvidence
