@@ -11,6 +11,7 @@ import type {
   Annotation,
   Orientation,
   Point,
+  Rect,
   Rotation,
   SchematicDocument,
 } from "@icm/model";
@@ -30,6 +31,7 @@ import {
   inferInstanceLabelSide,
   instanceGroupLabel,
   instanceLabelGroupSeat,
+  instanceLabelInkBounds,
   instanceLabelRowOffset,
   instanceValueRowOffset,
   outwardDefaultInstanceLabelPlacement,
@@ -117,6 +119,25 @@ function isCanonicalSupplyPortLabel(
     samePoint(annotation.anchor.fallbackPosition, canonical.position);
   if (matchesCanonical) return true;
   if (instance.symbolId !== "vdd-port") return false;
+
+  // Compatibility for untouched labels authored on inverted vdd-ports before
+  // #2605 seated the baseline at the bottom bar instead of the symbol midpoint.
+  const previousInvertedPosition =
+    canonical !== null
+      ? {
+          x: canonical.position.x,
+          y: canonical.position.y - document.presentation.grid,
+        }
+      : null;
+  if (
+    previousInvertedPosition !== null &&
+    annotation.rotation === 0 &&
+    annotation.alignment === canonical!.alignment &&
+    samePoint(visiblePosition, previousInvertedPosition) &&
+    samePoint(annotation.anchor.fallbackPosition, previousInvertedPosition)
+  ) {
+    return true;
+  }
 
   // Compatibility for untouched labels authored before orientation-aware VDD
   // placement. Their original {10,10} vector rotated rigidly with the Symbol.
@@ -656,6 +677,64 @@ export function reflowCanonicalInstanceLabelsAfterPresentationChange(
   }
 }
 
+function rectsOverlap(left: Rect, right: Rect): boolean {
+  return (
+    left.x < right.x + right.width &&
+    left.x + left.width > right.x &&
+    left.y < right.y + right.height &&
+    left.y + left.height > right.y
+  );
+}
+
+/**
+ * The owner part's padded obstacle extent matching VISUAL_LABEL_CLEARANCE
+ * (`labelObstacleBounds` in @icm/derived).
+ */
+function ownerLabelObstacleBounds(
+  resolved: NonNullable<ReturnType<SymbolResolver["resolve"]>>,
+  signalFlowParameters: SchematicDocument["instances"][number]["signalFlowParameters"],
+  position: Point,
+  orientation: Orientation,
+): Rect {
+  const padding = 1;
+  const ink = instanceLabelInkBounds(resolved, signalFlowParameters);
+  const corners = [
+    { x: ink.x - padding, y: ink.y - padding },
+    { x: ink.x + ink.width + padding, y: ink.y - padding },
+    { x: ink.x - padding, y: ink.y + ink.height + padding },
+    { x: ink.x + ink.width + padding, y: ink.y + ink.height + padding },
+  ].map((point) => transformPoint(point, position, orientation));
+  const xs = corners.map((point) => point.x);
+  const ys = corners.map((point) => point.y);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return {
+    x,
+    y,
+    width: Math.max(...xs) - x,
+    height: Math.max(...ys) - y,
+  };
+}
+
+function measureAnnotationInkBounds(
+  draft: SchematicDocument,
+  resolver: SymbolResolver,
+  annotation: Annotation,
+): Rect {
+  return resolveAnnotationPresentation(
+    draft,
+    resolver,
+    annotation,
+    resolveDocumentStyleProfile(draft.presentation),
+    {
+      documentId: draft.id,
+      documentRevision: draft.revision,
+      routes: new Map(),
+      endpointJoins: [],
+    },
+  ).inkBounds;
+}
+
 /**
  * The vertical offset a part's label takes when the part flips top to
  * bottom. The text's ink reflects about the part's origin, not the anchor:
@@ -673,18 +752,7 @@ function reflectedTextOffsetY(
   origin: Point,
 ): number {
   if (annotation.anchor.kind !== "object") return 0;
-  const { inkBounds: bounds } = resolveAnnotationPresentation(
-    draft,
-    resolver,
-    annotation,
-    resolveDocumentStyleProfile(draft.presentation),
-    {
-      documentId: draft.id,
-      documentRevision: draft.revision,
-      routes: new Map(),
-      endpointJoins: [],
-    },
-  );
+  const bounds = measureAnnotationInkBounds(draft, resolver, annotation);
   const center = bounds.y + bounds.height / 2 - origin.y;
   // `|| 0`: a label level with the origin stays at 0, not -0.
   return Math.round(annotation.anchor.localOffset.y - 2 * center) || 0;
@@ -780,6 +848,31 @@ export function followAttachedAnnotations(
       // so the name still reads first.
       // Glyphs retain their readable orientation; horizontal alignment changes
       // with the side on which the text extends from its anchor.
+      const checkSelfClearance =
+        instance !== undefined &&
+        resolved !== undefined &&
+        resolver !== undefined &&
+        instanceAnnotationSlot(annotation) !== null;
+      let wasClearOfOwner = false;
+      if (checkSelfClearance) {
+        const beforeInk = measureAnnotationInkBounds(
+          draft,
+          resolver,
+          annotation,
+        );
+        const beforeInkAtOld: Rect = {
+          ...beforeInk,
+          x: beforeInk.x + (oldPosition.x - newPosition.x),
+          y: beforeInk.y + (oldPosition.y - newPosition.y),
+        };
+        const oldOwnerBox = ownerLabelObstacleBounds(
+          resolved,
+          instance.signalFlowParameters,
+          oldPosition,
+          oldOrientation,
+        );
+        wasClearOfOwner = !rectsOverlap(beforeInkAtOld, oldOwnerBox);
+      }
       const localOffset = {
         x: annotation.anchor.localOffset.x * horizontal,
         y:
@@ -798,6 +891,54 @@ export function followAttachedAnnotations(
       if (horizontal < 0 && annotation.alignment !== "middle") {
         annotation.alignment =
           annotation.alignment === "start" ? "end" : "start";
+      }
+      // Rounding in reflectedTextOffsetY or asymmetric text/symbol bounds can
+      // push a previously clear label onto the mirrored symbol's obstacle box
+      // (#2608). Nudge by the smallest outward integer shift along the
+      // mirrored axis so mirroring never introduces self-symbol clearance loss.
+      if (checkSelfClearance && wasClearOfOwner) {
+        const newOwnerBox = ownerLabelObstacleBounds(
+          resolved,
+          instance.signalFlowParameters,
+          newPosition,
+          newOrientation,
+        );
+        let afterInk = measureAnnotationInkBounds(draft, resolver, annotation);
+        if (rectsOverlap(afterInk, newOwnerBox)) {
+          let shiftX = 0;
+          let shiftY = 0;
+          if (vertical < 0) {
+            const inkCenterY = afterInk.y + afterInk.height / 2;
+            const ownerCenterY = newOwnerBox.y + newOwnerBox.height / 2;
+            shiftY =
+              inkCenterY <= ownerCenterY
+                ? -Math.ceil(afterInk.y + afterInk.height - newOwnerBox.y)
+                : Math.ceil(newOwnerBox.y + newOwnerBox.height - afterInk.y);
+            afterInk = { ...afterInk, y: afterInk.y + shiftY };
+          }
+          if (horizontal < 0 && rectsOverlap(afterInk, newOwnerBox)) {
+            const inkCenterX = afterInk.x + afterInk.width / 2;
+            const ownerCenterX = newOwnerBox.x + newOwnerBox.width / 2;
+            shiftX =
+              inkCenterX <= ownerCenterX
+                ? -Math.ceil(afterInk.x + afterInk.width - newOwnerBox.x)
+                : Math.ceil(newOwnerBox.x + newOwnerBox.width - afterInk.x);
+          }
+          if (shiftX !== 0 || shiftY !== 0) {
+            const adjustedOffset = {
+              x: annotation.anchor.localOffset.x + shiftX,
+              y: annotation.anchor.localOffset.y + shiftY,
+            };
+            annotation.anchor = {
+              ...annotation.anchor,
+              localOffset: adjustedOffset,
+              fallbackPosition: {
+                x: newPosition.x + adjustedOffset.x,
+                y: newPosition.y + adjustedOffset.y,
+              },
+            };
+          }
+        }
       }
       changedObjectIds.add(annotation.id);
       continue;

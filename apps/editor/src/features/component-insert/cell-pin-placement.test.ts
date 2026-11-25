@@ -464,4 +464,62 @@ describe("placing a Port onto a labelled Net", () => {
       expect.arrayContaining([portNet!.id, "net-remote"]),
     );
   });
+
+  it("carries a retired Net Label's formatOverride into the planned Port label (#2607)", () => {
+    const project = labelledResistorProject();
+    const document = project.documents[0]!;
+    const formatOverride = {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "bold" as const,
+          children: [{ kind: "text" as const, value: "V" }],
+        },
+        {
+          kind: "span" as const,
+          style: "subscript" as const,
+          children: [{ kind: "text" as const, value: "out1" }],
+        },
+      ],
+    };
+    document.annotations[0]!.formatOverride = formatOverride;
+
+    const result = executeProjectTransaction(project, {
+      transactionId: "place-port-inherit-format",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "test" },
+      edits: planPlacedCellPin(project, document.id, resolver, {
+        instance: {
+          id: "P1",
+          symbolId: "port",
+          placement: {
+            position: { x: 200, y: 100 },
+            rotation: 180,
+            mirror: "none",
+          },
+        },
+        terminalId: "terminal-p1",
+        name: "V_out1",
+        netId: "net-out",
+        direction: "output",
+        connectionEdits: [
+          {
+            kind: "connect_endpoints",
+            from: { kind: "terminal", instanceId: "P1", pinName: "P" },
+            to: { kind: "terminal", instanceId: "R1", pinName: "2" },
+          },
+        ],
+      }),
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+
+    const authored = result.project.documents[0]!;
+    expect(authored.annotations.map((a) => a.id)).not.toContain("label-out");
+    const portLabel = authored.annotations.find(
+      (a) => a.binding?.kind === "cell-terminal-name",
+    );
+    expect(portLabel?.formatOverride).toEqual(formatOverride);
+  });
 });

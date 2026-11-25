@@ -1,10 +1,14 @@
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import {
   foldNetName,
+  isAutomaticPinLabelLook,
+  isRoleLabelFormat,
   parseSignalExpression,
+  richTextPresentsIdentifier,
   scalarConnectivityEvidence,
   type Annotation,
   type ConnectivityEvidence,
+  type RichTextDocument,
   type SchematicDocument,
 } from "@icm/model";
 import type { EditTransaction } from "./edit-schema.js";
@@ -130,6 +134,25 @@ export function findRedundantNetLabelsForPort(
 }
 
 /**
+ * Compatible rich-text formatting carried by a retired local Net Label (e.g.,
+ * subscripted `V_outp` or `S_out`) whose plain text matches `signalName`.
+ * Inheriting it keeps authored typography intact when promoting a labeled Net
+ * to a formal Port (#2607).
+ */
+export function inheritedPortFormatOverride(
+  retiredLabels: readonly Annotation[],
+  signalName: string,
+): RichTextDocument | undefined {
+  for (const label of retiredLabels) {
+    if (!label.formatOverride) continue;
+    if (richTextPresentsIdentifier(label.formatOverride, signalName)) {
+      return structuredClone(label.formatOverride);
+    }
+  }
+  return undefined;
+}
+
+/**
  * Retire pre-existing same-net, same-name local Net Labels (and their owned
  * local claims and now-unused unstyled anchor Junctions) when a transaction
  * adds a scalar formal Port onto that Base Net, including after physical
@@ -174,6 +197,30 @@ export function retireRedundantNetLabelsForAddedCellTerminals(
       upsertedAnnotationIds,
     );
     if (!retiredLabels.length) continue;
+
+    const inheritedFormat = inheritedPortFormatOverride(
+      retiredLabels,
+      signalName,
+    );
+    if (inheritedFormat) {
+      const portLabel = draft.annotations.find(
+        (annotation) =>
+          annotation.binding?.kind === "cell-terminal-name" &&
+          annotation.binding.terminalId === terminalId &&
+          annotation.content === undefined &&
+          (annotation.formatOverride === undefined ||
+            isAutomaticPinLabelLook(annotation.formatOverride, signalName) ||
+            isRoleLabelFormat(
+              annotation.formatOverride,
+              "voltage-node",
+              signalName,
+            )),
+      );
+      if (portLabel) {
+        portLabel.formatOverride = inheritedFormat;
+        changedObjectIds.add(portLabel.id);
+      }
+    }
 
     const junctionIdsToRemove = removableLabelJunctionIds(
       draft,

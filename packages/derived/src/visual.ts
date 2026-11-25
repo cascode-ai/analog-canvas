@@ -37,6 +37,7 @@ import {
 } from "./resolved-route-geometry.js";
 import { resolveDocumentStyleProfile } from "./style-profile.js";
 import {
+  contactRequiresJunctionDot,
   deriveDocumentContactEvidence,
   type DocumentContactEvidence,
 } from "./contact.js";
@@ -1285,6 +1286,13 @@ export function diagnoseVisualQuality(
     candidateSearch,
     options.endpointConnections,
   );
+  pushPortOnJunctionDiagnostics(
+    diagnostics,
+    document,
+    boundsById,
+    routesById,
+    contactEvidence,
+  );
   const ordered = diagnostics.sort((left, right) =>
     `${left.code}\0${left.objectIds.join("\0")}`.localeCompare(
       `${right.code}\0${right.objectIds.join("\0")}`,
@@ -1307,6 +1315,87 @@ export function hasBlockingVisualDiagnostics(
   return diagnostics.some((diagnostic) =>
     isVisualDiagnosticGateFailure(diagnostic),
   );
+}
+
+/**
+ * A formal Port (`port` / `port-filled`) whose pin lands on a contact that
+ * renders a filled junction dot puts the dot directly onto the port circle at
+ * zero stub length (#2606).
+ */
+function pushPortOnJunctionDiagnostics(
+  diagnostics: VisualDiagnostic[],
+  document: SchematicDocument,
+  boundsById: ReadonlyMap<string, Rect>,
+  routesById: ReadonlyMap<string, SchematicDocument["routes"][number]>,
+  contactEvidence: DocumentContactEvidence,
+): void {
+  const portById = new Map(
+    document.instances
+      .filter(
+        (instance) =>
+          instance.symbolId === "port" || instance.symbolId === "port-filled",
+      )
+      .map((instance) => [instance.id, instance]),
+  );
+  if (portById.size === 0) return;
+  const junctionsById = new Map(
+    document.junctions.map((junction) => [junction.id, junction]),
+  );
+  const powerRailRouteIds = new Set(
+    document.routes
+      .filter((route) => route.presentation === "power-rail")
+      .map((route) => route.id),
+  );
+  for (const contact of contactEvidence.contacts) {
+    if (
+      contact.endpoints.some(
+        (endpoint) =>
+          endpoint.memberId ||
+          (endpoint.kind === "junction" &&
+            (junctionsById.get(endpoint.junctionId)?.members?.length ?? 0) > 1),
+      ) ||
+      contact.incidents.some(
+        (incident) =>
+          incident.kind === "route" &&
+          ((routesById.get(incident.objectId)?.members?.length ?? 0) > 1 ||
+            powerRailRouteIds.has(incident.objectId)),
+      ) ||
+      !contactRequiresJunctionDot(contact)
+    ) {
+      continue;
+    }
+    const routeIds = [
+      ...new Set(
+        contact.incidents.flatMap((incident) =>
+          incident.kind === "route" ? [incident.objectId] : [],
+        ),
+      ),
+    ].sort();
+    const seenPorts = new Set<string>();
+    for (const endpoint of contact.endpoints) {
+      if (endpoint.kind !== "terminal") continue;
+      if (seenPorts.has(endpoint.instanceId)) continue;
+      const port = portById.get(endpoint.instanceId);
+      if (!port) continue;
+      seenPorts.add(port.id);
+      const portBounds = boundsById.get(port.id);
+      diagnostics.push({
+        code: "VISUAL_PORT_ON_JUNCTION",
+        severity: "warning",
+        category: "observation",
+        confidence: "high",
+        gateEligible: false,
+        message: `Port ${partName(document, port.id)} sits directly on a wire junction dot; route a short stub from the junction instead`,
+        objectIds: [port.id, ...routeIds],
+        point: contact.point,
+        ...(portBounds ? { bounds: portBounds } : {}),
+        parameters: {
+          symbolId: port.symbolId,
+          branchCount: contact.branchDirections.length,
+        },
+      });
+    }
+  }
 }
 
 export function isVisualDiagnosticGateFailure(

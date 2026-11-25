@@ -242,10 +242,21 @@ export function defaultVddPowerLabelPlacement(
       alignment: away.x > 0 ? "start" : "end",
     };
   }
+  const awayY = pin
+    ? bounds.y +
+      bounds.height / 2 -
+      transformPoint(pin.at, instance.placement.position, instance.placement).y
+    : 0;
+  // When an inverted vdd-port hangs below a horizontal wire rail (awayY > 0,
+  // e.g. rotation 180 or vertical mirror), placing the baseline at the symbol
+  // midpoint puts capital ascenders across the rail above. Seat the baseline
+  // at the bottom bar so the label stays clear below the rail.
+  const baselineY =
+    awayY > 0 ? bounds.y + bounds.height : bounds.y + bounds.height / 2;
   return {
     position: {
       x: projectCoordinate(bounds.x + bounds.width + grid / 2),
-      y: projectCoordinate(bounds.y + bounds.height / 2),
+      y: projectCoordinate(baselineY),
     },
     alignment: "start",
   };
