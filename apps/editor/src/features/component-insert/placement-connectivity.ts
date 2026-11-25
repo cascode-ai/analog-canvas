@@ -175,7 +175,11 @@ export function planInsertedInstanceConnections(
   }
   const powerNetId = standalonePower.powerNetId ?? contact.powerNetId;
   const powerConnection = powerConnectionForSymbol(instance.symbolId);
-  const bodyDomain = supplyMarkerBodyDomain(instance.symbolId);
+  const supplyName =
+    (powerNetId &&
+      context.contactContext.logicalNets.byBaseNetId.get(powerNetId)?.name) ||
+    supplyMarkerForSymbol(instance.symbolId)?.name;
+  const bodyDomain = supplyMarkerBodyDomain(instance.symbolId, supplyName);
   const initialBulkDefaultEdits =
     bodyDomain && powerNetId
       ? planInitialMosBulkDefault(document, bodyDomain, powerNetId)

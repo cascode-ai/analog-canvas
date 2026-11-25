@@ -146,6 +146,56 @@ describe("drawn VDD rail construction", () => {
     });
   });
 
+  it("records a negative-named power rail as the NMOS bulk default and reconciles NMOS bodies", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      symbolVariantId: "textbook-3terminal",
+      placement: { position: { x: 100, y: 120 }, rotation: 0, mirror: "none" },
+    });
+    const plan = planVddRailEdits(
+      document,
+      {
+        instanceId: "VSS1",
+        netName: "VSS",
+        start: { x: 40, y: 200 },
+        end: { x: 180, y: 200 },
+      },
+      resolver,
+    );
+    expect(plan.ok).toBe(true);
+    if (!plan.ok) return;
+    const operation = createRoutingOperationPlan(document, {
+      intent: "connect",
+      diagnostics: [],
+      ...(plan.expectedElectricalEffect
+        ? { expectedElectricalEffect: plan.expectedElectricalEffect }
+        : {}),
+      edits: plan.edits,
+    });
+    const evaluated = evaluateRoutingOperationPlan(document, operation, {
+      symbolResolver: resolver,
+    });
+    expect(evaluated.ok).toBe(true);
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: "draw-vss-rail",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: [...plan.edits],
+      },
+      { symbolResolver: resolver },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.document.mosBulkDefaults).toEqual({
+      nmosNetId: plan.netId,
+    });
+  });
+
   it("commits the explicit VDD Net and visual rail in one transaction", () => {
     const document = createEmptyDocument("main", "Main");
     const result = executeTransaction(

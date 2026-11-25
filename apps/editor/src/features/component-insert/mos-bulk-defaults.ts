@@ -1,6 +1,7 @@
 import type { SchematicEdit } from "@icm/edit-engine";
 import {
   mosBulkKind,
+  namesNegativeSupply,
   pdkSubstrateDefaultNet,
   resolveDocumentLogicalNets,
 } from "@icm/derived";
@@ -12,15 +13,17 @@ type Definitions = Pick<CircuitProject, "externalSubcircuitDefinitions">;
 
 /**
  * Which body default a placed supply marker settles: Ground and a Named
- * Ground (VSS, AGND) the NMOS body's, VDD Power the PMOS body's. A Named
- * Ground names a supply rail, yet it is drawn as the rail NMOS bodies sit
- * on, never the one PMOS bodies do.
+ * Ground (VSS, AGND) the NMOS body's; VDD Power the PMOS body's unless it
+ * names a negative supply (VSS, VEE, VNEG, AVSS, DVSS, PVSS), which sits on
+ * the NMOS body domain instead.
  */
 export function supplyMarkerBodyDomain(
   symbolId: string,
+  name?: string,
 ): "ground" | "vdd" | undefined {
   if (symbolId === "ground" || symbolId === "named-ground") return "ground";
-  return symbolId === "vdd-port" ? "vdd" : undefined;
+  if (symbolId !== "vdd-port") return undefined;
+  return name && namesNegativeSupply(name) ? "ground" : "vdd";
 }
 
 /**

@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   planInitialMosBulkDefault,
   planMosBulkDefaultUpdate,
+  supplyMarkerBodyDomain,
 } from "./mos-bulk-defaults";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -13,6 +14,16 @@ const resolver = new InMemorySymbolResolver(builtInSymbols);
 const NO_DEFINITIONS = { externalSubcircuitDefinitions: [] };
 
 describe("initial MOS bulk defaults", () => {
+  it("routes a vdd-port named as a negative supply to the NMOS body domain", () => {
+    for (const name of ["VSS", "VEE", "VNEG", "AVSS", "DVSS", "PVSS"])
+      expect(supplyMarkerBodyDomain("vdd-port", name)).toBe("ground");
+    for (const name of [undefined, "VDD", "AVDD", "PVDD", "VCC"])
+      expect(supplyMarkerBodyDomain("vdd-port", name)).toBe("vdd");
+    expect(supplyMarkerBodyDomain("ground")).toBe("ground");
+    expect(supplyMarkerBodyDomain("named-ground", "VDD")).toBe("ground");
+    expect(supplyMarkerBodyDomain("port", "VSS")).toBeUndefined();
+  });
+
   it("honors preceding batch defaults and explicit clearing without mutating the document", () => {
     const document = createEmptyDocument("main", "Main");
     document.mosBulkDefaults = { pmosNetId: "old" };
