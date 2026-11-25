@@ -1,10 +1,11 @@
 import { REGIONAL_ACTION_TIMEOUT_MS } from "./regional-action-budget";
-import { sessionUserOf, type SessionUser } from "./auth";
+import { hasBearer, type SessionUser } from "./auth";
 import { digest, sessionIdentity } from "./regional-auth-contract";
 import { readSyncJson } from "./project-sync-http";
 import { sameOrigin } from "./same-origin";
 import { catchUpResource } from "./resource-action-catchup";
 import {
+  boardEditorOf,
   datasetPublicIds,
   storeChanges,
   withDatasetEntries,
@@ -69,7 +70,13 @@ export async function routeRegionalBoardActions(
         .AUTH!.getByName("auth")
         .fetch("https://auth/internal/resource-action-" + op, {
           method: "POST",
-          headers: { cookie: request.headers.get("cookie") ?? "" },
+          headers: {
+            cookie: request.headers.get("cookie") ?? "",
+            // An agent's API token authorizes its own command at the other entrance.
+            ...(request.headers.has("authorization")
+              ? { authorization: request.headers.get("authorization")! }
+              : {}),
+          },
           body: JSON.stringify(body),
         });
     const locate = async (id: string) => {
@@ -103,9 +110,11 @@ export async function routeRegionalBoardActions(
     };
     // The one board may be written in the other region before the background
     // seed; discovery is only needed while it is missing here.
-    const mainId = incoming
-      ? ""
-      : ((await (await call("board-main", {})).json()).id as string);
+    const main = incoming ? null : await call("board-main", {});
+    const mainId = main?.ok ? (await main.json()).id : "";
+    if (!incoming && typeof mainId !== "string")
+      return fail("board-unavailable", 503);
+    if (!incoming && !mainId) return fail("board-unavailable", 503);
     if (!incoming && request.method === "GET") {
       await locate(mainId);
       return null;
@@ -137,9 +146,10 @@ export async function routeRegionalBoardActions(
       if (!verified.ok) return fail("unauthorized", verified.status);
       user = sessionIdentity((await verified.json()).user);
     } else {
-      if (!sameOrigin(request)) return fail("cross-origin", 403);
-      user = await sessionUserOf(request, env);
-      if (!user) return fail("sign-in-required", 401);
+      const viaToken = hasBearer(request);
+      if (!viaToken && !sameOrigin(request)) return fail("cross-origin", 403);
+      user = await boardEditorOf(request, env);
+      if (!user) return fail(viaToken ? "bad-token" : "sign-in-required", 401);
       const body = (await readSyncJson(request, 256 * 1024)) as Record<
         string,
         unknown

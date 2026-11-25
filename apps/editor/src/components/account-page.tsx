@@ -356,9 +356,9 @@ function AccountSettings({
         <p className="account-page-note">Shown on the circuits you publish.</p>
       </section>
 
-      {/* Upload tokens are the Owner's own accounts' alone, never an AI
-          account a browser was switched to. */}
-      {user.isOwner && !user.seat ? <OwnerTokensSection /> : null}
+      {/* API tokens are a person's own account's, never an AI account a
+          browser was switched to. */}
+      {!user.seat ? <OwnerTokensSection owner={user.isOwner === true} /> : null}
       <TrustedCanvasDevices key={user.id} />
 
       <section

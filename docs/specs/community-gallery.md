@@ -531,15 +531,17 @@ createdAt?}]}` (≤10), validated like submissions with the prefix
   `{id, ok, created, previewRevision}` or `{id, ok: false, error}`. Imports
   post from the CLI with `pnpm gallery:import-batches … --post`
   ([Batch drawing](../agent/batch-drawing.md)).
-- Owner tokens (#1769): one labelled token per machine for that import, the
-  comparison import below and the
-  [local simulation check](#simulation-checks); no other route accepts one, and
-  a token does not expire until it is revoked.
-  The Owner's same-origin session (else 401/403) mints one
-  with `POST /api/auth/owner-tokens {label}` → `{id, label, token, createdAt}`
-  (`acot_…`, shown once; AuthDO keeps its SHA-256), lists them with
-  `GET /api/auth/owner-tokens` → `{tokens: [{id, label, createdAt,
-lastUsedAt}]}`, and revokes one with `DELETE /api/auth/owner-tokens/<id>`.
+- API tokens (#1769, "Owner tokens" when the Owner's): one labelled token per
+  machine. The Owner's opens that import, the comparison import below and the
+  [local simulation check](#simulation-checks); any account's edits the
+  [selection board](selection-boards.md) as that account; no other route
+  accepts one, and a token does not expire until it is revoked.
+  A person's own same-origin session (else 401; 403 for an AI account) mints
+  one with `POST /api/auth/owner-tokens {label}` → `{id, label, token,
+createdAt}` (`acot_…`, shown once; AuthDO keeps its SHA-256), lists that
+  account's with `GET /api/auth/owner-tokens` → `{tokens: [{id, label,
+createdAt, lastUsedAt}]}`, and revokes one of them with
+  `DELETE /api/auth/owner-tokens/<id>`.
 
 ### Dataset comparisons
 

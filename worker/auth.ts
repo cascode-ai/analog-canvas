@@ -50,11 +50,11 @@ export function hasBearer(request: Request): boolean {
 }
 
 /**
- * The account an Owner token (#1769) in `Authorization: Bearer <token>`
+ * The account an API token (#1769) in `Authorization: Bearer <token>`
  * belongs to, through the AuthDO. Null for no bearer, an unknown or revoked
- * token, or any failure. Only the Owner tools ownerToolRefusal names (and
- * the regional batch import) may call this; the caller still checks
- * `isOwner`.
+ * token, or any failure. Any account may hold one: the Owner tools
+ * ownerToolRefusal names (and the regional batch import) still check
+ * `isOwner`; the selection board (worker/boards.ts) takes any account's.
  */
 export async function ownerTokenUserOf(
   request: Request,

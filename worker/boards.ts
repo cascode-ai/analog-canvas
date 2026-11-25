@@ -6,7 +6,12 @@
 // the board's own store keeps their ids, and their names, facts and drawings come
 // from each dataset's store here.
 
-import { sessionUserOf, type SessionUser } from "./auth";
+import {
+  hasBearer,
+  ownerTokenUserOf,
+  sessionUserOf,
+  type SessionUser,
+} from "./auth";
 import { BOARD_PAGE } from "./boards-page";
 import { parseProject } from "@icm/project-protocol";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
@@ -71,10 +76,17 @@ function edgeCache(): Cache | null {
 /** A Gallery entry id as the wall and /g/<id> name it. */
 const ENTRY_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{2,63}$/u;
 
-/** The one board's id in the store (gallery-store-boards.ts mainBoardId). */
-export async function mainBoardIdOf(env: GalleryEnv): Promise<string> {
-  const { payload } = await callGallery<{ id: string }>(env, "board-main", {});
-  return payload.id;
+/**
+ * The one board's id in the store (gallery-store-boards.ts mainBoardId); null
+ * while the store cannot name it, such as a store still on an older build.
+ */
+export async function mainBoardIdOf(env: GalleryEnv): Promise<string | null> {
+  const { status, payload } = await callGallery<{ id?: unknown }>(
+    env,
+    "board-main",
+    {},
+  );
+  return status === 200 && typeof payload.id === "string" ? payload.id : null;
 }
 
 /**
@@ -134,14 +146,30 @@ async function readBody(
   }
 }
 
+/**
+ * The account a change comes from: a same-origin session, or an agent's API
+ * token from its account page (a browser never adds a bearer by itself).
+ */
+export async function boardEditorOf(
+  request: Request,
+  env: GalleryEnv,
+): Promise<SessionUser | null> {
+  return hasBearer(request)
+    ? ownerTokenUserOf(request, env)
+    : sessionUserOf(request, env);
+}
+
 /** The signed-in account a change needs, or the response that refuses it. */
 async function editor(
   request: Request,
   env: GalleryEnv,
 ): Promise<SessionUser | Response> {
-  if (!sameOrigin(request)) return json({ error: "cross-origin" }, 403);
-  const user = await sessionUserOf(request, env);
-  if (!user) return json({ error: "sign-in-required" }, 401);
+  const viaToken = hasBearer(request);
+  if (!viaToken && !sameOrigin(request))
+    return json({ error: "cross-origin" }, 403);
+  const user = await boardEditorOf(request, env);
+  if (!user)
+    return json({ error: viaToken ? "bad-token" : "sign-in-required" }, 401);
   return user;
 }
 
@@ -285,6 +313,7 @@ export async function routeBoardsRequest(
     .filter(Boolean)
     .map((segment) => decodeURIComponent(segment));
   const boardId = await mainBoardIdOf(env);
+  if (!boardId) return json({ error: "board-unavailable" }, 503);
 
   // GET /api/board — the board, for anyone.
   if (segments.length === 0 && method === "GET") {

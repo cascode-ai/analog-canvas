@@ -128,6 +128,7 @@ h1 input.inline { width: min(100%, 36ch); font-size: 20px; font-weight: 600; }
 .mark { display: inline-block; margin-left: 6px; padding: 2px 5px; border-radius: 4px; font-size: 11px; font-weight: 600; vertical-align: 1px; }
 .mark.ai { color: var(--ai); background: var(--ai-soft); }
 .small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.agent { margin: 0 0 12px; line-height: 1.5; }
 .note { margin-top: 4px; padding: 6px 8px; border-radius: var(--radius-sm); background: var(--surface-muted); font-size: 12px;
         white-space: pre-wrap; overflow-wrap: anywhere; }
 .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 6px; }
@@ -218,6 +219,8 @@ var MESSAGES = {
   "bad-entry": "Not a Gallery link or entry ID",
   "missing-title": "Give the board a name",
   "board-changed": "Someone else just changed the board; reload and try again",
+  "board-unavailable": "The board is briefly unavailable; try again in a moment",
+  "bad-token": "That API token is wrong or revoked",
   "cross-origin": "Make changes from this site's own page"
 };
 function message(payload) {
@@ -280,6 +283,7 @@ export const BOARD_PAGE =
       <input id="add-note" placeholder="Note (optional, e.g. why it was picked)">
       <button class="primary" id="add-go">Add</button>
     </div>
+    <p class="small agent" id="agent" hidden>Agents and scripts can edit too: make an API token on <a href="/account">your account page</a>, then send changes to <code>POST /api/board/changes</code> with <code>Authorization: Bearer &lt;token&gt;</code>. <a href="/api/board" target="_blank" rel="noopener">Read the board as JSON</a>.</p>
     <p class="status" id="status"></p>
     <div class="grid" id="grid"></div>
   </main>
@@ -373,6 +377,7 @@ function render() {
   }
 
   $("add").hidden = !editable();
+  $("agent").hidden = !viewer.signedIn;
 
   var events = $("events"); events.textContent = "";
   state.events.forEach(function (event) { events.append(el("li", null, [el("time", { text: when(event.at) }), sentence(event)])); });

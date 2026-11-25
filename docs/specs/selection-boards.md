@@ -19,7 +19,11 @@ the community wall's or a reference dataset's circuit (`ag-308`, `ct-001`…).
   stays the board; else its first change makes it (`Selection board`, 50
   slots), in the region a create would pick for its id.
 - Any collaborator, a signed-in account that is not blocked, changes it: add,
-  replace, remove, move, note, rename, slots, lock and unlock.
+  replace, remove, move, note, rename, slots, lock and unlock. A person edits
+  it on the page; an agent or script edits it as that person with an API token
+  from their account page (`Authorization: Bearer acot_…`, no same-origin
+  check), each request a batch of up to 200 changes. At the entrance that does
+  not write the board, only the Owner's token is forwarded.
 - The board holds only public entries, each once, at most its slots (1–500). An
   entry that later leaves the public wall stays on the board without its
   name or preview. A reference dataset's circuit must be public in that
@@ -59,6 +63,16 @@ the community wall's or a reference dataset's circuit (`ag-308`, `ct-001`…).
 | `POST /api/board/changes` `{changes: [...]}` | signed-in | the board                                    |
 | `GET /api/board/export`                      | anyone    | `{title, slots, lockedAt, revision, items}`  |
 | `GET /api/board/preview/<entry id>`          | anyone    | the entry's preview SVG                      |
+
+An agent, for example:
+
+```bash
+curl -X POST https://analog-canvas.tokenzhang.com/api/board/changes \
+  -H "Authorization: Bearer $ANALOG_CANVAS_TOKEN" -H "content-type: application/json" \
+  -d '{"changes":[{"kind":"add","entry":"https://analog-canvas.tokenzhang.com/g/<id>","note":"why"}]}'
+```
+
+A wrong or revoked token answers 401 `bad-token`.
 
 Before its first change the board reads as `Selection board`, 50 slots,
 revision 0, with no items.

@@ -1332,7 +1332,7 @@ describe("Owner tokens (#1769)", () => {
     return { auth, sql, owner, admin, member, tokens, mint, lookup };
   }
 
-  it("lets only the signed-in Owner mint, list and revoke tokens", async () => {
+  it("lets any signed-in account mint, list and revoke its own tokens", async () => {
     const { auth, owner, admin, member, tokens, lookup } = await ownerHarness();
     const mint = (cookie?: string) =>
       tokens(cookie, {
@@ -1340,9 +1340,28 @@ describe("Owner tokens (#1769)", () => {
         body: JSON.stringify({ label: "laptop" }),
       });
     expect((await mint()).status).toBe(401);
-    expect((await mint(admin)).status).toBe(403);
-    expect((await mint(member)).status).toBe(403);
-    expect((await tokens(member)).status).toBe(403);
+    expect((await mint(admin)).status).toBe(201);
+    const memberMade = await mint(member);
+    expect(memberMade.status).toBe(201);
+    const memberToken = (await memberMade.json()) as {
+      id: string;
+      token: string;
+    };
+    // A member's token names the member, never the Owner.
+    expect((await lookup(memberToken.token))?.isOwner).toBeUndefined();
+    expect(
+      (
+        (await (await tokens(member)).json()) as { tokens: { id: string }[] }
+      ).tokens.map((token) => token.id),
+    ).toEqual([memberToken.id]);
+    await tokens(member, { method: "DELETE" }, `/${memberToken.id}`);
+    await Promise.all(
+      (
+        (await (await tokens(admin)).json()) as { tokens: { id: string }[] }
+      ).tokens.map((token) =>
+        tokens(admin, { method: "DELETE" }, `/${token.id}`),
+      ),
+    );
     expect(
       (await tokens(owner, { method: "POST", body: JSON.stringify({}) }))
         .status,
@@ -1400,9 +1419,11 @@ describe("Owner tokens (#1769)", () => {
       user: null,
     });
 
+    // Nobody revokes or sees another account's token.
     expect(
       (await tokens(member, { method: "DELETE" }, `/${made.id}`)).status,
-    ).toBe(403);
+    ).toBe(404);
+    expect(await (await tokens(member)).json()).toEqual({ tokens: [] });
     expect(
       (await tokens(owner, { method: "DELETE" }, "/no-such-token")).status,
     ).toBe(404);

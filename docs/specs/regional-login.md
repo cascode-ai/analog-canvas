@@ -65,7 +65,7 @@ serves local authorization. Resource replication is owned by
   pending responses and queued operations. Account
   operations require authority connectivity. RPC requests are size-bounded;
   successful account results retain the existing account API's listing range.
-- Owner token management retains its existing Owner-only session checks.
+- API token management keeps its session checks: a person's own session manages only its own tokens.
   Import-token lookup uses only the internal AUTH binding and an authenticated
   authority RPC; it creates no session or lease and caches no authorization.
   Invalid/revoked tokens yield no user; resource owners still enforce `isOwner`

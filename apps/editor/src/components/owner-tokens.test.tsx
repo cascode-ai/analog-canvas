@@ -71,7 +71,7 @@ const settle = async () => {
 const byTestId = (id: string) =>
   container.querySelector<HTMLElement>(`[data-testid="${id}"]`);
 
-describe("the Owner's upload token", () => {
+describe("the account's API token", () => {
   it("names a new token after this computer and today", () => {
     expect(defaultTokenLabel("MacIntel", "2026-11-06T09:00:00Z")).toBe(
       "Mac 2026-11-06",
@@ -82,7 +82,7 @@ describe("the Owner's upload token", () => {
   });
 
   it("copies a new token without showing it, then lists it", async () => {
-    act(() => root.render(<OwnerTokensSection />));
+    act(() => root.render(<OwnerTokensSection owner />));
     await settle();
     expect((byTestId("owner-token-label") as HTMLInputElement).value).toMatch(
       /^Mac \d{4}-\d{2}-\d{2}$/u,
