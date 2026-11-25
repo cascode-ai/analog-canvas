@@ -1204,3 +1204,134 @@ describe("terminal-on-foreign-route exclusions", () => {
     expect(foreignHits(document)).toEqual([]);
   });
 });
+
+describe("VISUAL_PORT_ON_JUNCTION (#2606)", () => {
+  it("warns when a formal port sits directly on a dotted wire junction", () => {
+    const document = createEmptyDocument("port-on-dot", "Port on junction dot");
+    document.instances.push({
+      id: "P1",
+      symbolId: "port",
+      reference: "VOUT",
+      placement: {
+        position: { x: 200, y: 100 },
+        rotation: 270,
+        mirror: "none",
+      },
+    });
+    document.nets.push({
+      id: "net-out",
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
+    document.junctions.push(
+      {
+        id: "j-left",
+        netId: "net-out",
+        position: { x: 100, y: 100 },
+        role: "route-anchor",
+      },
+      {
+        id: "j-right",
+        netId: "net-out",
+        position: { x: 300, y: 100 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "route-left",
+        netId: "net-out",
+        start: { kind: "junction", junctionId: "j-left" },
+        end: { kind: "terminal", instanceId: "P1", pinName: "P" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "route-right",
+        netId: "net-out",
+        start: { kind: "terminal", instanceId: "P1", pinName: "P" },
+        end: { kind: "junction", junctionId: "j-right" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+
+    const hits = diagnoseVisualQuality(document, resolver).filter(
+      (item) => item.code === "VISUAL_PORT_ON_JUNCTION",
+    );
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({
+      code: "VISUAL_PORT_ON_JUNCTION",
+      severity: "warning",
+      category: "observation",
+      confidence: "high",
+      gateEligible: false,
+      objectIds: ["P1", "route-left", "route-right"],
+      point: { x: 200, y: 100 },
+    });
+  });
+
+  it("stays quiet when a formal port is connected via a short stub off the junction", () => {
+    const document = createEmptyDocument("port-on-stub", "Port on stub");
+    document.instances.push({
+      id: "P1",
+      symbolId: "port",
+      reference: "VOUT",
+      placement: { position: { x: 200, y: 80 }, rotation: 270, mirror: "none" },
+    });
+    document.nets.push({
+      id: "net-out",
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
+    document.junctions.push(
+      {
+        id: "j-left",
+        netId: "net-out",
+        position: { x: 100, y: 100 },
+        role: "route-anchor",
+      },
+      {
+        id: "j-mid",
+        netId: "net-out",
+        position: { x: 200, y: 100 },
+        role: "branch",
+      },
+      {
+        id: "j-right",
+        netId: "net-out",
+        position: { x: 300, y: 100 },
+        role: "route-anchor",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "route-left",
+        netId: "net-out",
+        start: { kind: "junction", junctionId: "j-left" },
+        end: { kind: "junction", junctionId: "j-mid" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "route-right",
+        netId: "net-out",
+        start: { kind: "junction", junctionId: "j-mid" },
+        end: { kind: "junction", junctionId: "j-right" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "route-stub",
+        netId: "net-out",
+        start: { kind: "junction", junctionId: "j-mid" },
+        end: { kind: "terminal", instanceId: "P1", pinName: "P" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+
+    const hits = diagnoseVisualQuality(document, resolver).filter(
+      (item) => item.code === "VISUAL_PORT_ON_JUNCTION",
+    );
+    expect(hits).toEqual([]);
+  });
+});

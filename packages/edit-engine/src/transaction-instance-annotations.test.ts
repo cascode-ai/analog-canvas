@@ -1048,4 +1048,78 @@ describe("a part's name and value through a top-bottom flip (#1384)", () => {
     ).toBeLessThanOrEqual(0.5);
     expect(at(value)!.x).toBe(x);
   });
+
+  it("keeps a closely placed clear opamp label clear of the flipped symbol on vertical mirror (#2608)", () => {
+    const document = createEmptyDocument("opamp-flip", "Opamp flip");
+    const opampPos = { x: 670, y: 300 };
+    document.instances.push({
+      id: "X1",
+      symbolId: "opamp",
+      reference: "X1",
+      placement: { position: opampPos, rotation: 0, mirror: "none" },
+    });
+    // Place X1's reference just below the opamp's padded obstacle box (y=331)
+    // so it starts clear, then mirror vertically where Math.round in
+    // reflectedTextOffsetY would otherwise push the subscript into the top edge.
+    const label: Annotation = {
+      id: "label-x1",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "X1" },
+      anchor: {
+        kind: "object",
+        objectId: "X1",
+        localOffset: { x: 5, y: 42 },
+        fallbackPosition: { x: 675, y: 342 },
+      },
+      alignment: "middle",
+      rotation: 0,
+      locked: false,
+    };
+    document.annotations.push(label);
+
+    const opamp = resolver.resolve("opamp")!;
+    const beforeInk = labelBox(document, label);
+    const beforeObstacle = placedBounds(
+      {
+        x: instanceLabelInkBounds(opamp).x - 1,
+        y: instanceLabelInkBounds(opamp).y - 1,
+        width: instanceLabelInkBounds(opamp).width + 2,
+        height: instanceLabelInkBounds(opamp).height + 2,
+      },
+      opampPos,
+      { rotation: 0, mirror: "none" },
+    );
+    expect(beforeInk.y).toBeGreaterThanOrEqual(
+      beforeObstacle.y + beforeObstacle.height,
+    );
+
+    const flipped = reflectOrientation(
+      { rotation: 0, mirror: "none" },
+      "top-bottom",
+    );
+    document.instances[0]!.placement = { position: opampPos, ...flipped };
+    followAttachedAnnotations(
+      document,
+      "X1",
+      opampPos,
+      { rotation: 0, mirror: "none" },
+      opampPos,
+      flipped,
+      new Set(),
+      resolver,
+    );
+
+    const afterInk = labelBox(document, label);
+    const afterObstacle = placedBounds(
+      {
+        x: instanceLabelInkBounds(opamp).x - 1,
+        y: instanceLabelInkBounds(opamp).y - 1,
+        width: instanceLabelInkBounds(opamp).width + 2,
+        height: instanceLabelInkBounds(opamp).height + 2,
+      },
+      opampPos,
+      flipped,
+    );
+    expect(afterInk.y + afterInk.height).toBeLessThanOrEqual(afterObstacle.y);
+  });
 });

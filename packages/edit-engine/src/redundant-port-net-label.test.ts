@@ -151,6 +151,10 @@ function addPortOnNet(
   options: {
     symbolId?: "port" | "port-filled";
     extraPrecedingEdits?: SchematicEdit[];
+    withPortAnnotation?: boolean;
+    portFormatOverride?: NonNullable<
+      CircuitProject["documents"][number]["annotations"][number]["formatOverride"]
+    >;
   } = {},
 ) {
   const document = project.documents[0]!;
@@ -172,6 +176,30 @@ function addPortOnNet(
       direction: "output",
       interfaceInstanceIds: ["P1"],
     },
+    ...(options.withPortAnnotation
+      ? {
+          annotation: {
+            id: "label-port-p1",
+            kind: "instance-label" as const,
+            binding: {
+              kind: "cell-terminal-name" as const,
+              terminalId: "terminal-p1",
+            },
+            anchor: {
+              kind: "object" as const,
+              objectId: "P1",
+              localOffset: { x: 10, y: 0 },
+              fallbackPosition: { x: 210, y: 100 },
+            },
+            alignment: "start" as const,
+            rotation: 0 as const,
+            locked: false,
+            ...(options.portFormatOverride
+              ? { formatOverride: options.portFormatOverride }
+              : {}),
+          },
+        }
+      : {}),
     connectionEdits: [
       {
         kind: "connect_endpoints",
@@ -593,5 +621,109 @@ describe("retiring redundant Net Labels on scalar formal Port addition", () => {
     expect(logical.byBaseNetId.get("net-out")?.baseNetIds).toEqual(
       expect.arrayContaining(["net-out", "net-vdd"]),
     );
+  });
+
+  it("inherits rich-text formatOverride from the retired Net Label onto the new Port (#2607)", () => {
+    const project = projectWithLabelledNet({ labelName: "S_out1" });
+    const formatOverride = {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "bold" as const,
+          children: [{ kind: "text" as const, value: "S" }],
+        },
+        {
+          kind: "span" as const,
+          style: "subscript" as const,
+          children: [{ kind: "text" as const, value: "out1" }],
+        },
+      ],
+    };
+    project.documents[0]!.annotations[0]!.formatOverride = formatOverride;
+
+    const result = addPortOnNet(project, "S_out1", {
+      withPortAnnotation: true,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+
+    const authored = result.project.documents[0]!;
+    expect(authored.annotations.map((item) => item.id)).not.toContain(
+      "label-out",
+    );
+    const portLabel = authored.annotations.find(
+      (item) => item.binding?.kind === "cell-terminal-name",
+    );
+    expect(portLabel?.formatOverride).toEqual(formatOverride);
+  });
+
+  it("does not inherit a formatOverride whose identifier spelling differs from the Port name (#2607)", () => {
+    const project = projectWithLabelledNet({ labelName: "V_out1" });
+    project.documents[0]!.annotations[0]!.formatOverride = {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "italic" as const,
+          children: [{ kind: "text" as const, value: "V" }],
+        },
+        {
+          kind: "span" as const,
+          style: "subscript" as const,
+          children: [{ kind: "text" as const, value: "out1" }],
+        },
+      ],
+    };
+
+    const result = addPortOnNet(project, "V_OUT1", {
+      withPortAnnotation: true,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+
+    const authored = result.project.documents[0]!;
+    const portLabel = authored.annotations.find(
+      (item) => item.binding?.kind === "cell-terminal-name",
+    );
+    expect(portLabel?.formatOverride).toBeUndefined();
+  });
+
+  it("preserves an explicit custom formatOverride supplied on the new Port (#2607)", () => {
+    const project = projectWithLabelledNet({ labelName: "S_out1" });
+    project.documents[0]!.annotations[0]!.formatOverride = {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "italic" as const,
+          children: [{ kind: "text" as const, value: "S" }],
+        },
+        {
+          kind: "span" as const,
+          style: "subscript" as const,
+          children: [{ kind: "text" as const, value: "out1" }],
+        },
+      ],
+    };
+    const explicitPortFormat = {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "bold" as const,
+          children: [{ kind: "text" as const, value: "S_out1" }],
+        },
+      ],
+    };
+
+    const result = addPortOnNet(project, "S_out1", {
+      withPortAnnotation: true,
+      portFormatOverride: explicitPortFormat,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+
+    const authored = result.project.documents[0]!;
+    const portLabel = authored.annotations.find(
+      (item) => item.binding?.kind === "cell-terminal-name",
+    );
+    expect(portLabel?.formatOverride).toEqual(explicitPortFormat);
   });
 });

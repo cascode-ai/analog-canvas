@@ -1,6 +1,7 @@
 import {
   findRedundantNetLabelsForPort,
   freePowerRailLabel,
+  inheritedPortFormatOverride,
   planCreateCellPin,
   proposePlacementContact,
   removableLabelJunctionIds,
@@ -54,8 +55,24 @@ export function planPlacedCellPin(
   const resolved = supply
     ? resolver.resolve(input.instance.symbolId)
     : undefined;
-  const hiddenLabelIds = !supply
-    ? retiringNetLabelIds(document, resolver, input, name)
+  const retiredLabels = !supply
+    ? retiringNetLabels(document, resolver, input, name)
+    : undefined;
+  const hiddenLabelIds = retiredLabels?.length
+    ? new Set(retiredLabels.map((label) => label.id))
+    : undefined;
+  const inheritedFormat = retiredLabels
+    ? inheritedPortFormatOverride(retiredLabels, name)
+    : undefined;
+  const defaultPortAnnotation = !supply
+    ? defaultInstanceDisplayAnnotations(
+        withPrecedingDisplay(document, input.precedingEdits, hiddenLabelIds),
+        input.instance,
+        resolver,
+        input.styleProfile ??
+          resolveDocumentStyleProfile(document.presentation),
+        { formalTerminalId: input.terminalId, formalName: name },
+      )[0]
     : undefined;
   const annotation =
     supply && resolved
@@ -72,14 +89,11 @@ export function planPlacedCellPin(
             terminalId: input.terminalId,
           },
         }
-      : defaultInstanceDisplayAnnotations(
-          withPrecedingDisplay(document, input.precedingEdits, hiddenLabelIds),
-          input.instance,
-          resolver,
-          input.styleProfile ??
-            resolveDocumentStyleProfile(document.presentation),
-          { formalTerminalId: input.terminalId, formalName: name },
-        )[0];
+      : defaultPortAnnotation &&
+          inheritedFormat &&
+          defaultPortAnnotation.content === undefined
+        ? { ...defaultPortAnnotation, formatOverride: inheritedFormat }
+        : defaultPortAnnotation;
   const plan = planCreateCellPin(project, documentId, {
     instance: input.instance,
     ...(!supply ? { signalExpression: name } : {}),
@@ -196,7 +210,7 @@ function retireKeptSupplyPin(
  * physically contacted Base Net, hidden from default display placement so the
  * Port's own formal label does not dodge a label that is about to disappear.
  */
-function retiringNetLabelIds(
+function retiringNetLabels(
   document: SchematicDocument,
   resolver: SymbolResolver,
   input: {
@@ -205,7 +219,7 @@ function retiringNetLabelIds(
     precedingEdits?: readonly SchematicEdit[];
   },
   name: string,
-): ReadonlySet<string> | undefined {
+): Annotation[] | undefined {
   let targetNetId: string | undefined;
   if (document.nets.some((net) => net.id === input.netId)) {
     targetNetId = input.netId;
@@ -248,7 +262,7 @@ function retiringNetLabelIds(
     name,
     upsertedIds,
   );
-  return retired.length ? new Set(retired.map((label) => label.id)) : undefined;
+  return retired.length ? retired : undefined;
 }
 
 /**

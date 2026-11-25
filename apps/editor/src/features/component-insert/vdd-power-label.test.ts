@@ -3,7 +3,10 @@ import {
   proposedStandalonePowerConnection,
 } from "@icm/edit-engine";
 import type { SchematicEdit } from "@icm/edit-engine";
-import { defaultVddPowerLabelPlacement } from "@icm/derived";
+import {
+  defaultVddPowerLabelPlacement,
+  diagnoseLabelClearance,
+} from "@icm/derived";
 import { AnnotationSchema, createEmptyDocument } from "@icm/model";
 import type { Annotation } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
@@ -512,4 +515,108 @@ describe("vdd power label annotation", () => {
       objectAnchor(result.document.annotations[0]!).fallbackPosition,
     ).not.toEqual(expected?.position);
   });
+
+  it.each([
+    { label: "rotated 180°", rotation: 180 as const, mirror: "none" as const },
+    {
+      label: "vertically mirrored",
+      rotation: 0 as const,
+      mirror: "vertical" as const,
+    },
+  ])(
+    "seats an inverted ($label) vdd-port power-label clear below a horizontal bottom rail (#2605)",
+    ({ rotation, mirror }) => {
+      const document = createEmptyDocument("main", "Main");
+      const instance = {
+        id: "VSS1",
+        symbolId: "vdd-port",
+        placement: {
+          position: { x: 800, y: 380 },
+          rotation,
+          mirror,
+        },
+      };
+      const resolved = resolver.resolve("vdd-port");
+      if (!resolved) throw new Error("missing VDD Port Symbol");
+      document.instances.push(instance);
+      document.nets.push({
+        id: "net-vss",
+        terminals: [{ instanceId: "VSS1", pinName: "P" }],
+      });
+      document.junctions.push(
+        {
+          id: "j-left",
+          netId: "net-vss",
+          position: { x: 700, y: 360 },
+          role: "route-anchor",
+        },
+        {
+          id: "j-right",
+          netId: "net-vss",
+          position: { x: 900, y: 360 },
+          role: "route-anchor",
+        },
+      );
+      document.routes.push(
+        {
+          id: "route-vss-left",
+          netId: "net-vss",
+          start: { kind: "junction", junctionId: "j-left" },
+          legs: [
+            {
+              id: "leg-1",
+              to: {
+                kind: "endpoint",
+                endpoint: {
+                  kind: "terminal",
+                  instanceId: "VSS1",
+                  pinName: "P",
+                },
+              },
+              mode: "manual",
+            },
+          ],
+        },
+        {
+          id: "route-vss-right",
+          netId: "net-vss",
+          start: { kind: "terminal", instanceId: "VSS1", pinName: "P" },
+          legs: [
+            {
+              id: "leg-2",
+              to: {
+                kind: "endpoint",
+                endpoint: { kind: "junction", junctionId: "j-right" },
+              },
+              mode: "manual",
+            },
+          ],
+        },
+      );
+      document.connectivityEvidence.push(vddMarkerClaim("VSS1", "net-vss"));
+      const annotation = vddPowerLabelAnnotation({
+        instance,
+        resolved,
+        netId: "net-vss",
+        grid: document.presentation.grid,
+        name: "VSS",
+      });
+      document.annotations.push(annotation);
+
+      const placement = defaultVddPowerLabelPlacement(
+        instance,
+        resolved,
+        document.presentation.grid,
+      );
+      expect(placement).toEqual({
+        position: { x: 820, y: 380 },
+        alignment: "start",
+      });
+      expect(
+        diagnoseLabelClearance(document, resolver).filter(
+          (item) => item.code === "VISUAL_LABEL_CLEARANCE",
+        ),
+      ).toEqual([]);
+    },
+  );
 });
