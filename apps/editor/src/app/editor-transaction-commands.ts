@@ -15,6 +15,7 @@ import type { DocumentContactEvidence } from "@icm/derived";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
+import type { EvaluatedPlacement } from "../features/netlist-export/netlist-process";
 import type { InteractionMode } from "../interaction/interaction-state";
 import type { EditorContactEvidence } from "../document/document-controller";
 
@@ -110,18 +111,23 @@ export function createEditorTransactionCommands({
       activeDocumentId,
     );
 
-  const commitStructure = (
-    transactionId: string,
-    edits: ProjectStructureEdit[],
-    activeDocumentId = document.id,
-  ): boolean => {
-    const result = transactStructure(transactionId, edits, activeDocumentId);
+  const reportStructureResult = (result: ProjectTransactionResult): boolean => {
     if (result.ok && result.applied) return true;
     const message = result.ok
       ? "The structural transaction made no change"
       : (result.diagnostics[0]?.message ?? result.error.message);
     setStatus(`Could not update Cell structure: ${message}`);
     return false;
+  };
+
+  const commitStructure = (
+    transactionId: string,
+    edits: ProjectStructureEdit[],
+    activeDocumentId = document.id,
+  ): boolean => {
+    return reportStructureResult(
+      transactStructure(transactionId, edits, activeDocumentId),
+    );
   };
 
   const applyResult = (result: EditTransactionResult): void => {
@@ -195,12 +201,12 @@ export function createEditorTransactionCommands({
     return result;
   };
 
-  /** The routing gate alone: the edits it would commit, or null after saying why not. */
-  const gateConnectivity = (
+  /** Evaluate the routing plan once and report its first refusal. */
+  const evaluateConnectivity = (
     intent: RoutingOperationIntent,
     edits: readonly SchematicEdit[],
     options: ConnectivityTransactionOptions = {},
-  ): readonly SchematicEdit[] | null => {
+  ) => {
     const proposal = createRoutingOperationPlan(document, {
       intent,
       edits,
@@ -231,7 +237,57 @@ export function createEditorTransactionCommands({
       setStatus(plainRoutingRefusal(raw));
       return null;
     }
-    return gate.edits;
+    return gate;
+  };
+
+  const gateConnectivity = (
+    intent: RoutingOperationIntent,
+    edits: readonly SchematicEdit[],
+    options: ConnectivityTransactionOptions = {},
+  ) => evaluateConnectivity(intent, edits, options)?.edits ?? null;
+
+  const commitComponentPlacement = (
+    edits: readonly SchematicEdit[],
+    expectedElectricalEffect: ExpectedElectricalEffect | undefined,
+    processFill: (
+      edits: readonly SchematicEdit[],
+      placement?: EvaluatedPlacement,
+    ) => ProjectStructureEdit[] | undefined,
+  ): boolean => {
+    const placement = evaluateConnectivity(
+      "connect",
+      edits,
+      expectedElectricalEffect ? { expectedElectricalEffect } : {},
+    );
+    if (!placement) return false;
+    const gated = placement.edits;
+    const filled = processFill(gated, {
+      project,
+      source: document,
+      edits: gated,
+      finalDocument: placement.evaluated.finalDocument,
+    });
+    if (filled) {
+      const result = transactStructure("place-component", filled);
+      if (result.ok) return reportStructureResult(result);
+      // A failed optional fill may leave the new part with a missing-model
+      // finding. Only the independent planner can distinguish that case from
+      // a refused placement; never retry against a different Project revision.
+      if (
+        result.project.id !== project.id ||
+        result.structureRevision !== project.structureRevision ||
+        result.project.documents.find((item) => item.id === document.id)
+          ?.revision !== document.revision
+      )
+        return reportStructureResult(result);
+      const validated = processFill(gated);
+      if (validated) {
+        if (JSON.stringify(validated) === JSON.stringify(filled))
+          return reportStructureResult(result);
+        return commitStructure("place-component", validated);
+      }
+    }
+    return transact([...gated], { preserveInteraction: true }).ok;
   };
 
   const transactConnectivity = (
@@ -248,6 +304,7 @@ export function createEditorTransactionCommands({
     transactStructure,
     transact,
     gateConnectivity,
+    commitComponentPlacement,
     transactConnectivity,
   };
 }

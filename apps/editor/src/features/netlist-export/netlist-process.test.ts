@@ -490,6 +490,57 @@ describe("a part placed into a Process (#1251)", () => {
     expect(again?.map((edit) => edit.kind)).toEqual(["transact_document"]);
   });
 
+  it("uses the standalone fill for another working copy at the same revision or a repeated Instance ID", () => {
+    const project = createEmptyProject("mos", "MOS");
+    const document = project.documents[0]!;
+    const add = {
+      kind: "add_instance",
+      instance: {
+        id: "M1",
+        reference: "M1",
+        symbolId: "nmos",
+        placement: null,
+        netlist: { parameters: {} },
+      },
+    } as const;
+    const edits = [add];
+    const preferencesForMos = preferences("sky130");
+    const foreign = structuredClone(project);
+    const candidate = {
+      source: foreign.documents[0]!,
+      project: foreign,
+      edits,
+      // This other snapshot does not contain the new MOS.
+      finalDocument: foreign.documents[0]!,
+    };
+    const fill = () =>
+      placementProcessFill(project, preferencesForMos, document.id, edits);
+    const expected = fill();
+    expect(expected).toBeDefined();
+    expect(
+      placementProcessFill(
+        project,
+        preferencesForMos,
+        document.id,
+        edits,
+        candidate,
+      ),
+    ).toEqual(expected);
+    project.documents.push({
+      ...structuredClone(document),
+      id: "child",
+      name: "child",
+      netlist: { name: "child", terminals: [], formalParameters: [] },
+      instances: [add.instance],
+    });
+    expect(
+      placementProcessFill(project, preferencesForMos, document.id, edits, {
+        ...candidate,
+        project,
+        source: document,
+      }),
+    ).toEqual(fill());
+  });
   it("names the device a placed part becomes, as Apply process chooses it", () => {
     const project = createEmptyProject("targets", "Targets");
     const target = (selected: NetlistProfileId, symbolId: string) =>

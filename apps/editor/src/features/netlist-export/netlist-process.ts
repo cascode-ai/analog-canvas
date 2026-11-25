@@ -27,6 +27,7 @@ import {
 import {
   deriveStableId,
   type CircuitProject,
+  type SchematicDocument,
   type Instance,
   type InstanceNetlistData,
 } from "@icm/model";
@@ -230,6 +231,14 @@ export function processPlacementTarget(
   return target;
 }
 
+/** The routing gate's result for this synchronous placement in this working copy. */
+export interface EvaluatedPlacement {
+  readonly project: CircuitProject;
+  readonly source: SchematicDocument;
+  readonly edits: readonly SchematicEdit[];
+  readonly finalDocument: SchematicDocument;
+}
+
 /**
  * What the Process gives the parts a placement adds, committed with the
  * placement as one Project transaction.
@@ -251,6 +260,7 @@ export function placementProcessFill(
   },
   documentId: string,
   placementEdits: readonly SchematicEdit[],
+  evaluated?: EvaluatedPlacement,
 ): ProjectStructureEdit[] | undefined {
   const document = project.documents.find((item) => item.id === documentId);
   const pending = new Set(
@@ -278,27 +288,75 @@ export function placementProcessFill(
     expectedRevision: document.revision,
     edits: [...placementEdits],
   };
-  const placed = executeProjectTransaction(project, {
-    transactionId: "plan-placement-process",
-    projectId: project.id,
-    expectedStructureRevision: project.structureRevision,
-    actor: { kind: "human", id: "netlist-process" },
-    edits: [placement],
-  });
-  if (!placed.ok) return undefined;
+  // Canvas has already executed these exact edits against this Document.
+  // The candidate is a planning input; only the final Project commit owns the result.
+  const reuse =
+    evaluated?.project === project &&
+    evaluated.source === document &&
+    evaluated.edits === placementEdits &&
+    pending.size === 1 &&
+    placementEdits.some(
+      (edit) =>
+        edit.kind === "add_instance" &&
+        pending.has(edit.instance.id) &&
+        (edit.instance.symbolId === "nmos" ||
+          edit.instance.symbolId === "pmos"),
+    ) &&
+    // The standalone fill can also plan a binding for an unbound part
+    // with the same local ID in another Cell. Preserve that shared plan.
+    !project.documents.some(
+      (item) =>
+        item !== document &&
+        item.instances.some(
+          (instance) =>
+            pending.has(instance.id) &&
+            instanceModelTarget(project, instance) === "",
+        ),
+    );
+  let placedProject: CircuitProject;
+  if (reuse) {
+    placedProject = {
+      ...project,
+      documents: project.documents.map((item) =>
+        item === document ? evaluated.finalDocument : item,
+      ),
+    };
+  } else {
+    const placed = executeProjectTransaction(project, {
+      transactionId: "plan-placement-process",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "netlist-process" },
+      edits: [placement],
+    });
+    if (!placed.ok) return undefined;
+    placedProject = placed.project;
+  }
   const process =
     preferences.selected === "custom"
       ? "custom"
       : inferNetlistProcess(project, preferences.selected);
   let fill: ProjectStructureEdit[];
   try {
-    fill = planNetlistProcess(placed.project, preferences.profiles[process], {
-      onlyMissing: true,
-      instanceIds: pending,
-    });
+    const options = { onlyMissing: true, instanceIds: pending };
+    fill = reuse
+      ? collectNetlistProcess(
+          placedProject,
+          preferences.profiles[process],
+          options,
+          [evaluated.finalDocument],
+        ).edits
+      : planNetlistProcess(
+          placedProject,
+          preferences.profiles[process],
+          options,
+        );
   } catch {
-    // The part then keeps its missing-model finding, as before.
-    return undefined;
+    // If projection cannot plan the binding, let the standalone planner
+    // decide whether this placement keeps its missing-model finding.
+    return reuse
+      ? placementProcessFill(project, preferences, documentId, placementEdits)
+      : undefined;
   }
   const fillEdits = fill.flatMap((edit) =>
     edit.kind === "transact_document" && edit.documentId === documentId
@@ -556,6 +614,13 @@ export function planNetlistProcess(
   return planNetlistProcessReport(project, profile, options).edits;
 }
 
+type NetlistProcessOptions = {
+  onlyMissing?: boolean;
+  family?: NetlistDeviceFamily;
+  /** Only these Instances, as a fresh placement fills its own parts. */
+  instanceIds?: ReadonlySet<string>;
+};
+
 /**
  * The Apply process plan, with the resistors and capacitors it converts by
  * value. A fresh placement's parts take the device's own defaults instead:
@@ -564,12 +629,34 @@ export function planNetlistProcess(
 export function planNetlistProcessReport(
   project: CircuitProject,
   profile: NetlistExportProfile,
-  options: {
-    onlyMissing?: boolean;
-    family?: NetlistDeviceFamily;
-    /** Only these Instances, as a fresh placement fills its own parts. */
-    instanceIds?: ReadonlySet<string>;
-  } = {},
+  options: NetlistProcessOptions = {},
+) {
+  const { edits, conversions } = collectNetlistProcess(
+    project,
+    profile,
+    options,
+  );
+  // Preparation does not commit its projection. Validate the complete real
+  // edits once; the GUI retains its existing authoritative commit and history.
+  if (edits.length) {
+    const validated = executeProjectTransaction(project, {
+      transactionId: "plan-netlist-process",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "human", id: "netlist-process" },
+      edits,
+      dryRun: true,
+    });
+    if (!validated.ok) throw new Error(validated.error.message);
+  }
+  return { edits, conversions };
+}
+
+function collectNetlistProcess(
+  project: CircuitProject,
+  profile: NetlistExportProfile,
+  options: NetlistProcessOptions,
+  sourceDocuments: readonly SchematicDocument[] = project.documents,
 ): {
   edits: ProjectStructureEdit[];
   conversions: ProcessValueConversion[];
@@ -610,7 +697,7 @@ export function planNetlistProcessReport(
         },
       ]);
   }
-  for (const originalDocument of project.documents) {
+  for (const originalDocument of sourceDocuments) {
     const documentId = originalDocument.id;
     // The Edit Engine refuses netlist edits to a device whose Reference is
     // missing, taken or of another class. Such a device keeps its finding
@@ -904,19 +991,6 @@ export function planNetlistProcessReport(
       edits,
     })),
   ];
-  // Preparation does not commit its projection. Validate the complete real
-  // edits once; the GUI retains its existing authoritative commit and history.
-  if (edits.length) {
-    const validated = executeProjectTransaction(project, {
-      transactionId: "plan-netlist-process",
-      projectId: project.id,
-      expectedStructureRevision: project.structureRevision,
-      actor: { kind: "human", id: "netlist-process" },
-      edits,
-      dryRun: true,
-    });
-    if (!validated.ok) throw new Error(validated.error.message);
-  }
   return { edits, conversions };
 }
 

@@ -1,3 +1,7 @@
+import * as engine from "@icm/edit-engine";
+import { EditorDocumentController } from "../document/document-controller";
+import { createDefaultNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
+import { placementProcessFill } from "../features/netlist-export/netlist-process";
 import { createEmptyProject, createSimulationFolder } from "@icm/model";
 import { describe, expect, it, vi } from "vitest";
 
@@ -20,7 +24,174 @@ function dependencies() {
   };
 }
 
+function livePlacement(project = createEmptyProject("mos", "MOS")) {
+  const controller = new EditorDocumentController(project);
+  const commands = createEditorTransactionCommands({
+    ...dependencies(),
+    project: controller.project,
+    document: controller.document,
+    resolver: controller.resolver,
+    dispatchProjectTransaction: (request) =>
+      controller.dispatchProjectTransaction(request),
+    transactDocument: (edits) => controller.transact(edits),
+  });
+  return {
+    controller,
+    commands,
+    project: controller.project,
+    document: controller.document,
+  };
+}
+
 describe("editor transaction commands", () => {
+  it("places M1 in one undoable commit without Project trials when another Cell already owns a bound M1", () => {
+    const input = createEmptyProject("mos", "MOS");
+    const child = {
+      ...structuredClone(input.documents[0]!),
+      id: "child",
+      name: "child",
+      netlist: { name: "child", terminals: [], formalParameters: [] },
+      instances: [
+        {
+          id: "M1",
+          reference: "M1",
+          symbolId: "nmos",
+          placement: null,
+          netlist: {
+            binding: {
+              kind: "model" as const,
+              deviceClass: "mos" as const,
+              name: "sky130_fd_pr__nfet_01v8",
+            },
+            parameters: { w: "11u" },
+          },
+        },
+      ],
+    };
+    input.documents.push(child);
+    const { controller, commands, project, document } = livePlacement(input);
+    const execute = vi.spyOn(engine, "executeProjectTransaction");
+    try {
+      expect(
+        commands.commitComponentPlacement(
+          [
+            {
+              kind: "add_instance",
+              instance: {
+                id: "M1",
+                reference: "M1",
+                symbolId: "nmos",
+                placement: {
+                  position: { x: 0, y: 0 },
+                  rotation: 0,
+                  mirror: "none",
+                },
+                netlist: { parameters: { w: "7u" } },
+              },
+            },
+          ],
+          undefined,
+          (edits, placed) =>
+            placementProcessFill(
+              project,
+              createDefaultNetlistExportPreferences(),
+              document.id,
+              edits,
+              placed,
+            ),
+        ),
+      ).toBe(true);
+      expect(
+        execute.mock.calls.map(
+          ([, request]) => (request as engine.ProjectTransaction).transactionId,
+        ),
+      ).toEqual(["place-component"]);
+      expect(
+        controller.project.externalSubcircuitDefinitions.map((d) => d.name),
+      ).toEqual(["sky130_fd_pr__nfet_01v8"]);
+      expect(controller.document.instances[0]?.netlist).toMatchObject({
+        binding: {
+          kind: "external-subcircuit",
+          definitionId: controller.project.externalSubcircuitDefinitions[0]!.id,
+        },
+        parameters: { w: "7u" },
+      });
+      expect(
+        controller.project.documents.find((item) => item.id === child.id)
+          ?.instances,
+      ).toEqual(child.instances);
+      const placed = controller.document.instances;
+      expect(controller.transact([{ kind: "undo" }]).ok).toBe(true);
+      expect(controller.document.instances).toEqual([]);
+      expect(controller.project.externalSubcircuitDefinitions).toEqual([]);
+      expect(controller.canUndo).toBe(false);
+      expect(controller.transact([{ kind: "redo" }]).ok).toBe(true);
+      expect(controller.document.instances).toEqual(placed);
+    } finally {
+      execute.mockRestore();
+    }
+  });
+  it.each([
+    ["a refused optional fill", false, true],
+    ["a stale placement", true, false],
+  ] as const)(
+    "keeps placement and history atomic after %s",
+    (_, stale, accepted) => {
+      const { controller, commands, project, document } = livePlacement();
+      if (stale) {
+        expect(
+          controller.dispatchProjectTransaction({
+            transactionId: "rename",
+            projectId: project.id,
+            expectedStructureRevision: project.structureRevision,
+            actor: { kind: "human", id: "test" },
+            edits: [{ kind: "rename_project", name: "New name" }],
+          }).ok,
+        ).toBe(true);
+      }
+      const committed = commands.commitComponentPlacement(
+        [
+          {
+            kind: "add_instance",
+            instance: {
+              id: "M1",
+              reference: "M1",
+              symbolId: "nmos",
+              placement: null,
+            },
+          },
+        ],
+        undefined,
+        (edits, evaluated) =>
+          evaluated
+            ? [
+                {
+                  kind: "transact_document",
+                  documentId: document.id,
+                  expectedRevision: document.revision,
+                  // A fill targeting a missing Instance must be rejected atomically.
+                  edits: [
+                    ...edits,
+                    {
+                      kind: "set_instance_netlist",
+                      instanceId: "missing",
+                      netlist: { parameters: {} },
+                    },
+                  ],
+                },
+              ]
+            : undefined,
+      );
+      expect(committed).toBe(accepted);
+      expect(
+        controller.document.instances.map((instance) => instance.id),
+      ).toEqual(accepted ? ["M1"] : []);
+      expect(controller.project.externalSubcircuitDefinitions).toEqual([]);
+      expect(controller.transact([{ kind: "undo" }]).ok).toBe(true);
+      expect(controller.document.instances).toEqual([]);
+      expect(controller.canUndo).toBe(false);
+    },
+  );
   it("builds one revision-checked structural envelope and surfaces diagnostics", () => {
     const input = dependencies();
     input.dispatchProjectTransaction.mockReturnValue({
