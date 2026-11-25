@@ -66,7 +66,15 @@ describe("instanceParameterContract", () => {
               { name: "vhigh", defaultValue: "VDD" },
               { name: "vlow", defaultValue: "VSS" },
             ]),
+        { name: "gbw", placeholder: "1e7" },
+        { name: "rout", placeholder: "100" },
       ]);
+      expect(
+        contract?.definitions.find((d) => d.name === "gbw")?.defaultValue,
+      ).toBeUndefined();
+      expect(
+        contract?.definitions.find((d) => d.name === "rout")?.defaultValue,
+      ).toBeUndefined();
       expect(contract?.open).toBe(true);
     }
   });

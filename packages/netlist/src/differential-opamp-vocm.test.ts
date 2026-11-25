@@ -124,4 +124,52 @@ describe("fully differential op-amp VOCM pin (#2443)", () => {
     expect(text).toContain("X1 VDD VSS inp inn outp outn cm my_fd vocm=1");
     expect(text).not.toContain("icm_opamp_differential_vocm");
   });
+
+  it("models optional gbw and rout on differential op-amps with or without VOCM (#2615)", () => {
+    const spiceBoth = exported(
+      fdProject({
+        vocm: true,
+        parameters: { gain: "1e4", gbw: "20Meg", rout: "75" },
+      }),
+      "spice",
+    );
+    expect(spiceBoth).toContain(
+      "X1 VDD VSS inp inn outp outn cm icm_opamp_differential_vocm_gbw_rout gain=1e4 gbw=20Meg rout=75",
+    );
+    expect(spiceBoth).toContain(
+      ".subckt icm_opamp_differential_vocm_gbw_rout VDD VSS VIP VIN VOP VON VOCM params: gain=1e6 gbw=1e7\n+ rout=100",
+    );
+    expect(spiceBoth).toContain("EDIFF ndiff_raw 0 VIP VIN {gain}");
+    expect(spiceBoth).toContain("RPOLE ndiff_raw ndiff 1");
+    expect(spiceBoth).toContain("CPOLE ndiff 0 {gain/(6.283185307179586*gbw)}");
+    expect(spiceBoth).toContain("ROUTP noutp VOP {rout}");
+    expect(spiceBoth).toContain("ROUTN noutn VON {rout}");
+
+    const spectreGbw = exported(
+      fdProject({ parameters: { vocm: "0.9", gbw: "5Meg" } }),
+      "spectre",
+    );
+    expect(spectreGbw).toContain(
+      "X1 (VDD VSS inp inn outp outn) icm_opamp_differential_gbw gbw=5M vocm=0.9",
+    );
+    expect(spectreGbw).toContain(
+      "subckt icm_opamp_differential_gbw (VDD VSS VIP VIN VOP VON)",
+    );
+    expect(spectreGbw).toContain("RPOLE (ndiff_raw ndiff) resistor r=1");
+    expect(spectreGbw).toContain(
+      "CPOLE (ndiff 0) capacitor c=gain/(6.283185307179586*gbw)",
+    );
+
+    const invalid = createDesignNetlistExport(
+      fdProject({ parameters: { gbw: "-1Meg" } }),
+      { format: "spice", portCase: "upper" },
+    );
+    expect(invalid.status).toBe("blocked");
+    expect(invalid.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "INVALID_IDEAL_OPAMP_PARAMETER",
+        parameter: "gbw",
+      }),
+    );
+  });
 });

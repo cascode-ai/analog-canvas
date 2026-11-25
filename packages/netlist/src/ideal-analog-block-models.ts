@@ -8,10 +8,16 @@ import {
   callsIdealComparatorBody,
   DIFFERENTIAL_OPAMP_LEVEL,
   DIFFERENTIAL_OPAMP_TARGET,
-  DIFFERENTIAL_OPAMP_VOCM_BODY,
+  differentialOpampBodyTraits,
   idealComparatorBodyFor,
   idealComparatorModelTarget,
+  isIdealDifferentialOpampBody,
+  OPAMP_GBW,
+  OPAMP_GBW_DEFAULT,
+  OPAMP_ROUT,
+  OPAMP_ROUT_DEFAULT,
   type BuiltInSubcircuitDescriptor,
+  type IdealDifferentialOpampBody,
   type InputSign,
 } from "@icm/devices";
 
@@ -109,8 +115,8 @@ export function idealAnalogBlockCell(
 ): DesignNetlistCell | null {
   const device = semiconductorDeviceCell(target, format);
   if (device) return device;
-  if (target === DIFFERENTIAL_OPAMP_VOCM_BODY)
-    return differentialOpampVocmCell(format);
+  if (isIdealDifferentialOpampBody(target))
+    return differentialOpampCell(target, format);
   // Every adder body shares the adder's model entry; its signs choose the
   // body and are never a SPICE parameter of it.
   const adderSigns = adderBodySigns(target);
@@ -211,17 +217,27 @@ export function idealAnalogBlockCell(
 }
 
 /**
- * The fully differential op-amp whose VOCM pin has a Net: its outputs sit
- * about V(VOCM) instead of the `vocm` parameter, which it does not declare
- * (differential-opamp.ts). Ports: the op-amp's, then VOCM.
+ * Fully differential op-amp bodies (#2443, #2615): outputs sit about `vocm` or
+ * V(VOCM), with optional dominant-pole bandwidth (`gbw`) and per-output series
+ * resistance (`rout`). Default calls (`opamp_differential` and
+ * `icm_opamp_differential_vocm`) omit `gbw` and `rout` and stay unchanged.
  */
-function differentialOpampVocmCell(format: NetlistFormat): DesignNetlistCell {
-  const target = DIFFERENTIAL_OPAMP_VOCM_BODY;
+function differentialOpampCell(
+  target: IdealDifferentialOpampBody,
+  format: NetlistFormat,
+): DesignNetlistCell {
   const model = builtInModelContract(DIFFERENTIAL_OPAMP_TARGET)!;
-  const ports = [...model.ports.map((port) => port.name), "VOCM"];
+  const traits = differentialOpampBodyTraits(target);
+  const ports = traits.vocmPin
+    ? [...model.ports.map((port) => port.name), "VOCM"]
+    : model.ports.map((port) => port.name);
+  const cmNode = traits.vocmPin ? "VOCM" : "ncm";
+  const outP = traits.rout ? "noutp" : "VOP";
+  const outN = traits.rout ? "noutn" : "VON";
   const e = (
     reference: string,
     nodes: readonly [string, string, string, string],
+    expression: string,
   ) =>
     controlledSource(
       target,
@@ -229,9 +245,82 @@ function differentialOpampVocmCell(format: NetlistFormat): DesignNetlistCell {
       "vcvs",
       nodes,
       "gain",
-      "gain/2",
+      expression,
       format,
     );
+  const passiveInstance = (
+    reference: string,
+    deviceClass: "resistor" | "capacitor",
+    nodes: readonly [string, string],
+    value: string,
+    expression: boolean,
+  ): DesignNetlistInstance => ({
+    id: deriveStableId("netlist-ideal-block-source", target, reference),
+    reference,
+    invocationKind: "primitive",
+    deviceClass,
+    target: null,
+    nodes: nodes.map((netName, index) => ({
+      pinName: String(index + 1),
+      netName,
+    })),
+    parameters: [
+      {
+        name: "value",
+        rawValue: expression && format === "spice" ? `{${value}}` : value,
+      },
+    ],
+  });
+
+  const extraNets: string[] = [];
+  if (!traits.vocmPin) extraNets.push("ncm");
+  if (traits.gbw) extraNets.push("ndiff_raw", "ndiff");
+  if (traits.rout) extraNets.push("noutp", "noutn");
+
+  const instances: DesignNetlistInstance[] = [];
+  if (!traits.vocmPin) {
+    instances.push({
+      id: deriveStableId("netlist-ideal-block-source", target, "VCM"),
+      reference: "VCM",
+      invocationKind: "primitive",
+      deviceClass: "voltage-source",
+      target: null,
+      nodes: [
+        { pinName: "+", netName: "ncm" },
+        { pinName: "-", netName: "0" },
+      ],
+      parameters: [
+        { name: "dc", rawValue: format === "spice" ? "{vocm}" : "vocm" },
+      ],
+    });
+  }
+  if (traits.gbw) {
+    instances.push(
+      e("EDIFF", ["ndiff_raw", "0", "VIP", "VIN"], "gain"),
+      passiveInstance("RPOLE", "resistor", ["ndiff_raw", "ndiff"], "1", false),
+      passiveInstance(
+        "CPOLE",
+        "capacitor",
+        ["ndiff", "0"],
+        "gain/(6.283185307179586*gbw)",
+        true,
+      ),
+      e("EPLUS", [outP, cmNode, "ndiff", "0"], "0.5"),
+      e("EMINUS", [outN, cmNode, "0", "ndiff"], "0.5"),
+    );
+  } else {
+    instances.push(
+      e("EPLUS", [outP, cmNode, "VIP", "VIN"], "gain/2"),
+      e("EMINUS", [outN, cmNode, "VIN", "VIP"], "gain/2"),
+    );
+  }
+  if (traits.rout) {
+    instances.push(
+      passiveInstance("ROUTP", "resistor", ["noutp", "VOP"], "rout", true),
+      passiveInstance("ROUTN", "resistor", ["noutn", "VON"], "rout", true),
+    );
+  }
+
   return {
     origin: "generated-model",
     id: deriveStableId("netlist-ideal-block-cell", target),
@@ -241,26 +330,50 @@ function differentialOpampVocmCell(format: NetlistFormat): DesignNetlistCell {
       name: port,
       netName: port,
     })),
-    nets: ports.map((port, index) => ({
-      id: deriveStableId("netlist-ideal-block-net", target, String(index)),
-      name: port,
-      scope: "local" as const,
-    })),
-    formalParameters: model.parameters.flatMap((parameter) =>
-      parameter.name === DIFFERENTIAL_OPAMP_LEVEL
-        ? []
-        : [
-            {
-              name: parameter.name,
-              ...(parameter.defaultValue !== undefined
-                ? { defaultValue: parameter.defaultValue }
-                : {}),
-            },
-          ],
-    ),
-    instances: [
-      e("EPLUS", ["VOP", "VOCM", "VIP", "VIN"]),
-      e("EMINUS", ["VON", "VOCM", "VIN", "VIP"]),
+    nets: [
+      ...ports.map((port, index) => ({
+        id: deriveStableId("netlist-ideal-block-net", target, String(index)),
+        name: port,
+        scope: "local" as const,
+      })),
+      ...extraNets.map((netName) => ({
+        id: deriveStableId("netlist-ideal-block-net", target, netName),
+        name: netName,
+        scope: "local" as const,
+      })),
     ],
+    formalParameters: model.parameters.flatMap((parameter) => {
+      if (parameter.name === DIFFERENTIAL_OPAMP_LEVEL) {
+        return traits.vocmPin
+          ? []
+          : [
+              {
+                name: parameter.name,
+                ...(parameter.defaultValue !== undefined
+                  ? { defaultValue: parameter.defaultValue }
+                  : {}),
+              },
+            ];
+      }
+      if (parameter.name === OPAMP_GBW) {
+        return traits.gbw
+          ? [{ name: OPAMP_GBW, defaultValue: OPAMP_GBW_DEFAULT }]
+          : [];
+      }
+      if (parameter.name === OPAMP_ROUT) {
+        return traits.rout
+          ? [{ name: OPAMP_ROUT, defaultValue: OPAMP_ROUT_DEFAULT }]
+          : [];
+      }
+      return [
+        {
+          name: parameter.name,
+          ...(parameter.defaultValue !== undefined
+            ? { defaultValue: parameter.defaultValue }
+            : {}),
+        },
+      ];
+    }),
+    instances,
   };
 }

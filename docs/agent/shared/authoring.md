@@ -234,7 +234,10 @@ their IDs, never resolved to the first.
   and Schmitt triggers saturate as drawn. The fully differential op-amp is
   unlimited; its outputs sit about `vocm` (`"0"`, volts from ground), so set
   it where they drive gates on a single supply, or about its `VOCM` pin while
-  that is wired (unwired, the call leaves it out).
+  that is wired (unwired, the call leaves it out). Both op-amps take optional
+  positive `gbw` (Hz, dominant pole at `gbw/gain`) and `rout` (Ω, series output
+  resistance) for finite-bandwidth AC/transient simulation; omit both for an
+  ideal memoryless op-amp.
 - Formula blocks (catalog `formula: true`: integrator, unit delay,
   discrete-time integrator, transconductance) take
   `signalFlow:{formula?, coefficient?, bodyWidth?, bodyHeight?}`;

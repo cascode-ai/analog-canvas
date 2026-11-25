@@ -10,9 +10,10 @@ import {
   builtInSubcircuitDescriptors,
   isGenericBlockTarget,
   DIFFERENTIAL_OPAMP_TARGET,
-  DIFFERENTIAL_OPAMP_VOCM_BODY,
+  isIdealDifferentialOpampBody,
   isIdealComparatorBody,
   idealComparatorModelTarget,
+  idealOpampBodyReads,
   isIdealOpampBody,
   subcircuitDescriptor,
 } from "@icm/devices";
@@ -347,7 +348,7 @@ function builtInBody(
         : idealComparatorModelTarget(name)
       : adderBodySigns(name)
         ? ADDER_TARGET
-        : name === DIFFERENTIAL_OPAMP_VOCM_BODY
+        : isIdealDifferentialOpampBody(name)
           ? DIFFERENTIAL_OPAMP_TARGET
           : name;
   const descriptor = builtInSubcircuitDescriptors.find(
@@ -390,7 +391,7 @@ function builtInBody(
               !(
                 port.supply === "VDD" &&
                 isIdealOpampBody(name) &&
-                name !== OPAMP_TARGET
+                (idealOpampBodyReads(name).vdd || idealOpampBodyReads(name).vss)
               ),
           }
         : { pinName: port.pinName },

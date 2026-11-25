@@ -3868,6 +3868,12 @@ export const agentRazaviAuthoringCatalog = {
           name: "vlow",
           default: "VSS",
         },
+        {
+          name: "gbw",
+        },
+        {
+          name: "rout",
+        },
       ],
       parametersOpen: true,
       bounds: {
@@ -3972,6 +3978,12 @@ export const agentRazaviAuthoringCatalog = {
           name: "vlow",
           default: "VSS",
         },
+        {
+          name: "gbw",
+        },
+        {
+          name: "rout",
+        },
       ],
       parametersOpen: true,
       bounds: {
@@ -4071,6 +4083,12 @@ export const agentRazaviAuthoringCatalog = {
         {
           name: "vocm",
           default: "0",
+        },
+        {
+          name: "gbw",
+        },
+        {
+          name: "rout",
         },
       ],
       parametersOpen: true,
@@ -4212,6 +4230,12 @@ export const agentRazaviAuthoringCatalog = {
           name: "vocm",
           default: "0",
         },
+        {
+          name: "gbw",
+        },
+        {
+          name: "rout",
+        },
       ],
       parametersOpen: true,
       bounds: {
@@ -4352,6 +4376,12 @@ export const agentRazaviAuthoringCatalog = {
           name: "vocm",
           default: "0",
         },
+        {
+          name: "gbw",
+        },
+        {
+          name: "rout",
+        },
       ],
       parametersOpen: true,
       bounds: {
@@ -4491,6 +4521,12 @@ export const agentRazaviAuthoringCatalog = {
         {
           name: "vocm",
           default: "0",
+        },
+        {
+          name: "gbw",
+        },
+        {
+          name: "rout",
         },
       ],
       parametersOpen: true,
@@ -8672,6 +8708,12 @@ export const agentRazaviAuthoringCatalog = {
           name: "vlow",
           default: "VSS",
         },
+        {
+          name: "gbw",
+        },
+        {
+          name: "rout",
+        },
       ],
       parametersOpen: true,
       bounds: {
@@ -8775,6 +8817,12 @@ export const agentRazaviAuthoringCatalog = {
         {
           name: "vlow",
           default: "VSS",
+        },
+        {
+          name: "gbw",
+        },
+        {
+          name: "rout",
         },
       ],
       parametersOpen: true,

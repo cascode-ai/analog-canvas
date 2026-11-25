@@ -299,6 +299,7 @@ Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
 | `ERC_DRAFTING_WIRE_IMITATION`     | A drafting construction-line starting and ending on distinct electrical pins or Junctions without electrically connecting them. |
 | `ERC_DRAFTING_PORT_LABEL`         | Free drafting text with an I/O-like signal name (`Vout*`, `Vin*`, `Ibias*`, etc.) sitting near an unnamed electrical node. |
 | `ERC_FLOATING_CUSTOM_SUPPLY`      | A custom supply-named Net (`PVDD`, `PVSS`, `AVDD`, `DVDD`, `SAP`, `SAN`, etc.) feeding two or more MOS source/bulk pins without a formal Port, supply marker or voltage source. |
+| `ERC_BIAS_CURRENT_OVERDRIVE`      | Non-blocking advisory: an explicit `>= 1 mA` DC `current-source` feeding a non-supply, non-clamped MOSFET drain/source Net at `>= 400 uA/um` effective channel width (`w * m * nf`). |
 | `ERC_SWITCH_CLOCK_DC`             | A drawn switch clock (phase Net or CTRL Net) an independent DC source holds from ground or a supply, with no time-varying source on it (each Net once, its switches listed). |
 | `ERC_SWITCH_CLOCKED_BY_OWN_NAME`  | A switch whose label shows its own name, so it reads a phase of that name no Net carries, in a Cell whose other switches read written phases none of which is named after a switch. |
 | `ERC_PARALLEL_SWITCHES`           | Two or more two-way drawn switches (phase or CTRL) across the same two Logical Nets, on one clock (duplicates) or on different clocks (each pair of Nets once). |

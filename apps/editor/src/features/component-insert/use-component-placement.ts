@@ -71,6 +71,7 @@ import {
   nextCellPinName,
   nextInstanceId,
 } from "../netlist-export/netlist-authoring";
+import { initialComponentParameterValues } from "./component-parameters";
 import { placedInstanceNetlist } from "./placed-instance-netlist";
 import { defaultRazaviSymbolVariantId } from "../../presentation/razavi-presentation";
 import { sharedComponentNetlist } from "../user-components/component-definition-edit";
@@ -222,11 +223,20 @@ export function useComponentPlacement(options: UseComponentPlacementOptions) {
         },
         netlist: customDefinition
           ? sharedComponentNetlist(customDefinition)
-          : placedInstanceNetlist(
-              symbolId,
-              placementRequest.parameters,
-              options.processModelTarget(symbolId),
-            ),
+          : (() => {
+              const catalogDefaults = initialComponentParameterValues(symbolId);
+              const explicitParameters = Object.fromEntries(
+                Object.entries(placementRequest.parameters).filter(
+                  ([key, value]) => value !== catalogDefaults[key],
+                ),
+              );
+              return placedInstanceNetlist(
+                symbolId,
+                explicitParameters,
+                options.processModelTarget(symbolId),
+                options.project,
+              );
+            })(),
       },
       {
         reference: drawnName

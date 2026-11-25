@@ -159,10 +159,11 @@ and the semiconductor devices declares
 fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
 
 - Voltage amplifier (`gain` 1), transconductors (`gm` 1m S) and the fully
-  differential op-amp (unlimited) are frequency-independent E/G sources that
-  VDD/VSS neither power nor clamp. The fully differential op-amp's outputs are
-  `vocm` ± `gain`·V(IN+, IN−)/2 from ground (`vocm` 0, an ideal CMFB's level),
-  body `opamp_differential`. While its `VOCM` pin has a Net, the call adds that
+  differential op-amp (unlimited) are E/G sources that VDD/VSS neither power
+  nor clamp (frequency-independent unless `gbw` is set on the differential
+  op-amp). The fully differential op-amp's outputs are `vocm` ± `gain`·V(IN+,
+  IN−)/2 from ground (`vocm` 0, an ideal CMFB's level), body
+  `opamp_differential`. While its `VOCM` pin has a Net, the call adds that
   node last and calls `icm_opamp_differential_vocm` (no `vocm`), whose outputs
   sit about V(VOCM); a retargeted part passes the node to its own master.
 - Op-amp: `gain`·V(IN+, IN−) (default 1e6), exact between `vlow`/`vhigh` and
@@ -171,9 +172,14 @@ fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
   drawn positive supply); unpowered supply limits read ±5 V (owner decision),
   and a default VDD Pin added for other parts powers no op-amp. Several
   candidates read ±5 V (ground low) with non-blocking
-  `IDEAL_OPAMP_SUPPLY_AMBIGUOUS`. Bodies `opamp`, `icm_opamp_vdd`,
-  `icm_opamp_vss`, `icm_opamp_vdd_vss`; no call carries `vhigh=VDD`. Errors:
-  `INVALID_IDEAL_OPAMP_LIMIT`.
+  `IDEAL_OPAMP_SUPPLY_AMBIGUOUS`. Both single-ended and fully differential
+  op-amps accept optional positive `gbw` (Hz, single dominant pole at
+  `gbw/gain` before clamping) and `rout` (Ω, series output resistance per
+  output); leaving both unset preserves the memoryless bodies (`opamp`,
+  `icm_opamp_vdd`, `icm_opamp_vss`, `icm_opamp_vdd_vss`, `opamp_differential`,
+  `icm_opamp_differential_vocm`), while setting either selects the matching
+  `_gbw` / `_rout` / `_gbw_rout` body variant; no call carries `vhigh=VDD`.
+  Errors: `INVALID_IDEAL_OPAMP_LIMIT`, `INVALID_IDEAL_OPAMP_PARAMETER`.
 - Logic (SPICE): gates, buffer, inverter and D flip-flops print once ahead of the
   Cells; inputs are high above V(VDD,VSS)/2 via a `tanh` step `vt` (10 mV);
   outputs swing VSS→VDD through a one-pole delay `td` (10 ps); flip-flops sample D

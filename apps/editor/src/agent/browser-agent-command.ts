@@ -922,6 +922,7 @@ export function planBrowserAgentCommand(
           instance.symbolId,
           instance.netlist?.parameters ?? {},
           context.processModelTarget?.(project, instance.symbolId),
+          project,
         );
         if (initialNetlist)
           instance = {

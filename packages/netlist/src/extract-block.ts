@@ -6,19 +6,21 @@ import {
   ADDER_SIGNED_INPUTS,
   ADDER_TARGET,
   idealComparatorReadsSupply,
+  OPAMP_GBW,
   OPAMP_HIGH_LIMIT,
   OPAMP_LIMIT_SUPPLIES,
   OPAMP_LOW_LIMIT,
+  OPAMP_ROUT,
   OPAMP_TARGET,
   UNPOWERED_OPAMP_LIMITS,
   adderInputSigns,
   HIGH_LEVEL_PARAMETER,
   callPorts,
   callsIdealComparatorBody,
+  callsIdealDifferentialOpampBody,
   callsIdealOpampBody,
   DIFFERENTIAL_OPAMP_LEVEL,
-  DIFFERENTIAL_OPAMP_TARGET,
-  DIFFERENTIAL_OPAMP_VOCM_BODY,
+  differentialOpampBodyFor,
   idealComparatorBodyPorts,
   idealOpampBodyFor,
   idealOpampBodyReads,
@@ -235,11 +237,10 @@ export function extractBuiltInSubcircuitInstance(
   );
   // A Library fully differential op-amp whose VOCM has a Net calls the body
   // that reads it, which takes no `vocm`.
+  const idealDifferentialOpamp =
+    libraryPart && callsIdealDifferentialOpampBody(definition, target);
   const vocmBody =
-    libraryPart &&
-    definition.target === DIFFERENTIAL_OPAMP_TARGET &&
-    target === DIFFERENTIAL_OPAMP_TARGET &&
-    ports.some((port) => port.optional);
+    idealDifferentialOpamp && ports.some((port) => port.optional);
   const nodes = ports.flatMap((port) => {
     if (port.supply) {
       // A property-only terminal is an explicit electrical binding even
@@ -343,12 +344,35 @@ export function extractBuiltInSubcircuitInstance(
         diagnostics,
       )
     : undefined;
+  const diffOpampBody = idealDifferentialOpamp
+    ? differentialOpampBodyFor(opampParameters, vocmBody)
+    : undefined;
+  if (idealOpamp || idealDifferentialOpamp) {
+    for (const key of [OPAMP_GBW, OPAMP_ROUT] as const) {
+      const entry = parameters.find(([name]) => name.toLowerCase() === key);
+      if (!entry || entry[1].trim().length === 0) continue;
+      const trimmed = entry[1].trim();
+      if (trimmed.startsWith("{") && trimmed.endsWith("}")) continue;
+      const parsed = parseSpiceNumber(trimmed);
+      if (!parsed || !Number.isFinite(parsed.value) || parsed.value <= 0) {
+        diagnostic(
+          diagnostics,
+          document.id,
+          "INVALID_IDEAL_OPAMP_PARAMETER",
+          `Ideal op-amp ${reference} requires ${entry[0]} to be a positive number or expression`,
+          [instance.id],
+          "error",
+          entry[0],
+        );
+      }
+    }
+  }
   return {
     id: instance.id,
     reference,
     invocationKind: "subcircuit",
     deviceClass: "hierarchical",
-    target: opampBody ?? (vocmBody ? DIFFERENTIAL_OPAMP_VOCM_BODY : target),
+    target: opampBody ?? diffOpampBody ?? target,
     nodes,
     // A comparator's call keeps the authored order. Its body that reads VDD
     // takes no vhigh, so that call carries none. An op-amp's limit set to its

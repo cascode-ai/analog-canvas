@@ -552,4 +552,35 @@ describe("switches on import", () => {
       },
     });
   });
+
+  it.each([
+    ["opamp", { gbw: "10Meg", rout: "100" }, ["VDD", "VSS"] as const, "spice"],
+    [
+      "opamp",
+      { gbw: "10Meg", rout: "100" },
+      ["VDD", "VSS"] as const,
+      "spectre",
+    ],
+    ["opamp", { gbw: "10Meg" }, [] as const, "spice"],
+    [
+      "opamp-differential",
+      { gbw: "10Meg", rout: "100" },
+      ["VDD", "VSS"] as const,
+      "spice",
+    ],
+    [
+      "opamp-differential",
+      { gbw: "10Meg", rout: "100" },
+      ["VDD", "VSS"] as const,
+      "spectre",
+    ],
+  ] as const)(
+    "round-trips dynamic %s body (%j, supplies=%j) in %s",
+    async (symbolId, parameters, supplies, format) => {
+      const text = exported(block(symbolId, parameters, supplies), format);
+      const back = await imported(text, format);
+      expect(importedBlock(back).symbolId).toBe(symbolId);
+      expect(exported(back, format)).toBe(text);
+    },
+  );
 });

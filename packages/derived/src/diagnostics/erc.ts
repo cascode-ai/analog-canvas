@@ -31,6 +31,7 @@ import {
   isSubcircuitBound,
   terminalLocator,
 } from "./erc-shared.js";
+import { reportBiasCurrentOverdrive } from "./bias-current-check.js";
 import { reportDeviceIntegrityChecks } from "./device-integrity-checks.js";
 import { reportDraftingAndSupplyChecks } from "./drafting-and-supply-checks.js";
 import { reportOpAmpPositiveFeedback } from "./opamp-positive-feedback.js";
@@ -822,6 +823,7 @@ export function runErcChecks(
       resolver,
       diagnostics,
     );
+    reportBiasCurrentOverdrive(document, logicalNets, diagnostics);
     reportDanglingWires(document, docIndex, diagnostics);
     reportNetLabelsNamingNothing(document, diagnostics);
     reportOverbarNameMismatches(document, diagnostics);
