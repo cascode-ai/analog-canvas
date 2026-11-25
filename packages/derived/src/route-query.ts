@@ -7,14 +7,19 @@ import type {
 import { routeEnd } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { endpointKey, resolveEndpointPoint } from "./endpoint.js";
+import {
+  buildEndpointObjectLookup,
+  endpointKey,
+  resolveEndpointPoint,
+} from "./endpoint.js";
 import {
   intersectSegments,
   pointOnSegment,
   projectPointToSegment,
   SEGMENT_QUERY_PADDING,
 } from "./segment-geometry.js";
-import type { DocumentSpatialIndex } from "./spatial-index.js";
+import type { DocumentDerivedContext } from "./document-derived-context.js";
+import { segmentBounds, type DocumentSpatialIndex } from "./spatial-index.js";
 
 import type {
   ResolvedDocumentRoutingGeometry,
@@ -223,7 +228,26 @@ export function deriveCrossings(
     resolver,
   ),
 ): Crossing[] {
-  const routes = [...document.routes].sort((left, right) =>
+  return crossingsAmong(document, resolver, routingGeometry, document.routes);
+}
+
+function compareCrossings(left: Crossing, right: Crossing): number {
+  return (
+    left.routeAId.localeCompare(right.routeAId, "en") ||
+    left.routeBId.localeCompare(right.routeBId, "en") ||
+    left.point.x - right.point.x ||
+    left.point.y - right.point.y
+  );
+}
+
+function crossingsAmong(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+  included: readonly RouteBranch[],
+  changed?: ReadonlySet<string>,
+): Crossing[] {
+  const routes = [...included].sort((left, right) =>
     left.id.localeCompare(right.id, "en"),
   );
   const routeOrder = new Map(
@@ -264,7 +288,8 @@ export function deriveCrossings(
       if (
         left.route.id === right.route.id ||
         right.minY > left.maxY ||
-        right.maxY < left.minY
+        right.maxY < left.minY ||
+        (changed && !changed.has(left.route.id) && !changed.has(right.route.id))
       ) {
         continue;
       }
@@ -298,11 +323,160 @@ export function deriveCrossings(
       });
     }
   }
-  return result.sort(
-    (left, right) =>
-      left.routeAId.localeCompare(right.routeAId, "en") ||
-      left.routeBId.localeCompare(right.routeBId, "en") ||
-      left.point.x - right.point.x ||
-      left.point.y - right.point.y,
+  return result.sort(compareCrossings);
+}
+
+const reusableGeometry = new WeakMap<ResolvedRouteGeometry, boolean>();
+
+function supportsLocalCrossings(route: ResolvedRouteGeometry): boolean {
+  const cached = reusableGeometry.get(route);
+  if (cached !== undefined) return cached;
+  // Stable IDs admit arbitrary strings. Keep the original sweep for collation
+  // ties and ambiguous endpoint keys (including bus member syntax). Its
+  // shared endpoint resolves against the Document independently of geometry.
+  const simpleEndpoint = ({
+    endpoint,
+  }: ResolvedRouteGeometry["endpointConnections"]["from"]) =>
+    !endpoint.memberId &&
+    (endpoint.kind === "junction"
+      ? !endpoint.junctionId.includes(":")
+      : !endpoint.instanceId.includes(":") && !endpoint.pinName.includes(":"));
+  const supported =
+    /^[a-zA-Z0-9._:-]+$/u.test(route.routeId) &&
+    simpleEndpoint(route.endpointConnections.from) &&
+    simpleEndpoint(route.endpointConnections.to) &&
+    route.segments.every(({ from, to }) => {
+      // queryBounds represents the maximum as an origin plus a span. If that
+      // sum rounds inward, a touching segment could escape the local query.
+      const bounds = segmentBounds(from, to);
+      return (
+        bounds.x + bounds.width >= Math.max(from.x, to.x) &&
+        bounds.y + bounds.height >= Math.max(from.y, to.y)
+      );
+    });
+  reusableGeometry.set(route, supported);
+  return supported;
+}
+
+export interface CommittedCrossingSnapshot {
+  document: SchematicDocument;
+  resolver: SymbolResolver;
+  geometry: ResolvedDocumentRoutingGeometry;
+  crossings: Crossing[];
+}
+
+/** Unusual IDs and coordinates can still retain every record after blank placement.
+ * With the original Route objects in their original order, the full sweep depends
+ * only on resolved centerlines and the contact point of a shared authored endpoint.
+ */
+function unchangedSweepInputs(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  geometry: ResolvedDocumentRoutingGeometry,
+  previous: CommittedCrossingSnapshot,
+): boolean {
+  if (
+    previous.document.routes !== document.routes ||
+    previous.geometry.routes.size !== geometry.routes.size
+  )
+    return false;
+  let oldLookup, newLookup;
+  for (const route of document.routes) {
+    const before = previous.geometry.routes.get(route.id);
+    const after = geometry.routes.get(route.id);
+    if (!before || !after) {
+      if (before !== after) return false;
+      continue;
+    }
+    if (
+      before !== after &&
+      (before.centerline.length !== after.centerline.length ||
+        before.centerline.some(
+          (point, i) => !samePoint(point, after.centerline[i]!),
+        ))
+    )
+      return false;
+    if (supportsLocalCrossings(before) && supportsLocalCrossings(after))
+      continue;
+    // The indexed effective endpoint may alias another authored endpoint.
+    // Shared-endpoint suppression in deriveCrossings resolves the authored
+    // point directly, even when the indexed centerline stayed in place.
+    oldLookup ??= buildEndpointObjectLookup(previous.document);
+    newLookup ??= buildEndpointObjectLookup(document);
+    for (const endpoint of [route.start, routeEnd(route)]) {
+      const oldPoint = resolveEndpointPoint(
+        previous.document,
+        previous.resolver,
+        endpoint,
+        oldLookup,
+      );
+      const point = resolveEndpointPoint(
+        document,
+        resolver,
+        endpoint,
+        newLookup,
+      );
+      if (
+        oldPoint !== point &&
+        (!oldPoint || !point || !samePoint(oldPoint, point))
+      )
+        return false;
+    }
+  }
+  return true;
+}
+
+/** Only for canonical immutable editor snapshots, after resolving both revisions. */
+export function updateCommittedCrossings(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  context: Pick<DocumentDerivedContext, "routingGeometry" | "spatialIndex">,
+  previous: CommittedCrossingSnapshot,
+): Crossing[] {
+  const { routingGeometry: geometry, spatialIndex: spatial } = context;
+  const { crossings } = previous;
+  const checkedSweep = () =>
+    unchangedSweepInputs(document, resolver, geometry, previous)
+      ? crossings
+      : deriveCrossings(document, resolver, geometry);
+  const changed = new Set<string>();
+  for (const [id, route] of previous.geometry.routes) {
+    if (!supportsLocalCrossings(route)) return checkedSweep();
+    if (geometry.routes.get(id) !== route) changed.add(id);
+  }
+  for (const [id, route] of geometry.routes) {
+    if (previous.geometry.routes.get(id) === route) continue;
+    if (!supportsLocalCrossings(route)) return checkedSweep();
+    changed.add(id);
+  }
+  if (!changed.size) return crossings;
+
+  // Remove the old positions, even for deleted Routes with no new bounds.
+  const retained = crossings.filter(
+    (c) => !changed.has(c.routeAId) && !changed.has(c.routeBId),
   );
+  const neighbors = new Set<string>();
+  for (const id of changed) {
+    const route = geometry.routes.get(id);
+    if (!route) continue;
+    neighbors.add(id);
+    for (const segment of route.segments) {
+      const bounds = segmentBounds(segment.from, segment.to);
+      for (const neighbor of spatial.routeSegments.queryBounds(bounds))
+        neighbors.add(neighbor.routeId);
+    }
+  }
+  if (neighbors.size < 2) return retained;
+  const local = crossingsAmong(
+    document,
+    resolver,
+    geometry,
+    document.routes.filter((r) => neighbors.has(r.id)),
+    changed,
+  );
+  // Retained pairs and recalculated pairs are disjoint. The original sweep
+  // still controls overlap orientation and stable ties within each Route pair.
+  return local.length
+    ? [...retained, ...local].sort(compareCrossings)
+    : retained;
 }
