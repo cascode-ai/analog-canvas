@@ -260,9 +260,9 @@ describe("AccountMenuView", () => {
     expect(markup).not.toContain('data-testid="account-delete"');
     expect(markup).not.toContain("/privacy");
     // Moderation is a tab of its own, not a page behind a link.
-    expect(pageFor(owner, "moderation")).toContain(
-      'data-testid="rejected-list"',
-    );
+    const moderation = pageFor(owner, "moderation");
+    expect(moderation).toContain('data-testid="moderators-section"');
+    expect(moderation).toContain('data-testid="rejected-list"');
   });
 
   it("shows Data to the Owner's own accounts alone (#1446)", () => {

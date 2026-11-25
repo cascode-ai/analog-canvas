@@ -7,6 +7,7 @@ import { fetchSessionUser, type SessionUser } from "./account";
 import { EntryCard } from "./entry-card";
 import { GalleryChrome } from "./gallery-chrome";
 import { Masonry } from "./masonry";
+import { ModeratorsSection } from "./moderators-section";
 import { galleryLifecycleRequest } from "../gallery-lifecycle-request";
 import { requestFailureOf } from "../request-failure";
 
@@ -263,6 +264,7 @@ export function ModerationContent({ isAdmin }: { isAdmin: boolean }) {
   const [inventoryVersion, setInventoryVersion] = useState(0);
   return isAdmin ? (
     <>
+      <ModeratorsSection />
       <ModerationCollection
         kind="rejected"
         refreshVersion={inventoryVersion}

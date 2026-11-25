@@ -806,6 +806,9 @@ export class AuthDO {
     if (route === "account/delete" && method === "POST") {
       return this.deleteAccount(request, url);
     }
+    if (route === "users/moderators" && method === "GET") {
+      return this.listModerators(request);
+    }
     if (route === "users/role" && method === "POST") {
       return this.setRole(request);
     }
@@ -1831,6 +1834,55 @@ export class AuthDO {
       this.sql.exec("DELETE FROM users WHERE id=?", user.id);
       return response;
     });
+  }
+
+  /**
+   * Lists every appointed moderator grouped by verified email, so the
+   * super-admin's Moderation panel can display and revoke access by email.
+   */
+  private async listModerators(request: Request): Promise<Response> {
+    const caller = await this.superAdmin(request);
+    if (caller instanceof Response) return caller;
+    const rows = this.sql
+      .exec<{
+        email: string;
+        display_name: string;
+        provider: string;
+      }>(
+        `SELECT email, display_name, provider
+         FROM users
+         WHERE role = 'moderator'
+           AND provider <> ?
+           AND email IS NOT NULL
+           AND trim(email) <> ''
+         ORDER BY lower(email), created_at DESC, id`,
+        AI_ACCOUNT_PROVIDER,
+      )
+      .toArray();
+    const byEmail = new Map<
+      string,
+      { email: string; displayName: string; providers: Set<string> }
+    >();
+    for (const row of rows) {
+      const email = normalizedEmail(row.email);
+      if (!email) continue;
+      const existing = byEmail.get(email);
+      if (existing) {
+        existing.providers.add(row.provider);
+      } else {
+        byEmail.set(email, {
+          email,
+          displayName: row.display_name,
+          providers: new Set([row.provider]),
+        });
+      }
+    }
+    const moderators = [...byEmail.values()].map((entry) => ({
+      email: entry.email,
+      displayName: entry.displayName,
+      providers: [...entry.providers].sort(),
+    }));
+    return noStoreJson({ moderators });
   }
 
   /**
