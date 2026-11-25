@@ -300,20 +300,36 @@ export function groupCoincidentEndpoints(
   return byPoint.values();
 }
 
+const SPATIAL_CONTACT_ROUTE_THRESHOLD = 32;
+
+interface ContactContext {
+  document: SchematicDocument;
+  resolver: SymbolResolver;
+  geometry: ResolvedDocumentRoutingGeometry;
+  endpointLookup: EndpointObjectLookup;
+  endpointConnections: ReadonlyMap<string, EndpointConnection> | undefined;
+  routeLookup:
+    | {
+        spatialIndex: DocumentSpatialIndex;
+        routesById: ReadonlyMap<string, SchematicDocument["routes"][number]>;
+      }
+    | undefined;
+}
+
 function netContacts(
-  document: SchematicDocument,
-  resolver: SymbolResolver,
+  context: ContactContext,
   net: Net,
-  geometry: ResolvedDocumentRoutingGeometry,
   routesForNet: readonly SchematicDocument["routes"][number][],
   junctionsForNet: readonly SchematicDocument["junctions"][number][],
-  endpointConnections?: ReadonlyMap<string, EndpointConnection>,
-  endpointLookup?: EndpointObjectLookup,
-  routeLookup?: {
-    spatialIndex: DocumentSpatialIndex;
-    routesById: ReadonlyMap<string, SchematicDocument["routes"][number]>;
-  },
 ): CoincidentContact[] {
+  const {
+    document,
+    resolver,
+    geometry,
+    endpointLookup,
+    endpointConnections,
+    routeLookup,
+  } = context;
   return [
     ...groupCoincidentEndpoints(
       document,
@@ -327,7 +343,7 @@ function netContacts(
       // Scanning a small Net is cheaper than querying all spatial buckets.
       // Larger Nets reuse the context's already-built broad-phase index.
       const nearbyRoutes =
-        routeLookup && routesForNet.length > 32
+        routeLookup && routesForNet.length > SPATIAL_CONTACT_ROUTE_THRESHOLD
           ? [
               ...new Set(
                 routeLookup.spatialIndex.routeSegments
@@ -400,21 +416,114 @@ export function contactRequiresJunctionDot(
   return terminalCount >= 3 || contact.branchDirections.length >= 3;
 }
 
+interface ContactLookups {
+  junctionsByNetId?: ReturnType<typeof indexJunctionsByNet>;
+  routesByNetId?: ReadonlyMap<
+    string,
+    readonly SchematicDocument["routes"][number][]
+  >;
+  endpointConnections?: ReadonlyMap<string, EndpointConnection>;
+  endpointLookup?: EndpointObjectLookup;
+  spatialIndex?: DocumentSpatialIndex;
+  routesById?: ReadonlyMap<string, SchematicDocument["routes"][number]>;
+}
+
+// At most one contact result per structurally shared Net. No entry owns a
+// Project, Document or resolver, so closing a Project releases its history.
+type ContactDependency = object | number | boolean;
+const contactCache = new WeakMap<
+  Net,
+  { dependencies: ContactDependency[]; contacts: CoincidentContact[] }
+>();
+
+// All records and points returned by netContacts belong to this derivation.
+// Freezing these small JSON trees needs no model snapshot ownership tracking.
+function freezeContactData(value: object): void {
+  if (Object.isFrozen(value)) return;
+  Object.freeze(value);
+  for (const child of Object.values(value) as unknown[]) {
+    if (child !== null && typeof child === "object") freezeContactData(child);
+  }
+}
+
+function netContactDependencies(
+  context: ContactContext,
+  net: Net,
+  routes: readonly SchematicDocument["routes"][number][],
+  junctions: readonly SchematicDocument["junctions"][number][],
+): ContactDependency[] | undefined {
+  const { document, resolver, geometry, endpointLookup, endpointConnections } =
+    context;
+  // The small-Net calculation reads only its own routes. The spatial path
+  // queries a Document-wide index and retains its ordinary derivation.
+  if (!endpointConnections || routes.length > SPATIAL_CONTACT_ROUTE_THRESHOLD)
+    return;
+  const dependencies: ContactDependency[] = [junctions.length, routes.length];
+  for (const junction of junctions) {
+    if (
+      junction.members ||
+      junction.contactAnchor ||
+      // Legacy scalar IDs can spell another endpoint's encoded bus member.
+      // Only the effective indexed point establishes this row as the source.
+      endpointConnections.get(
+        endpointKey({ kind: "junction", junctionId: junction.id }),
+      )?.contactPoint !== junction.position
+    )
+      return;
+    dependencies.push(junction);
+  }
+  for (const route of routes) {
+    const resolved = geometry.routes.get(route.id);
+    if (route.members || !resolved) return;
+    // The same Route row can land differently after a connected part moves.
+    dependencies.push(route, resolved);
+  }
+  for (const terminal of net.terminals) {
+    if (terminal.memberId !== undefined) return;
+    const endpoint = { kind: "terminal" as const, ...terminal };
+    const visible = isVisibleEndpoint(
+      document,
+      resolver,
+      endpoint,
+      endpointLookup,
+    );
+    dependencies.push(visible);
+    if (!visible) continue;
+    // A symbol or hidden-bulk policy can change without changing the Net.
+    const connection = endpointConnections.get(endpointKey(endpoint));
+    if (!connection?.outward) return;
+    dependencies.push(
+      connection.contactPoint.x,
+      connection.contactPoint.y,
+      connection.outward.x,
+      connection.outward.y,
+    );
+  }
+  return dependencies;
+}
+
 export function deriveDocumentContactEvidence(
   document: SchematicDocument,
   resolver: SymbolResolver,
   routingGeometry = resolveDocumentRoutingGeometry(document, resolver),
-  options: {
-    junctionsByNetId?: ReturnType<typeof indexJunctionsByNet>;
-    routesByNetId?: ReadonlyMap<
-      string,
-      readonly SchematicDocument["routes"][number][]
-    >;
-    endpointConnections?: ReadonlyMap<string, EndpointConnection>;
-    endpointLookup?: EndpointObjectLookup;
-    spatialIndex?: DocumentSpatialIndex;
-    routesById?: ReadonlyMap<string, SchematicDocument["routes"][number]>;
-  } = {},
+  options: ContactLookups = {},
+): DocumentContactEvidence {
+  return collectDocumentContactEvidence(
+    document,
+    resolver,
+    routingGeometry,
+    options,
+    false,
+  );
+}
+
+/** Only the canonical immutable derived context can supply reusable inputs. */
+export function collectDocumentContactEvidence(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+  options: ContactLookups,
+  reuseSnapshotContacts: boolean,
 ): DocumentContactEvidence {
   const endpointLookup =
     options.endpointLookup ?? buildEndpointObjectLookup(document);
@@ -443,21 +552,40 @@ export function deriveDocumentContactEvidence(
     })();
   const junctionsByNetId =
     options.junctionsByNetId ?? indexJunctionsByNet(document.junctions);
+  const context: ContactContext = {
+    document,
+    resolver,
+    geometry: routingGeometry,
+    endpointLookup,
+    endpointConnections: options.endpointConnections,
+    routeLookup,
+  };
   const contacts = [...document.nets]
     .sort((left, right) => left.id.localeCompare(right.id, "en"))
-    .flatMap((net) =>
-      netContacts(
-        document,
-        resolver,
-        net,
-        routingGeometry,
-        routesByNetId.get(net.id) ?? [],
-        junctionsByNetId.get(net.id) ?? [],
-        options.endpointConnections,
-        endpointLookup,
-        routeLookup,
-      ),
-    );
+    .flatMap((net) => {
+      const routes = routesByNetId.get(net.id) ?? [];
+      const junctions = junctionsByNetId.get(net.id) ?? [];
+      const dependencies = reuseSnapshotContacts
+        ? netContactDependencies(context, net, routes, junctions)
+        : undefined;
+      if (dependencies) {
+        const prior = contactCache.get(net);
+        if (
+          prior &&
+          prior.dependencies.length === dependencies.length &&
+          dependencies.every((value, i) =>
+            Object.is(value, prior.dependencies[i]),
+          )
+        )
+          return prior.contacts;
+      }
+      const contacts = netContacts(context, net, routes, junctions);
+      if (dependencies) {
+        freezeContactData(contacts);
+        contactCache.set(net, { dependencies, contacts });
+      }
+      return contacts;
+    });
   const byEndpointKey = new Map<string, CoincidentContact>();
   for (const contact of contacts) {
     for (const endpoint of contact.endpoints) {
