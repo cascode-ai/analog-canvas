@@ -1557,6 +1557,72 @@ describe("the editor plans an Agent's action list", () => {
     ).toHaveLength(2);
   });
 
+  it("keeps one supply pinPlacement per unique supply name when placing repeated vdd-port markers in a batch (#2429)", async () => {
+    const { controller, client } = await editor();
+    const report = await client.applyActions([
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        id: "VDD1",
+        reference: "VDD",
+        position: { x: 100, y: -200 },
+      },
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        id: "VDD2",
+        reference: "VDD",
+        position: { x: 300, y: -200 },
+      },
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        id: "VDD3",
+        reference: "VDD",
+        position: { x: 500, y: -200 },
+      },
+      {
+        kind: "place-component",
+        symbol: "vdd-port",
+        id: "AVDD1",
+        reference: "AVDD",
+        position: { x: 700, y: -200 },
+      },
+      {
+        kind: "place-component",
+        symbol: "named-ground",
+        id: "VSS1",
+        reference: "VSS",
+        position: { x: 100, y: 200 },
+      },
+      {
+        kind: "place-component",
+        symbol: "named-ground",
+        id: "VSS2",
+        reference: "VSS",
+        position: { x: 300, y: 200 },
+      },
+    ]);
+    expect(report.ok, report.message).toBe(true);
+
+    const terminalNameById = new Map(
+      controller.document.netlist!.terminals.map((t) => [t.id, t.name]),
+    );
+    const placements =
+      controller.document.presentation.cellSymbol?.pinPlacements ?? [];
+    expect(
+      placements.map((p) => ({
+        name: terminalNameById.get(p.terminalId),
+        side: p.side,
+        offset: p.offset,
+      })),
+    ).toEqual([
+      { name: "VDD", side: "north", offset: 0 },
+      { name: "AVDD", side: "north", offset: 20 },
+      { name: "VSS", side: "south", offset: 0 },
+    ]);
+  });
+
   it("places the palette's DMOS and depletion MOS, and a DMOS takes a SKY130 20 V model (#1425)", async () => {
     const { client, instance } = await editor();
     const placed = await client.applyActions([

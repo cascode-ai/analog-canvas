@@ -814,6 +814,7 @@ export function defaultInstanceLabel(
   resolver: SymbolResolver,
   styleProfile: SchematicStyleProfile,
   slot: InstanceLabelSlot = "reference",
+  options: { allowHiddenSymbol?: boolean } = {},
 ): Annotation | null {
   if (!instance.placement) return null;
   if (
@@ -832,7 +833,11 @@ export function defaultInstanceLabel(
     instance.symbolId,
     instance.symbolVariantId,
   );
-  if (!resolved || resolved.definition.labelVisibility === "hidden") {
+  if (
+    !resolved ||
+    (!options.allowHiddenSymbol &&
+      resolved.definition.labelVisibility === "hidden")
+  ) {
     return null;
   }
   const placement = defaultInstanceLabelPlacement(

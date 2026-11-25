@@ -77,7 +77,14 @@ export function instanceDisplayEdits(
               { formalTerminalId: terminal.id, formalName: terminal.name },
             )[0] ?? null)
           : field === "reference"
-            ? defaultInstanceLabel(document, instance, resolver, style)
+            ? defaultInstanceLabel(
+                document,
+                instance,
+                resolver,
+                style,
+                "reference",
+                { allowHiddenSymbol: Boolean(instance.reference) },
+              )
             : defaultInstanceValue(document, instance, resolver, style);
       }
       if (!annotation) continue;

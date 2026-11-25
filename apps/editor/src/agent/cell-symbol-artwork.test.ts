@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createAgentCircuitService } from "@icm/agent-adapter";
 import { resolveRouteGeometry } from "@icm/derived";
-import { createEmptyProject, routeEndpoints } from "@icm/model";
+import {
+  createEmptyProject,
+  flattenRichText,
+  routeEndpoints,
+} from "@icm/model";
 import { createDesignNetlistExport } from "@icm/netlist";
 import { hierarchicalSymbolId } from "@icm/symbols";
 import { AgentSessionClient } from "../../../../packages/agent-client/src/session-client";
@@ -362,4 +366,131 @@ describe("an Agent gives a Cell its own artwork (AnalogGenie 2224)", () => {
       expect(wiresOnPins()).toEqual(box);
     },
   );
+
+  it("allows set-display-alias on custom Cell artwork with labelVisibility hidden and separates it from the Cell name (#2429)", async () => {
+    const { controller, apply } = await editor();
+    await apply([{ kind: "create-cell", id: "opamp", name: "Opamp" }]);
+    await apply(
+      [
+        {
+          kind: "place-component",
+          symbol: "port",
+          id: "P_INP",
+          reference: "INP",
+          position: { x: 0, y: 0 },
+        },
+        {
+          kind: "place-component",
+          symbol: "port",
+          id: "P_INN",
+          reference: "INN",
+          position: { x: 0, y: 40 },
+        },
+        {
+          kind: "place-component",
+          symbol: "port",
+          id: "P_OUT",
+          reference: "OUT",
+          position: { x: 200, y: 20 },
+        },
+        {
+          kind: "place-component",
+          symbol: "vdd-port",
+          id: "P_VDD",
+          reference: "VDD",
+          position: { x: 100, y: -40 },
+        },
+        {
+          kind: "place-component",
+          symbol: "port",
+          id: "P_VB1",
+          reference: "VB1",
+          position: { x: 80, y: 80 },
+        },
+        {
+          kind: "place-component",
+          symbol: "port",
+          id: "P_VB2",
+          reference: "VB2",
+          position: { x: 120, y: 80 },
+        },
+      ],
+      "opamp",
+    );
+    await apply(
+      [
+        {
+          kind: "set-cell-symbol-artwork",
+          symbolMode: "custom",
+          artworkText: JSON.stringify({
+            ...OPAMP_TRIANGLE,
+            labelVisibility: "hidden",
+          }),
+          pinMap: {
+            INP: { pinName: "+" },
+            INN: { pinName: "-" },
+            OUT: { pinName: "OUT" },
+            VDD: { pinName: "VDD" },
+            VB1: { pinName: "VB1" },
+            VB2: { pinName: "VB2" },
+          },
+        },
+      ],
+      "opamp",
+    );
+    await apply([
+      {
+        kind: "place-cell",
+        childDocumentId: "opamp",
+        instanceId: "X1",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      },
+    ]);
+
+    // Aliasing X1 to A1 succeeds even with labelVisibility:"hidden", and
+    // regroups the Cell name ("Opamp") out of the reference row so they never overlap.
+    await apply([{ kind: "set-display-alias", instanceId: "X1", text: "A1" }]);
+    const aliasLabel = controller.document.annotations.find(
+      (annotation) =>
+        annotation.kind === "instance-label" &&
+        annotation.anchor.kind === "object" &&
+        annotation.anchor.objectId === "X1",
+    );
+    const masterLabel = controller.document.annotations.find(
+      (annotation) => annotation.id === "instance-master-X1",
+    );
+    expect(aliasLabel).toBeDefined();
+    expect(flattenRichText(aliasLabel!.content!)).toBe("A1");
+    expect(masterLabel).toBeDefined();
+    expect(aliasLabel!.anchor.kind).toBe("object");
+    expect(masterLabel!.anchor.kind).toBe("object");
+    if (
+      aliasLabel!.anchor.kind === "object" &&
+      masterLabel!.anchor.kind === "object"
+    ) {
+      expect(aliasLabel!.anchor.localOffset.y).toBeGreaterThan(40);
+      expect(masterLabel!.anchor.localOffset.y).toBeGreaterThan(
+        aliasLabel!.anchor.localOffset.y,
+      );
+    }
+
+    // showValue:false hides the Cell name while leaving the alias visible.
+    await apply([
+      {
+        kind: "set-instance-display",
+        instanceIds: ["X1"],
+        showValue: false,
+      },
+    ]);
+    expect(
+      controller.document.annotations.find(
+        (annotation) => annotation.id === "instance-master-X1",
+      )?.visible,
+    ).toBe(false);
+    expect(
+      controller.document.annotations.find(
+        (annotation) => annotation.id === aliasLabel!.id,
+      )?.visible,
+    ).not.toBe(false);
+  });
 });
