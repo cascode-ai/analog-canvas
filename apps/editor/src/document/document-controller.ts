@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import {
   DEFAULT_DOCUMENT_HISTORY_LIMIT,
   executeTransaction,
+  adoptPreparedCanvasTransaction,
   parseProjectSnapshot,
   shareProjectSnapshot,
   shareEqualDocumentStructure,
@@ -16,6 +17,7 @@ import {
 import type {
   EditActor,
   EditTransactionResult,
+  PreparedTransaction,
   ProjectTransaction,
   ProjectTransactionOptions,
   ProjectTransactionResult,
@@ -410,7 +412,6 @@ export class EditorDocumentController {
     edits: readonly SchematicEdit[],
     evidence?: EditorContactEvidence,
   ): EditTransactionResult {
-    this.transactionCounter += 1;
     // GUI undo follows the working copy's timeline, regardless of the viewed Cell.
     const edit = edits.length === 1 ? edits[0] : undefined;
     const entry =
@@ -424,15 +425,34 @@ export class EditorDocumentController {
         (item) => item.id === entry?.documentId,
       ) ?? this.document;
     return this.dispatchTransaction(
-      {
-        transactionId: `transaction-ui-${this.transactionCounter}`,
-        documentId: document.id,
-        expectedRevision: document.revision,
-        expectedStructureRevision: this.projectValue.structureRevision,
-        actor: { kind: "human", id: "human-local" },
-        edits,
-      },
+      this.canvasRequest(document, edits),
       evidence,
+    );
+  }
+
+  private canvasRequest(
+    document: SchematicDocument,
+    edits: readonly SchematicEdit[],
+  ): EditorTransactionRequest {
+    return {
+      transactionId: `transaction-ui-${++this.transactionCounter}`,
+      documentId: document.id,
+      expectedRevision: document.revision,
+      expectedStructureRevision: this.projectValue.structureRevision,
+      actor: { kind: "human", id: "human-local" },
+      edits,
+    };
+  }
+
+  /** Internal Wire receipt. Its Document is the committed, immutable snapshot. */
+  commitPreparedCanvasTransaction(
+    edits: readonly SchematicEdit[],
+    prepared: PreparedTransaction,
+  ): EditTransactionResult {
+    return this.applyTransaction(
+      this.canvasRequest(this.document, edits),
+      undefined,
+      prepared,
     );
   }
 
@@ -450,6 +470,7 @@ export class EditorDocumentController {
   private applyTransaction(
     request: EditorTransactionRequest,
     evidence?: EditorContactEvidence,
+    prepared?: PreparedTransaction,
   ): EditTransactionResult {
     const document = this.projectValue.documents.find(
       (item) => item.id === request.documentId,
@@ -484,12 +505,13 @@ export class EditorDocumentController {
       // History belongs to this controller. Validate the same envelope/fence
       // before restoring it, without allocating a rejected Document copy first.
       if (
+        !prepared &&
         (history?.kind === "undo" || history?.kind === "redo") &&
         envelope.expectedRevision === document.revision &&
         EditTransactionSchema.safeParse(envelope).success
       )
         return this.restoreHistory(request, history.kind);
-      result = executeTransaction(document, envelope, {
+      const context = {
         symbolResolver: this.resolverValue,
         ...(evidence?.document === document &&
         evidence.resolver === this.resolverValue
@@ -497,7 +519,15 @@ export class EditorDocumentController {
           : {}),
         externalSubcircuitDefinitions:
           this.projectValue.externalSubcircuitDefinitions,
-      });
+      };
+      result = prepared
+        ? adoptPreparedCanvasTransaction(
+            document,
+            envelope.edits,
+            prepared,
+            context,
+          )
+        : executeTransaction(document, envelope, context);
     } catch (error) {
       return rejectTransaction(
         document,
@@ -552,9 +582,11 @@ export class EditorDocumentController {
               ...before,
               componentDefinitions: [...definitions.values()],
             }),
-            freezeSnapshot(
-              shareEqualDocumentStructure(document, result.document),
-            ),
+            prepared
+              ? result.document
+              : freezeSnapshot(
+                  shareEqualDocumentStructure(document, result.document),
+                ),
           ),
         ),
       );
@@ -831,8 +863,11 @@ export function useDocumentController(
     transact: (
       edits: readonly SchematicEdit[],
       evidence?: EditorContactEvidence,
+      prepared?: PreparedTransaction,
     ) => {
-      const result = controller.transact(edits, evidence);
+      const result = prepared
+        ? controller.commitPreparedCanvasTransaction(edits, prepared)
+        : controller.transact(edits, evidence);
       if (result.ok && result.applied) {
         synchronize();
         if (controllerRef.current === controller)

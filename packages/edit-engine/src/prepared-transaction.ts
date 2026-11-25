@@ -4,7 +4,12 @@ import {
   shareEqualDocumentStructure,
   type SchematicDocument,
 } from "@icm/model";
-import { EditTransactionSchema, type EditTransaction } from "./edit-schema.js";
+import {
+  EditTransactionSchema,
+  type EditTransaction,
+  type SchematicEdit,
+} from "./edit-schema.js";
+import { rejectTransaction } from "./transaction-result.js";
 import { executeTransaction } from "./transaction.js";
 import type {
   AppliedTransaction,
@@ -139,7 +144,54 @@ export function prepareTransaction(
   };
 }
 
-/** Only registered, matching calculations can bypass repeated work. */
+function matchesPreparedContext(
+  preparation: Preparation,
+  context: EditExecutionContext,
+) {
+  return (
+    preparation.context === executionContextKey(context, preparation.symbols)
+  );
+}
+
+/** Adopt the privately owned result for one synchronous Canvas commit. */
+export function adoptPreparedCanvasTransaction(
+  document: SchematicDocument,
+  edits: readonly SchematicEdit[],
+  token: PreparedTransaction,
+  context: EditExecutionContext,
+): AppliedTransaction | RejectedTransaction {
+  if (document.id !== token.documentId || document.revision !== token.revision)
+    return rejectTransaction(
+      document,
+      "STALE_REVISION",
+      "The Cell changed before the wiring edit was committed",
+    );
+  const preparation = preparations.get(token);
+  const parsed = EditTransactionSchema.shape.edits.safeParse(edits);
+  if (
+    !preparation ||
+    preparation.source !== document ||
+    !parsed.success ||
+    preparation.edits !== JSON.stringify(parsed.data) ||
+    !matchesPreparedContext(preparation, context)
+  )
+    return rejectTransaction(
+      document,
+      "EDIT_PRECONDITION",
+      "The wiring edit or its electrical context changed before commit",
+    );
+
+  const result = preparation.result;
+  return {
+    ...result,
+    revision: result.proposedRevision,
+    applied: result.proposedRevision !== document.revision,
+    ...(result.coalescedEndpoints
+      ? { coalescedEndpoints: new Map(result.coalescedEndpoints) }
+      : {}),
+  };
+}
+
 export function reusePreparedTransaction(
   document: SchematicDocument,
   transaction: EditTransaction,
@@ -168,7 +220,7 @@ export function reusePreparedTransaction(
     if (
       preparation.edits !== (edits ??= JSON.stringify(transaction.edits)) ||
       !matchesSource(preparation.source) ||
-      preparation.context !== executionContextKey(context, preparation.symbols)
+      !matchesPreparedContext(preparation, context)
     )
       continue;
     const result = preparation.result;
