@@ -17,7 +17,11 @@ export { BrowserAgentHost } from "./browser-agent-host";
 export { BrowserAgentFileHost } from "./browser-agent-file-host";
 export { BrowserAgentSimulationHost } from "./browser-agent-simulation-host";
 export { BrowserAgentProjectHost } from "./browser-agent-project-host";
-export { createAgentGalleryPublisher } from "./agent-gallery-publish";
+export {
+  adapterReadsPublishAdvice,
+  createAgentGalleryPublisher,
+  publishAdviceOf,
+} from "./agent-gallery-publish";
 export { createAgentSemanticIntentHandler } from "./agent-semantic-intent-handler";
 
 export const readRnlBrowser: RnlReader = (project, options) =>

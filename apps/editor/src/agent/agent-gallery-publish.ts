@@ -1,8 +1,10 @@
 import {
   AGENT_API_VERSION,
+  type AgentGalleryPublishAdvice,
   type AgentProjectResourceRequest,
   type AgentProjectResourceResponse,
 } from "@icm/agent-adapter";
+import type { SubmissionGateReport } from "@icm/derived";
 import type { CircuitProject } from "@icm/model";
 
 import type { CloudProjectBinding } from "../features/editor-shell/cloud-projects";
@@ -30,6 +32,45 @@ export interface AgentGalleryPublication {
   cloudBinding: CloudProjectBinding | null;
 }
 
+/**
+ * The first MCP release whose parser reads `advice` on a publish response.
+ * Adapters parse strictly, so an older one is never sent it.
+ */
+const PUBLISH_ADVICE_ADAPTER_VERSION = [0, 17, 128] as const;
+
+/** Whether the adapter at `version` reads a publish response's `advice`. */
+export function adapterReadsPublishAdvice(
+  version: string | null | undefined,
+): boolean {
+  const parts = /^(\d+)\.(\d+)\.(\d+)/u.exec(version ?? "");
+  if (!parts) return false;
+  for (const [index, wanted] of PUBLISH_ADVICE_ADAPTER_VERSION.entries()) {
+    const part = Number(parts[index + 1]);
+    if (part !== wanted) return part > wanted;
+  }
+  return true;
+}
+
+/** The Publish dialog's advice, in the response's own shape. */
+export function publishAdviceOf(
+  report: SubmissionGateReport,
+): AgentGalleryPublishAdvice[] {
+  return report.failures.map((failure) => ({
+    code: failure.code,
+    message: failure.message,
+    count: failure.count,
+    examples: [...failure.examples],
+    ...(failure.findings
+      ? {
+          findings: failure.findings.map((finding) => ({
+            ...finding,
+            objectIds: [...finding.objectIds],
+          })),
+        }
+      : {}),
+  }));
+}
+
 export interface AgentGalleryPublisherOptions<
   State extends AgentGalleryPublication,
 > {
@@ -37,6 +78,11 @@ export interface AgentGalleryPublisherOptions<
   current: () => State | null;
   /** Records a publication as the Publish dialog's success does. */
   published: (outcome: GalleryPublicationRecord, state: State) => void;
+  /**
+   * The Publish dialog's quality advice on the copy sent, or null when the
+   * connected adapter cannot read it (`adapterReadsPublishAdvice`).
+   */
+  advice?: (state: State) => readonly AgentGalleryPublishAdvice[] | null;
   fetch?: typeof fetch;
 }
 
@@ -196,6 +242,8 @@ export function createAgentGalleryPublisher<
           tags: request.tags ?? [],
           aiGenerated: true,
         };
+    // Read before sending: advice describes the drawing as published.
+    const advice = options.advice?.(state) ?? null;
     // The Shelf draft's link follows its own publication, as in the dialog.
     const binding =
       !target || target.id === state.linked?.id ? state.cloudBinding : null;
@@ -265,6 +313,7 @@ export function createAgentGalleryPublisher<
       ...(outcome.previewRevision === undefined
         ? {}
         : { previewRevision: outcome.previewRevision }),
+      ...(advice?.length ? { advice: [...advice] } : {}),
     };
   };
 }

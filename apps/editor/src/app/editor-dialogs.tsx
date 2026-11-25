@@ -15,7 +15,7 @@ import { flushSync } from "react-dom";
 import { claimNow } from "../agent/claim-clock";
 import { agentConnectionControls } from "../agent/workspace-agent";
 import { planProjectCellImport } from "@icm/edit-engine";
-import type { runErcChecks } from "@icm/derived";
+import { evaluateSubmissionGates, type runErcChecks } from "@icm/derived";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { ReferenceWindowProps } from "../features/editor-shell/reference-panel";
 import type { SimulationSourceLocation } from "@icm/simulation-service/contract";
@@ -40,6 +40,7 @@ import {
   publishProjectToGallery,
   updateGalleryEntry,
 } from "../features/editor-shell/gallery-publish";
+import { arrangeAdvisedLabelEdits } from "../features/editor-shell/publish-label-arrangement";
 import type { projectWithTopologyRoot } from "../features/editor-shell/gallery-topology-project";
 import type { PublishGalleryDraft } from "../features/editor-shell/publish-gallery-dialog";
 import type { useEditorPanels } from "../features/editor-shell/use-editor-panels";
@@ -173,6 +174,7 @@ export function EditorDialogs({
   publicationLinkNotice,
   setPublicationLinkRetry,
   publishGates,
+  setPublishGates,
   publishQuota,
   openProjectInTabRef,
   agentFileCandidate,
@@ -301,6 +303,7 @@ export function EditorDialogs({
   publicationLinkNotice: GalleryPublishing["publicationLinkNotice"];
   setPublicationLinkRetry: GalleryPublishing["setPublicationLinkRetry"];
   publishGates: GalleryPublishing["publishGates"];
+  setPublishGates: GalleryPublishing["setPublishGates"];
   publishQuota: GalleryPublishing["publishQuota"];
   openProjectInTabRef: AgentProjectResourcesOptions["openProjectInTabRef"];
   agentFileCandidate: AgentProjectResources["agentFileCandidate"];
@@ -762,6 +765,35 @@ export function EditorDialogs({
                 defaultName: galleryEntryContext?.name ?? project.name,
                 session: publishSession,
                 gateReport: publishGates,
+                onArrangeLabels: () => {
+                  const edits = arrangeAdvisedLabelEdits(
+                    project,
+                    editorDocumentController.resolver,
+                    publishGates,
+                  );
+                  if (edits.length) {
+                    const result = dispatchProjectTransaction({
+                      transactionId: `publish-arrange-labels-${crypto.randomUUID()}`,
+                      projectId: project.id,
+                      expectedStructureRevision: project.structureRevision,
+                      actor: { kind: "human", id: "human-local" },
+                      edits,
+                    });
+                    if (!result.ok) {
+                      setStatus(
+                        result.diagnostics[0]?.message ?? result.error.message,
+                      );
+                      return null;
+                    }
+                  }
+                  // Read the Project as committed: the props are a render old.
+                  const report = evaluateSubmissionGates(
+                    editorDocumentController.project,
+                    editorDocumentController.resolver,
+                  );
+                  setPublishGates(report);
+                  return report;
+                },
                 topologyProject: galleryTopologyProject,
                 openedFromCheckNotice,
                 publicationLinkLoading,

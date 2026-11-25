@@ -314,6 +314,32 @@ export const AgentGalleryEntryReadSchema = z.strictObject({
   netlist: AgentNetlistReadSchema.nullable(),
 });
 
+/**
+ * Publish's quality advice on the drawing sent (#2619), as the Publish
+ * dialog lists it: never a refusal. `findings` lists ERC warnings and labels
+ * drawn over wires, parts or labels, with the objects each names.
+ */
+export const AgentGalleryPublishAdviceSchema = z.strictObject({
+  code: z.string().min(1),
+  message: z.string(),
+  count: z.number().int().positive(),
+  examples: z.array(z.string()),
+  findings: z
+    .array(
+      z.strictObject({
+        code: z.string().min(1),
+        message: z.string(),
+        documentId: StableIdSchema,
+        objectIds: z.array(z.string()),
+        subject: z.string().optional(),
+      }),
+    )
+    .optional(),
+});
+export type AgentGalleryPublishAdvice = z.infer<
+  typeof AgentGalleryPublishAdviceSchema
+>;
+
 const ProjectResponseBaseSchema = z.strictObject({
   apiVersion: z.literal(AGENT_API_VERSION),
   requestId: StableIdSchema,
@@ -431,6 +457,7 @@ export const AgentProjectResourceResponseSchema = z.union([
     /** The entry's address in the Editor, such as `/g/<id>`. */
     url: z.string().min(1),
     previewRevision: z.string().min(1).optional(),
+    advice: z.array(AgentGalleryPublishAdviceSchema).optional(),
   }),
   ProjectResponseBaseSchema.extend({
     operation: z.literal("read-project-code"),

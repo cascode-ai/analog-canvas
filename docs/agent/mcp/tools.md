@@ -225,7 +225,9 @@ Tool descriptions cover each action; these are the extra rules.
   Cell/file IDs; an empty source is `COPY_EMPTY`. Missing expected revisions
   are read automatically.
 - `publish`/`update` return `galleryEntryId`, `url` (`/g/<id>`) and
-  `previewRevision` and bind the copy to the entry. The AI mark is changed only
+  `previewRevision` and bind the copy to the entry, with `advice` when the
+  drawing has quality findings (ERC warnings, labels drawn over wires or
+  parts): publication went ahead; fix and `update` if they matter. The AI mark is changed only
   by its author in the Editor; AI accounts always keep it. A background tab is
   `WORKSPACE_NOT_SHOWN`: activate it. An `update` with `galleryEntryId` and
   only `name`/`description` needs no working copy. The published Project

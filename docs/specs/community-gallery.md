@@ -123,7 +123,9 @@ entries, keyset cursor, limit ≤60.
   `authors` aggregate counts before pagination. Rejected and recycled entries
   never appear.
 - Entry fields: `previewRevision`, `previewWidth`/`previewHeight` (may be absent;
-  clients keep a fallback), `netlistable`, `aiGenerated: true` (publisher's word;
+  clients keep a fallback; they size the box, not a raster: cards show the
+  stored SVG, which each screen draws at its own pixel density, so no raster
+  preview is stored or scaled), `netlistable`, `aiGenerated: true` (publisher's word;
   else omitted), `simVerified: true` (allowed viewers only), `componentCount`
   (top-Cell parts, a subcircuit once; not Ports, markers, drafting or undrawn
   Instances), `likes`, `likedByViewer`.
@@ -277,7 +279,10 @@ resetsAt, exempt}`. Updates spend nothing.
 ## Submission quality advice
 
 `evaluateSubmissionGates` (`@icm/derived`) is informational only; the Worker
-enforces no ERC veto. Failures carry `message`, `count` and ≤5 example labels.
+enforces no ERC veto. Failures carry `message`, `count` and ≤5 example labels;
+`erc-warnings` and `label-clearance` also carry ≤50 `findings`
+`{code, message, documentId, objectIds, subject?}`. The Editor evaluates it on
+the open Project when Publish opens; the Worker does not.
 
 - `erc-errors`: any ERC error.
 - `erc-warnings`: any ERC warning outside `floating-endpoints`
@@ -286,6 +291,18 @@ enforces no ERC veto. Failures carry `message`, `count` and ≤5 example labels.
   `ERC_FLOATING_GATE`.
 - `empty-project`: fewer than 2 instances and fewer than 3 drafting objects
   including a text.
+- `label-clearance`: every `VISUAL_LABEL_*` visual finding above `info`
+  (`isLabelClearanceAdvice`: today `VISUAL_LABEL_CLEARANCE`,
+  `VISUAL_LABEL_OVERLAP`; a new label code joins by severity) in any Cell;
+  `subject` is the part the label names.
+- The Publish dialog lists each failure with its count and up to 8 findings
+  ("… and N more"). **Arrange labels** runs `arrange-labels` with
+  `includeManual` on the parts whose labels `label-clearance` names (free text
+  and Net labels stay), as one undoable transaction, then evaluates the
+  advice again and says what is left. Publish stays enabled throughout.
+- An Agent's `publish-gallery-entry`/`update-gallery-entry` answers the same
+  failures as `advice`, only to an adapter that reads it (MCP 0.17.128 and
+  later); it never refuses.
 
 ## Moderation
 

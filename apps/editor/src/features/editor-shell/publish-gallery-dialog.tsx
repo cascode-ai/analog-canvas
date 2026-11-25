@@ -29,6 +29,17 @@ function untilReset(resetsAt: string, now = Date.now()): string {
     : ` (in ${minutes} min)`;
 }
 
+/** Findings listed under one quality check before "… and N more". */
+const LISTED_FINDINGS = 8;
+
+/** The label findings a report advises on. */
+function labelFindingCount(report: SubmissionGateReport | null): number {
+  return (
+    report?.failures.find((failure) => failure.code === "label-clearance")
+      ?.count ?? 0
+  );
+}
+
 /** Suggested tags shown before the "+ …" chip opens the rest. */
 const FOLDED_TAG_PRESETS = 5;
 /** Suggested tags the open list shows at most. */
@@ -45,6 +56,11 @@ export interface PublishGalleryDialogProps {
   session?: PublishSessionUser | null;
   /** Quality-gate evaluation of the live Project. */
   gateReport?: SubmissionGateReport | null;
+  /**
+   * Arrange the labels the advice names, as one undoable edit (#2619);
+   * answers the advice evaluated again, or null when nothing was applied.
+   */
+  onArrangeLabels?: (() => SubmissionGateReport | null) | undefined;
   /** Current Cell projected as the duplicate-comparison root. */
   topologyProject?: CircuitProject | null;
   /** Opened from the duplicate check's notice: show that check's results. */
@@ -123,6 +139,7 @@ export function PublishGalleryDialog({
   onLinkExisting,
   session = null,
   gateReport = null,
+  onArrangeLabels,
   topologyProject = null,
   openedFromCheckNotice = false,
   updateTarget = null,
@@ -191,6 +208,22 @@ export function PublishGalleryDialog({
   const [linkInput, setLinkInput] = useState("");
   const [linkBusy, setLinkBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [arrangeNote, setArrangeNote] = useState<string | null>(null);
+
+  function arrangeLabels(): void {
+    if (!onArrangeLabels) return;
+    const before = labelFindingCount(gateReport);
+    const after = onArrangeLabels();
+    if (!after) return;
+    const left = labelFindingCount(after);
+    setArrangeNote(
+      left === 0
+        ? "Labels arranged: none is drawn over a wire, a part or a label now."
+        : left < before
+          ? `Labels arranged: ${left} still drawn over something; move ${left === 1 ? "it" : "them"} by hand or publish as is.`
+          : "No clearer spot found for these labels; move them by hand or publish as is.",
+    );
+  }
 
   // The update permission arrives with the session; default to updating the
   // opened entry unless the user already chose a mode.
@@ -644,16 +677,61 @@ export function PublishGalleryDialog({
                 <p>Quality checks — worth a look, publishing stays open:</p>
                 <ul>
                   {gateReport.failures.map((failure) => (
-                    <li key={failure.code}>
+                    <li
+                      key={failure.code}
+                      data-testid={`publish-gate-${failure.code}`}
+                    >
                       {failure.message}
                       {failure.count > 1 ? ` (${failure.count})` : ""}
-                      {failure.examples.length > 0
-                        ? ` — ${failure.examples.join(", ")}`
-                        : ""}
+                      {failure.findings?.length
+                        ? null
+                        : failure.examples.length > 0
+                          ? ` — ${failure.examples.join(", ")}`
+                          : ""}
+                      {failure.code === "label-clearance" && onArrangeLabels ? (
+                        <>
+                          {" "}
+                          <button
+                            type="button"
+                            className="publish-gallery-gate-action"
+                            data-testid="publish-arrange-labels"
+                            disabled={busy}
+                            onClick={arrangeLabels}
+                          >
+                            Arrange labels
+                          </button>
+                        </>
+                      ) : null}
+                      {failure.findings?.length ? (
+                        <ul className="publish-gallery-findings">
+                          {failure.findings
+                            .slice(0, LISTED_FINDINGS)
+                            .map((finding, index) => (
+                              <li key={`${finding.code}-${index}`}>
+                                {finding.subject ? `${finding.subject}: ` : ""}
+                                {finding.message}
+                              </li>
+                            ))}
+                          {failure.count > LISTED_FINDINGS ? (
+                            <li>
+                              … and {failure.count - LISTED_FINDINGS} more
+                            </li>
+                          ) : null}
+                        </ul>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
               </div>
+            ) : null}
+            {arrangeNote ? (
+              <p
+                className="publish-gallery-note"
+                role="status"
+                data-testid="publish-arrange-note"
+              >
+                {arrangeNote}
+              </p>
             ) : null}
             <p className="publish-gallery-note" hidden={fixing}>
               {updating

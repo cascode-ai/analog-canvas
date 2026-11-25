@@ -205,6 +205,20 @@
   padding-left: 1.1rem;
 }
 
+/* A check's findings: a bounded list, scrolled rather than growing the
+   dialog past the screen. */
+.publish-gallery-findings {
+  max-height: 9rem;
+  overflow-y: auto;
+  color: var(--icm-text-muted, #667085);
+}
+
+.publish-gallery-gate-action {
+  margin-left: 4px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+}
+
 .publish-gallery-note {
   margin: 0;
   color: var(--icm-text-muted, #667085);

@@ -5,7 +5,7 @@ import {
   stableRootOrder,
 } from "../features/hierarchy/project-hierarchy";
 import { buildProjectHierarchy, reconcileHierarchyPath } from "@icm/derived";
-import { instanceGroupDisplay } from "@icm/derived";
+import { evaluateSubmissionGates, instanceGroupDisplay } from "@icm/derived";
 import { collapsedArrayReference } from "@icm/model";
 import {
   canCreateInstanceArray,
@@ -1157,6 +1157,7 @@ function WorkspaceEditor({
     publicationLinkRetry,
     setPublicationLinkRetry,
     publishGates,
+    setPublishGates,
     publishQuota,
   } = useGalleryPublishing({
     identity,
@@ -1199,6 +1200,8 @@ function WorkspaceEditor({
     openLocalProjectRef,
     reviewWorkspaceRef,
   });
+  // The connected adapter's release, read when an Agent publishes.
+  const agentAdapterVersionRef = useRef<string | null>(null);
   const agentProjectTabsRef = useRef(() => projectTabs);
   agentProjectTabsRef.current = () => projectTabs;
   const browserAgentProjectHost = useMemo(
@@ -1217,6 +1220,18 @@ function WorkspaceEditor({
                     entry.session.controller === editorDocumentController,
                 ),
             publishToGallery: agentRuntime.createAgentGalleryPublisher({
+              // The dialog's advice, for an adapter that reads it (#2619).
+              advice: (state) =>
+                agentRuntime.adapterReadsPublishAdvice(
+                  agentAdapterVersionRef.current,
+                )
+                  ? agentRuntime.publishAdviceOf(
+                      evaluateSubmissionGates(
+                        state.project,
+                        editorDocumentController.resolver,
+                      ),
+                    )
+                  : null,
               // Only while this working copy is the one its tab shows.
               current: () => {
                 const state = agentGalleryPublicationRef.current();
@@ -1551,6 +1566,7 @@ function WorkspaceEditor({
     replaceActiveProject,
     guardDirtyReplacement,
   });
+  agentAdapterVersionRef.current = agentSession?.adapterVersion ?? null;
   const boxPreviewRuntime = useMemo(
     () =>
       createBoxPreviewRuntime(
@@ -6312,6 +6328,7 @@ function WorkspaceEditor({
         publicationLinkNotice={publicationLinkNotice}
         setPublicationLinkRetry={setPublicationLinkRetry}
         publishGates={publishGates}
+        setPublishGates={setPublishGates}
         publishQuota={publishQuota}
         openProjectInTabRef={openProjectInTabRef}
         agentFileCandidate={agentFileCandidate}

@@ -7,13 +7,26 @@ import { expect, test } from "./gallery-test.js";
 import { test as localTest } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
-import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import {
+  createLabelClearanceContext,
+  resolveDocumentStyleProfile,
+} from "@icm/derived";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  createRoutePath,
+} from "@icm/model";
 import {
   serializeProject,
   parseProject,
   CURRENT_PROJECT_FILE_VERSION,
 } from "@icm/project-protocol";
-import { hierarchicalSymbolId } from "@icm/symbols";
+import {
+  builtInSymbols,
+  hierarchicalSymbolId,
+  InMemorySymbolResolver,
+} from "@icm/symbols";
+import { defaultInstanceDisplayAnnotations } from "../src/features/instance-display/default-instance-display";
 import {
   clickCommand,
   expectStatus,
@@ -69,6 +82,97 @@ function hierarchicalPublishProject() {
   project.documents.push(child);
   return project;
 }
+
+/** Two wired resistors with a wire drawn straight through R1's name. */
+function struckLabelProject() {
+  const resolver = new InMemorySymbolResolver(builtInSymbols);
+  const project = createEmptyProject("struck-label", "Struck label");
+  const top = project.documents[0]!;
+  for (const [id, x] of [
+    ["R1", 0],
+    ["R2", 200],
+  ] as const) {
+    const instance = {
+      ...placedInstance(id, "resistor", x, 0),
+      reference: id,
+      netlist: { parameters: { value: "1k" } },
+    };
+    top.instances.push(instance);
+    top.annotations.push(
+      ...defaultInstanceDisplayAnnotations(
+        top,
+        instance,
+        resolver,
+        resolveDocumentStyleProfile(top.presentation),
+        {},
+      ),
+    );
+  }
+  top.nets = ["1", "2"].map((pinName) => ({
+    id: `n${pinName}`,
+    terminals: ["R1", "R2"].map((instanceId) => ({ instanceId, pinName })),
+  }));
+  const name = top.annotations.find(
+    (a) =>
+      a.binding?.kind === "instance-reference" && a.binding.instanceId === "R1",
+  )!;
+  const ink = createLabelClearanceContext(top, resolver).measure(
+    name,
+  ).inkBounds;
+  const even = (value: number) => 2 * Math.round(value / 2);
+  const y = even(ink.y + ink.height / 2);
+  top.nets.push({ id: "w", terminals: [] });
+  top.junctions.push(
+    { id: "wa", netId: "w", position: { x: even(ink.x) - 40, y } },
+    { id: "wb", netId: "w", position: { x: even(ink.x + ink.width) + 40, y } },
+  );
+  top.routes.push(
+    createRoutePath({
+      id: "w-route",
+      netId: "w",
+      start: { kind: "junction", junctionId: "wa" },
+      end: { kind: "junction", junctionId: "wb" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  return project;
+}
+
+localTest(
+  "Publish advises on a label drawn over a wire and arranges it in one step (#2619)",
+  async ({ page }) => {
+    await mockGallery(page, [ENTRY]);
+    await signIn(page, sessionUser({ displayName: "Token Zhang" }));
+    await openEditor(page);
+    await openProjectFile(
+      page,
+      serializeProject(struckLabelProject()),
+      "struck-label.icproj.json",
+    );
+    await expectStatus(page, "struck-label.icproj.json");
+
+    const dialog = await openPublishDialog(page);
+    const advice = dialog.getByTestId("publish-gate-label-clearance");
+    await expect(advice).toContainText(
+      "Labels are drawn over wires, parts or other labels",
+    );
+    await expect(advice).toContainText("R1: Label text is drawn over a wire");
+    // Advice only: Publish stays open with the label where it is.
+    await expect(
+      dialog.getByRole("button", { name: "Publish", exact: true }),
+    ).toBeEnabled();
+
+    await dialog.getByTestId("publish-arrange-labels").click();
+    await expect(advice).toHaveCount(0);
+    await expect(dialog.getByTestId("publish-arrange-note")).toHaveText(
+      "Labels arranged: none is drawn over a wire, a part or a label now.",
+    );
+    await expect(
+      dialog.getByRole("button", { name: "Publish", exact: true }),
+    ).toBeEnabled();
+  },
+);
 
 test("a member publishes from a tab, which then counts as saved and updates its entry in place", async ({
   page,

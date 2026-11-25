@@ -170,7 +170,10 @@ edits; it chooses no topology and yields no edits on conflict
     copy via the Editor's Publish client (`name`, `description`, `tags`),
     always AI-marked (only the author unmarks, in the Editor); update defaults
     to the copy's source entry and keeps unnamed fields; both answer
-    `galleryEntryId`, `url`, `previewRevision`. An AI account's
+    `galleryEntryId`, `url`, `previewRevision`, and for an adapter that reads
+    it the Publish dialog's quality
+    [advice](community-gallery.md#submission-quality-advice) (never a refusal).
+    An AI account's
     `takeOver: true` republishes another AI account's entry under its name
     ([take-over](community-gallery.md)), never a person's.
   - `list-gallery` `scope: "ai-seats"` lists every AI entry (incl. rejected,
