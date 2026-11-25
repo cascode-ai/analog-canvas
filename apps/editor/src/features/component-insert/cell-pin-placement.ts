@@ -81,7 +81,7 @@ export function planPlacedCellPin(
       ...(supply
         ? planInitialMosBulkDefault(
             document,
-            supplyMarkerBodyDomain(input.instance.symbolId) ?? "vdd",
+            supplyMarkerBodyDomain(input.instance.symbolId, name) ?? "vdd",
             input.netId,
             input.precedingEdits,
           )

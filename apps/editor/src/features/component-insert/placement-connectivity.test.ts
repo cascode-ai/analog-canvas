@@ -115,6 +115,33 @@ describe("component placement electrical contacts", () => {
     expect(plan().projectedDocument).toEqual(before);
   });
 
+  it("assigns the NMOS bulk default when a pasted vdd-port belongs to a negative-named supply Net", () => {
+    const document = createEmptyDocument("main", "Main");
+    const marker = {
+      id: "VSS1",
+      symbolId: "vdd-port",
+      placement: {
+        position: { x: 100, y: 80 },
+        rotation: 0 as const,
+        mirror: "none" as const,
+      },
+    };
+    document.instances.push(marker);
+    document.nets.push({
+      id: "net-vss",
+      terminals: [{ instanceId: "VSS1", pinName: "P" }],
+    });
+    addSupplyClaim(document, "net-vss", "VSS", "global", "vdd");
+    const plan = planInsertedInstanceConnections(document, resolver, marker);
+    expect(plan.edits).toContainEqual({
+      kind: "set_mos_bulk_defaults",
+      nmosNetId: "net-vss",
+    });
+    expect(plan.edits).not.toContainEqual(
+      expect.objectContaining({ pmosNetId: "net-vss" }),
+    );
+  });
+
   it("isolates fresh-instance and new-supply overlays without mutating inputs", () => {
     const document = createEmptyDocument("main", "Main");
     const instance = {

@@ -1,6 +1,7 @@
 import type { SchematicEdit } from "@icm/edit-engine";
 import {
   mosBulkKind,
+  namesNegativeSupply,
   pdkSubstrateDefaultNet,
   resolveDocumentLogicalNets,
 } from "@icm/derived";
@@ -10,17 +11,35 @@ import type { CircuitProject, Instance, SchematicDocument } from "@icm/model";
 /** The Project's external definitions, where a part's PDK wrapper is read. */
 type Definitions = Pick<CircuitProject, "externalSubcircuitDefinitions">;
 
+/** Which body default a drawn power rail settles: NMOS for a negative-named rail, else PMOS. */
+export function powerRailBodyDomain(netName: string): "ground" | "vdd" {
+  return namesNegativeSupply(netName) ? "ground" : "vdd";
+}
+
 /**
  * Which body default a placed supply marker settles: Ground and a Named
- * Ground (VSS, AGND) the NMOS body's, VDD Power the PMOS body's. A Named
- * Ground names a supply rail, yet it is drawn as the rail NMOS bodies sit
- * on, never the one PMOS bodies do.
+ * Ground (VSS, AGND) the NMOS body's; VDD Power the PMOS body's unless it
+ * names a negative supply (VSS, VEE, VNEG, AVSS, DVSS, PVSS), which sits on
+ * the NMOS body domain instead.
  */
 export function supplyMarkerBodyDomain(
   symbolId: string,
+  name?: string,
 ): "ground" | "vdd" | undefined {
   if (symbolId === "ground" || symbolId === "named-ground") return "ground";
-  return symbolId === "vdd-port" ? "vdd" : undefined;
+  if (symbolId !== "vdd-port") return undefined;
+  return name ? powerRailBodyDomain(name) : "vdd";
+}
+
+/** Project `mosBulkDefaults` with one domain assigned to `netId`. */
+export function withMosBulkDefault(
+  defaults: SchematicDocument["mosBulkDefaults"],
+  domain: "ground" | "vdd",
+  netId: string,
+): NonNullable<SchematicDocument["mosBulkDefaults"]> {
+  return domain === "ground"
+    ? { ...defaults, nmosNetId: netId }
+    : { ...defaults, pmosNetId: netId };
 }
 
 /**

@@ -7,6 +7,7 @@ import {
   uprightScripts,
 } from "./rich-text.js";
 import {
+  hasRichTextOverbar,
   identifierTextDocument,
   richTextIdentifier,
   rewriteRichTextIdentifier,
@@ -458,6 +459,61 @@ it("lets a stored M₁ look follow a device rename", () => {
   expect(
     renamedLabelFormat(label, "M1", "MTAIL", presentation),
   ).toBeUndefined();
+});
+
+it("drops a stale overbar when renaming an overbarred label to a name without _bar", () => {
+  const presentation = createEmptyDocument("a", "A").presentation;
+  const label = {
+    kind: "instance-label" as const,
+    binding: { kind: "cell-terminal-name" as const, terminalId: "terminal-ck" },
+    formatOverride: {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "overbar" as const,
+          children: [
+            {
+              kind: "span" as const,
+              style: "italic" as const,
+              children: [{ kind: "text" as const, value: "CK" }],
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const toCkb = renamedLabelFormat(label, "CK", "CKB", presentation)!;
+  expect(hasRichTextOverbar(toCkb)).toBe(false);
+  expect(flattenRichText(toCkb)).toBe("CKB");
+  expect(richTextIdentifier(toCkb)).toBe("CKB");
+  expect(JSON.stringify(toCkb)).toContain('"italic"');
+
+  const toCkBar = renamedLabelFormat(label, "CK", "CK_bar", presentation)!;
+  expect(hasRichTextOverbar(toCkBar)).toBe(true);
+  expect(flattenRichText(toCkBar)).toBe("CK");
+  expect(richTextIdentifier(toCkBar)).toBe("CK_bar");
+
+  // On a device Reference or a bus/bundle expression, an overbar is styling.
+  const refLabel = {
+    kind: "instance-label" as const,
+    binding: { kind: "instance-reference" as const, instanceId: "M1" },
+    formatOverride: {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "overbar" as const,
+          children: [{ kind: "text" as const, value: "M1" }],
+        },
+      ],
+    },
+  };
+  const renamedRef = renamedLabelFormat(refLabel, "M1", "M2", presentation)!;
+  expect(hasRichTextOverbar(renamedRef)).toBe(true);
+  expect(flattenRichText(renamedRef)).toBe("M2");
+
+  const toBus = renamedLabelFormat(label, "CK", "CK<1:0>", presentation)!;
+  expect(hasRichTextOverbar(toBus)).toBe(true);
+  expect(flattenRichText(toBus)).toBe("CK<1:0>");
 });
 
 it("shows a hidden underscore again when restyling leaves nothing to hide it", () => {

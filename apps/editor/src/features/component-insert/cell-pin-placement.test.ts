@@ -17,6 +17,7 @@ function placeVddMarker(
   id: string,
   x: number,
   symbolId: "vdd-port" | "named-ground" = "vdd-port",
+  name?: string,
 ) {
   const document = project.documents[0]!;
   const netId = `net-cell-pin-${id.toLowerCase()}`;
@@ -33,6 +34,7 @@ function placeVddMarker(
         placement: { position: { x, y: 100 }, rotation: 0, mirror: "none" },
       },
       terminalId: `terminal-${id.toLowerCase()}`,
+      ...(name ? { name } : {}),
       netId,
       direction: "inout",
       connectionEdits: [
@@ -89,6 +91,21 @@ describe("placing a VDD marker", () => {
         { kind: "cell-terminal-name", terminalId: "terminal-vdd2" },
       ],
     ]);
+  });
+  it("binds a vdd-port named VSS to the NMOS bulk default instead of PMOS", () => {
+    let project = createEmptyProject("vss-bar", "VSS bar");
+    project = placeVddMarker(project, "VSS1", 100, "vdd-port", "VSS");
+    const afterVss = project.documents[0]!;
+    expect(afterVss.mosBulkDefaults).toEqual({
+      nmosNetId: "net-cell-pin-vss1",
+    });
+
+    project = placeVddMarker(project, "VDD1", 300, "vdd-port", "VDD");
+    const afterVdd = project.documents[0]!;
+    expect(afterVdd.mosBulkDefaults).toEqual({
+      nmosNetId: "net-cell-pin-vss1",
+      pmosNetId: "net-cell-pin-vdd1",
+    });
   });
 });
 

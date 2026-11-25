@@ -329,10 +329,10 @@ export function drawnSupplyLogicalNetIds(
 }
 
 /** A supply named as a negative rail: VEE, VSS or VNEG, any case and suffix. */
-const NEGATIVE_SUPPLY_NAME = /^[ad]?(?:vee|vss|vneg)[a-z0-9_]*$/iu;
+const NEGATIVE_SUPPLY_NAME = /^[adp]?(?:vee|vss|vneg)[a-z0-9_]*$/iu;
 
 /**
- * Whether a Net name reads as a negative rail (VEE, VSS, VNEG; an a/d
+ * Whether a Net name reads as a negative rail (VEE, VSS, VNEG; an a/d/p
  * prefix, any suffix). The one rule {@link drawnNegativeSupplyNet} and the
  * export's lowest-supply check share, so a substrate the Process puts on that
  * rail is never also reported off the lowest supply (#1530).

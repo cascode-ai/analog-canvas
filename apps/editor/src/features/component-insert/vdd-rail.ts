@@ -21,7 +21,11 @@ import {
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { planInitialMosBulkDefault } from "./mos-bulk-defaults";
+import {
+  planInitialMosBulkDefault,
+  powerRailBodyDomain,
+  withMosBulkDefault,
+} from "./mos-bulk-defaults";
 
 export interface VddRailConstruction {
   instanceId: string;
@@ -249,11 +253,18 @@ export function planVddRailEdits(
         },
       ])
     : { edits: [], endpointGroups: [] };
-  const bulkDefaultEdits = planInitialMosBulkDefault(document, "vdd", netId);
-  // The first rail also assigns the Cell's PMOS body default. That authored
-  // connection is part of this same gesture even when the rail is drawn away
-  // from existing conductors. Without a merge declaration the routing gate
-  // mistakes the newly materialized B terminals for an accidental rewire.
+  const bodyDomain = powerRailBodyDomain(netName);
+  const bulkDefaultEdits = planInitialMosBulkDefault(
+    document,
+    bodyDomain,
+    netId,
+  );
+  // The first rail also assigns the Cell's MOS body default (PMOS for a
+  // positive supply, NMOS for a negative-named rail such as VSS/VEE). That
+  // authored connection is part of this same gesture even when the rail is
+  // drawn away from existing conductors. Without a merge declaration the
+  // routing gate mistakes the newly materialized B terminals for an
+  // accidental rewire.
   const bulkContactGroups = bulkDefaultEdits.length
     ? (() => {
         const projected: SchematicDocument = {
@@ -261,7 +272,11 @@ export function planVddRailEdits(
           nets: document.nets.some((net) => net.id === netId)
             ? document.nets
             : [...document.nets, { id: netId, terminals: [] }],
-          mosBulkDefaults: { ...document.mosBulkDefaults, pmosNetId: netId },
+          mosBulkDefaults: withMosBulkDefault(
+            document.mosBulkDefaults,
+            bodyDomain,
+            netId,
+          ),
         };
         const railKey = endpointKey({
           kind: "junction",

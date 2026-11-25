@@ -38,6 +38,10 @@ import {
 
 import { uniqueInductorCouplingName } from "@icm/derived";
 
+import {
+  planInitialMosBulkDefault,
+  supplyMarkerBodyDomain,
+} from "../component-insert/mos-bulk-defaults";
 import { createNewInstance } from "../netlist-export/netlist-authoring";
 import type { SchematicClipboard } from "./clipboard";
 import { pastedMembers } from "./paste-members";
@@ -628,35 +632,31 @@ export function proposePaste(
   // marker by hand does. Without this, a Cell assembled by pasting has no
   // body default at all, every MOS body stays unresolved, and the netlist
   // refuses to export the fourth node.
-  for (const domain of ["ground", "vdd"] as const) {
-    const configured =
-      domain === "ground"
-        ? document.mosBulkDefaults?.nmosNetId
-        : document.mosBulkDefaults?.pmosNetId;
-    if (configured) continue;
-    const marker = clipboard.instances.find(
-      (instance) =>
-        powerConnectionForSymbol(instance.symbolId)?.domain === domain,
+  for (const instance of clipboard.instances) {
+    const connection = powerConnectionForSymbol(instance.symbolId);
+    if (!connection) continue;
+    const markerNet = clipboard.nets.find((net) =>
+      net.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instance.id &&
+          terminal.pinName === connection.pinName,
+      ),
     );
-    const connection = marker
-      ? powerConnectionForSymbol(marker.symbolId)
-      : undefined;
-    const markerNet = connection
-      ? clipboard.nets.find((net) =>
-          net.terminals.some(
-            (terminal) =>
-              terminal.instanceId === marker!.id &&
-              terminal.pinName === connection.pinName,
-          ),
-        )
-      : undefined;
     const netId = markerNet ? netIds.get(markerNet.id) : undefined;
-    if (!netId) continue;
+    if (!markerNet || !netId) continue;
+    const nameClaim = clipboard.connectivityEvidence.find(
+      (evidence) =>
+        evidence.kind === "name-claim" && evidence.netId === markerNet.id,
+    );
+    const supplyName =
+      clipboard.cellTerminals.find((terminal) =>
+        terminal.interfaceInstanceIds.includes(instance.id),
+      )?.name ??
+      (nameClaim?.kind === "name-claim" ? nameClaim.name : undefined);
+    const bodyDomain = supplyMarkerBodyDomain(instance.symbolId, supplyName);
+    if (!bodyDomain) continue;
     edits.push(
-      domain === "ground"
-        ? { kind: "set_mos_bulk_defaults", nmosNetId: netId }
-        : { kind: "set_mos_bulk_defaults", pmosNetId: netId },
-      { kind: "reconcile_mos_bulk" },
+      ...planInitialMosBulkDefault(document, bodyDomain, netId, edits),
     );
   }
   edits.push(

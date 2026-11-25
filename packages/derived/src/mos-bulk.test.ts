@@ -10,6 +10,7 @@ import {
   mosBodiesOffSourceSupply,
   mosBulkKind,
   mosBulkShouldBeVisible,
+  namesNegativeSupply,
   resolveDetachedMosBulkDefault,
   drawnSupplyNet,
   resolveMosBulkConnection,
@@ -722,6 +723,13 @@ describe("a default body on another supply than its source (#1336)", () => {
         if (terminal.instanceId === "M1" && terminal.pinName !== "G")
           terminal.pinName = terminal.pinName === "S" ? "D" : "S";
     expect(mosBodiesOffSourceSupply(document)).toEqual([]);
+  });
+
+  it("recognizes analog, digital, and power negative supply names", () => {
+    for (const name of ["VSS", "VEE", "VNEG", "AVSS", "DVSS", "PVSS", "pvee_1"])
+      expect(namesNegativeSupply(name)).toBe(true);
+    for (const name of ["VDD", "AVDD", "PVDD", "VCC", "VBIAS", "GND"])
+      expect(namesNegativeSupply(name)).toBe(false);
   });
 
   it("reads a copied Ground marker without its name claim as the same ground", () => {

@@ -175,7 +175,11 @@ export function planInsertedInstanceConnections(
   }
   const powerNetId = standalonePower.powerNetId ?? contact.powerNetId;
   const powerConnection = powerConnectionForSymbol(instance.symbolId);
-  const bodyDomain = supplyMarkerBodyDomain(instance.symbolId);
+  const supplyName =
+    (powerNetId &&
+      context.contactContext.logicalNets.byBaseNetId.get(powerNetId)?.name) ||
+    supplyMarkerForSymbol(instance.symbolId)?.name;
+  const bodyDomain = supplyMarkerBodyDomain(instance.symbolId, supplyName);
   const initialBulkDefaultEdits =
     bodyDomain && powerNetId
       ? planInitialMosBulkDefault(document, bodyDomain, powerNetId)
@@ -208,11 +212,7 @@ export function planInsertedInstanceConnections(
           netId: powerNetId,
           grid: document.presentation.grid,
           // An existing supply keeps its name; a fresh marker claims its own.
-          name:
-            context.contactContext.logicalNets.byBaseNetId.get(powerNetId)
-              ?.name ??
-            supplyMarkerForSymbol(instance.symbolId)?.name ??
-            "VDD",
+          name: supplyName ?? "VDD",
         })
       : null;
   const instances = document.instances.some(
