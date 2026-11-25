@@ -253,6 +253,13 @@ class BackupHeadroom(RuntimeError):
     """The backup seed has not started and can be retried when disk space returns."""
 
 
+def _process_inode():
+    try:
+        return pathlib.Path('/proc/self').stat().st_ino
+    except FileNotFoundError:
+        return None
+
+
 def check_capture_space(data, backups, *, preparing=True):
     # rsync materializes sparse files and hard links. Count each directory
     # entry's apparent size without reading live database contents.
@@ -272,7 +279,7 @@ def check_capture_space(data, backups, *, preparing=True):
     if preparing:
         temp = backups / '.capacity.next'
         temp.write_text(json.dumps({'requiredBytes': required, 'pid': os.getpid(),
-                                    'processInode': pathlib.Path('/proc/self').stat().st_ino}))
+                                    'processInode': _process_inode()}))
         temp.replace(backups / 'capacity.json')
     if shutil.disk_usage(backups).free < required:
         raise BackupHeadroom('backup-headroom')

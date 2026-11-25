@@ -42,7 +42,9 @@ export function GalleryTopologyTaskNotice({
         <button
           type="button"
           aria-label="Dismiss duplicate check notification"
-          onClick={galleryTopologyTask.dismissNotice}
+          onClick={() => {
+            void galleryTopologyTask.dismissNotice();
+          }}
         >
           ×
         </button>

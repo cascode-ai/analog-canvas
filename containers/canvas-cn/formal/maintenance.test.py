@@ -336,6 +336,19 @@ class SnapshotTest(unittest.TestCase):
                 self.assertNotIn('state/deleted', bundle.getnames())
             self.assertEqual((archive / 'release.json').read_text(), record.read_text())
 
+    def test_capacity_record_handles_missing_proc_self(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            for name in ('state', 'artifacts'):
+                (root / 'data' / name).mkdir(parents=True)
+            backups = root / 'backups'
+            backups.mkdir()
+            with patch.object(maintenance, '_process_inode', return_value=None):
+                maintenance.check_capture_space(root / 'data', backups, preparing=True)
+            recorded = json.loads((backups / 'capacity.json').read_text())
+            self.assertIsNone(recorded['processInode'])
+            self.assertEqual(recorded['pid'], os.getpid())
+
 
 if __name__ == '__main__':
     unittest.main()
