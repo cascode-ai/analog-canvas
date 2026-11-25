@@ -43,12 +43,13 @@ async function payloadFiles(root, directory = root) {
 }
 
 const compress = promisify(brotliCompress);
+/** Quality 6 keeps near-max static compression while cutting CI build time ~5x vs 11. */
+const BROTLI_ASSET_QUALITY = 6;
 
 /**
- * Write a quality-11 `<file>.br` into `brotliDirectory` for each compressible
- * asset of this build where it is smaller. It runs before earlier deploys'
- * assets are retained, so only this build's assets get one, and it never
- * writes into the build: other consumers of apps/editor/dist see it plain.
+ * Write a quality-6 `<file>.br` into `brotliDirectory` for each compressible
+ * asset of this build where it is smaller. It never writes into the build:
+ * other consumers of apps/editor/dist see it plain.
  */
 export async function compressBuildAssets(editorDirectory, brotliDirectory) {
   const assets = join(resolve(editorDirectory), "assets");
@@ -61,7 +62,7 @@ export async function compressBuildAssets(editorDirectory, brotliDirectory) {
     const bytes = await readFile(join(assets, name));
     const compressed = await compress(bytes, {
       params: {
-        [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY,
+        [constants.BROTLI_PARAM_QUALITY]: BROTLI_ASSET_QUALITY,
         [constants.BROTLI_PARAM_SIZE_HINT]: bytes.byteLength,
       },
     });
@@ -155,52 +156,68 @@ export async function verifyDeploymentCandidate(
   return manifest;
 }
 
-export async function verifyDeployedCandidate(
-  outputDirectory,
+class TransientLiveVerifyError extends Error {}
+
+async function verifyDeployedCandidateOnce({
   baseUrl,
-  fetchImpl = fetch,
-) {
-  const output = resolve(outputDirectory);
-  const manifest = JSON.parse(
-    await readFile(join(output, MANIFEST_NAME), "utf8"),
-  );
-  const localShell = await readFile(
-    join(output, manifest.editorDirectory, "index.html"),
-    "utf8",
-  );
-  const entry = localShell.match(/src="(\/assets\/[^" ]+\.js)"/u)?.[1];
-  assert(entry, "Candidate editor shell has no JavaScript entry");
+  entry,
+  localEntry,
+  compressed,
+  fetchImpl,
+}) {
   const shellResponse = await fetchImpl(new URL("/editor", baseUrl), {
     cache: "no-store",
   });
+  if (shellResponse.status === 404 || shellResponse.status >= 500) {
+    throw new TransientLiveVerifyError(
+      `Deployed editor shell returned HTTP ${shellResponse.status}`,
+    );
+  }
   assert.equal(
     shellResponse.status,
     200,
     "Deployed editor shell is unavailable",
   );
-  const remoteShell = await shellResponse.text();
-  assert(
-    remoteShell.includes(`src="${entry}"`),
-    "Deployment is not serving the accepted candidate entry",
+  const shellType = shellResponse.headers.get("content-type") ?? "";
+  assert.match(
+    shellType,
+    /text\/html/iu,
+    `A client route must receive HTML shell, got: ${shellType}`,
   );
+  const remoteShell = await shellResponse.text();
+  assert.match(
+    remoteShell,
+    /<!doctype html>/iu,
+    "Deployed editor shell is missing <!doctype html>",
+  );
+  if (!remoteShell.includes(`src="${entry}"`)) {
+    throw new TransientLiveVerifyError(
+      "Deployment is not yet serving the accepted candidate entry",
+    );
+  }
   const entryResponse = await fetchImpl(new URL(entry, baseUrl), {
     cache: "no-store",
     headers: { "accept-encoding": "br" },
   });
+  if (entryResponse.status === 401) {
+    throw new Error(
+      `The live site answered ${entry} with 401: another Worker holds this domain.`,
+    );
+  }
+  if (entryResponse.status === 404 || entryResponse.status >= 500) {
+    throw new TransientLiveVerifyError(
+      `Deployed candidate entry (br) returned HTTP ${entryResponse.status}`,
+    );
+  }
   assert.equal(
     entryResponse.status,
     200,
     "Deployed candidate entry is unavailable",
   );
-  const entryPath = join(
-    output,
-    manifest.editorDirectory,
-    entry.replace(/^\//u, ""),
-  );
-  const localEntry = await readFile(entryPath);
-  const compressed = await stat(`${entryPath}.br`).then(
-    () => true,
-    () => false,
+  assert.match(
+    entryResponse.headers.get("content-type") ?? "",
+    /javascript/iu,
+    "Deployed candidate entry is not JavaScript",
   );
   // fetch() decodes the body, so the header shows what was sent.
   if (compressed)
@@ -218,7 +235,22 @@ export async function verifyDeployedCandidate(
     cache: "no-store",
     headers: { "accept-encoding": "gzip" },
   });
+  if (gzipResponse.status === 401) {
+    throw new Error(
+      `The live site answered ${entry} with 401: another Worker holds this domain.`,
+    );
+  }
+  if (gzipResponse.status === 404 || gzipResponse.status >= 500) {
+    throw new TransientLiveVerifyError(
+      `Deployed entry (gzip) returned HTTP ${gzipResponse.status}`,
+    );
+  }
   assert.equal(gzipResponse.status, 200, "Deployed entry is unavailable");
+  assert.match(
+    gzipResponse.headers.get("content-type") ?? "",
+    /javascript/iu,
+    "Deployed entry is not JavaScript",
+  );
   assert.notEqual(
     gzipResponse.headers.get("content-encoding"),
     "br",
@@ -229,7 +261,57 @@ export async function verifyDeployedCandidate(
     localEntry,
     "Deployed entry bytes differ from the accepted candidate",
   );
-  return { commit: manifest.commit, version: manifest.version, entry };
+}
+
+export async function verifyDeployedCandidate(
+  outputDirectory,
+  baseUrl,
+  fetchImpl = fetch,
+  { retries = 0, retryDelayMs = 2000 } = {},
+) {
+  const output = resolve(outputDirectory);
+  const manifest = JSON.parse(
+    await readFile(join(output, MANIFEST_NAME), "utf8"),
+  );
+  const localShell = await readFile(
+    join(output, manifest.editorDirectory, "index.html"),
+    "utf8",
+  );
+  const entry = localShell.match(/src="(\/assets\/[^" ]+\.js)"/u)?.[1];
+  assert(entry, "Candidate editor shell has no JavaScript entry");
+  const entryPath = join(
+    output,
+    manifest.editorDirectory,
+    entry.replace(/^\//u, ""),
+  );
+  const localEntry = await readFile(entryPath);
+  const compressed = await stat(`${entryPath}.br`).then(
+    () => true,
+    () => false,
+  );
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await verifyDeployedCandidateOnce({
+        baseUrl,
+        entry,
+        localEntry,
+        compressed,
+        fetchImpl,
+      });
+      return { commit: manifest.commit, version: manifest.version, entry };
+    } catch (error) {
+      const retryable =
+        error instanceof TransientLiveVerifyError ||
+        (error instanceof TypeError && attempt < retries);
+      if (!retryable || attempt >= retries) throw error;
+      if (retryDelayMs > 0) {
+        await new Promise((resolveDelay) =>
+          setTimeout(resolveDelay, retryDelayMs),
+        );
+      }
+    }
+  }
 }
 
 async function packageVersion() {
@@ -280,7 +362,12 @@ async function main() {
   }
   if (command === "verify-live") {
     assert(outputDirectory && argument);
-    const result = await verifyDeployedCandidate(outputDirectory, argument);
+    const result = await verifyDeployedCandidate(
+      outputDirectory,
+      argument,
+      fetch,
+      { retries: 5, retryDelayMs: 2000 },
+    );
     console.log(
       `Serving candidate ${result.version} at ${new URL(argument).origin}.`,
     );

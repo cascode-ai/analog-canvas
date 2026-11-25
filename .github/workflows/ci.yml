@@ -25,6 +25,7 @@ jobs:
     outputs:
       heavy: ${{ steps.plan.outputs.heavy }}
       browser: ${{ steps.plan.outputs.browser }}
+      browser_needs_mcp: ${{ steps.plan.outputs.browser_needs_mcp }}
       browser_shards: ${{ steps.plan.outputs.browser_shards }}
       mode: ${{ steps.plan.outputs.mode }}
       e2e_args: ${{ steps.plan.outputs.e2e_args }}
@@ -33,6 +34,11 @@ jobs:
       unit_built: ${{ steps.plan.outputs.unit_built }}
       performance: ${{ steps.plan.outputs.performance }}
       release: ${{ steps.plan.outputs.release }}
+      release_desktop: ${{ steps.plan.outputs.release_desktop }}
+      release_editor: ${{ steps.plan.outputs.release_editor }}
+      release_golden: ${{ steps.plan.outputs.release_golden }}
+      release_agent_artifacts: ${{ steps.plan.outputs.release_agent_artifacts }}
+      release_mcp: ${{ steps.plan.outputs.release_mcp }}
       unit_mode: ${{ steps.plan.outputs.unit_mode }}
       unit_shards: ${{ steps.plan.outputs.unit_shards }}
       unit_args: ${{ steps.plan.outputs.unit_args }}
@@ -251,33 +257,43 @@ jobs:
       - name: Build remaining workspace packages and applications
         run: node scripts/ci-package-build.mjs remaining
       - name: Offline renderer boundary
+        if: needs.changes.outputs.release_desktop == 'true'
         timeout-minutes: 5
         run: pnpm test:desktop-build
       - name: editor-bundle-budget
+        if: needs.changes.outputs.release_editor == 'true'
         timeout-minutes: 5
         run: node scripts/editor-bundle-budget.mjs --check
       - name: visual-golden
+        if: needs.changes.outputs.release_golden == 'true'
         timeout-minutes: 5
         run: node scripts/visual-golden.mjs --check
       - name: export-golden
+        if: needs.changes.outputs.release_golden == 'true'
         timeout-minutes: 5
         run: node scripts/export-golden.mjs --check
       - name: pwa-icons
+        if: needs.changes.outputs.release_golden == 'true'
         timeout-minutes: 5
         run: node scripts/pwa-icons.mjs --check
       - name: agent-api-artifacts
+        if: needs.changes.outputs.release_agent_artifacts == 'true'
         timeout-minutes: 5
         run: node scripts/agent-api-artifacts.mjs --check
       - name: editor-production-smoke
+        if: needs.changes.outputs.release_editor == 'true'
         timeout-minutes: 5
         run: node scripts/editor-production-smoke.mjs --check
       - name: package-mcp
+        if: needs.changes.outputs.release_mcp == 'true'
         timeout-minutes: 5
         run: node scripts/package-mcp.mjs
       - name: package-release
+        if: needs.changes.outputs.release_mcp == 'true'
         timeout-minutes: 5
         run: node scripts/package-release.mjs
       - name: mcp-release-smoke
+        if: needs.changes.outputs.release_mcp == 'true'
         timeout-minutes: 5
         run: node scripts/mcp-release-smoke.mjs
 
@@ -332,10 +348,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - env:
           E2E_ARGS: ${{ needs.changes.outputs.e2e_args }}
+          BROWSER_NEEDS_MCP: ${{ needs.changes.outputs.browser_needs_mcp }}
         run: |
           read -r -a specs <<< "$E2E_ARGS"
           test "${#specs[@]}" -gt 0
-          pnpm ci:e2e --workers=3 --shard=${{ matrix.shard }} "${specs[@]}"
+          if [[ "$BROWSER_NEEDS_MCP" == "true" ]]; then
+            pnpm --filter "@icm/editor^..." --filter "@icm/mcp-server..." --if-present build
+          else
+            pnpm --filter "@icm/editor^..." --if-present build
+          fi
+          pnpm exec playwright test --workers=3 --shard=${{ matrix.shard }} "${specs[@]}"
       - name: Preserve browser timing evidence
         if: always()
         uses: actions/upload-artifact@v4

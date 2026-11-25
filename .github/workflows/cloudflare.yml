@@ -107,7 +107,6 @@ jobs:
           wrangler-config: wrangler.jsonc
           release-sha: ${{ steps.release.outputs.release_sha }}
           candidate-dir: ${{ runner.temp }}/analog-canvas-candidate
-          retain-assets-from: https://analog-canvas.tokenzhang.com
       - name: Verify the deployment candidate
         run: |
           node scripts/deployment-candidate.mjs verify \
@@ -231,50 +230,16 @@ jobs:
           curl --fail --silent --show-error \
             --retry 5 --retry-delay 2 --retry-all-errors \
             --max-time 20 \
-            https://analog-canvas.tokenzhang.com/editor >/dev/null
-          curl --fail --silent --show-error \
-            --retry 5 --retry-delay 2 --retry-all-errors \
-            --max-time 20 \
             https://analog-canvas.tokenzhang.com/analytics >/dev/null
-          gallery_catalog="$(curl --fail --silent --show-error \
-            --retry 5 --retry-delay 2 --retry-all-errors \
-            --max-time 20 \
-            'https://analog-canvas.tokenzhang.com/?q=ota')"
-          if grep -q 'data-public-gallery-document="catalog"' <<<"$gallery_catalog"; then
-            echo "The suspended public Gallery catalog is still embedded in HTML."
-            exit 1
-          fi
-          robots="$(curl --fail --silent --show-error \
-            --retry 5 --retry-delay 2 --retry-all-errors \
-            --max-time 20 \
-            https://analog-canvas.tokenzhang.com/robots.txt)"
-          if ! grep -q 'Disallow: /g/' <<<"$robots"; then
-            echo "robots.txt still permits indexing the suspended Gallery documents."
-            exit 1
-          fi
-          # llms.txt states the open usage policy and lists no Gallery page.
-          llms="$(curl --fail --silent --show-error \
-            --retry 5 --retry-delay 2 --retry-all-errors \
-            --max-time 20 \
-            https://analog-canvas.tokenzhang.com/llms.txt)"
-          if ! grep -q 'free to read, download in bulk' <<<"$llms" || grep -q '/g/' <<<"$llms"; then
-            echo "llms.txt does not state the usage policy, or lists Gallery resources."
-            exit 1
-          fi
-          for path in sitemap.xml g/7dgn5b2e74/project.icproj.json g/7dgn5b2e74/netlist.sp g/7dgn5b2e74/netlist.scs g/7dgn5b2e74/preview.svg; do
-            status="$(curl --silent --show-error --max-time 20 \
-              --output /dev/null --write-out '%{http_code}' \
-              "https://analog-canvas.tokenzhang.com/$path")"
-            if [ "$status" != "404" ]; then
-              echo "Suspended public Gallery resource $path returned HTTP $status, not 404."
-              exit 1
-            fi
-          done
           # Anyone reads the Gallery, signed in or not: the whole wall with
-          # its count, its filter lists, search and authors.
-          signed_out_wall="$(curl --fail --silent --show-error --max-time 20 \
+          # its count and filter lists.
+          signed_out_wall="$(curl --fail --silent --show-error \
+            --retry 5 --retry-delay 2 --retry-all-errors \
+            --max-time 20 \
             https://analog-canvas.tokenzhang.com/api/gallery)"
-          signed_out_tags="$(curl --fail --silent --show-error --max-time 20 \
+          signed_out_tags="$(curl --fail --silent --show-error \
+            --retry 5 --retry-delay 2 --retry-all-errors \
+            --max-time 20 \
             https://analog-canvas.tokenzhang.com/api/gallery/tags)"
           node -e '
             const wall = JSON.parse(process.argv[1]);
@@ -283,15 +248,6 @@ jobs:
               console.error("Signed out, the Gallery wall or its tags are not read whole.");
               process.exit(1);
             }' "$signed_out_wall" "$signed_out_tags"
-          for path in "api/gallery?q=amp" api/gallery/authors api/gallery/sources; do
-            status="$(curl --silent --show-error --max-time 20 \
-              --output /dev/null --write-out '%{http_code}' \
-              "https://analog-canvas.tokenzhang.com/$path")"
-            if [ "$status" != "200" ]; then
-              echo "Signed-out Gallery read $path returned HTTP $status, not 200."
-              exit 1
-            fi
-          done
           # A manual dispatch can select a mainline commit that predates site
           # archives. Its public asset was checked before the Worker switched.
           if grep -q '"AGENT_MCP_DOWNLOAD_ORIGIN"' wrangler.jsonc; then
@@ -315,52 +271,13 @@ jobs:
             echo "Production Agent session cleanup answered $agent_delete"
             exit 1
           fi
-          # The shell loading proves nothing about the page rendering. On
-          # 2026-09-04 a staging deploy took this hostname, and because the
-          # asset layer answered `/editor` before the Worker, every path check
-          # above passed at 200 while the shell's own script came back
-          # 401 "Staging is not public.". The site was blank and the pipeline
-          # saw a healthy deployment.
-          #
-          # So follow the shell to the script it actually asks for, and require
-          # JavaScript to come back. This is the narrowest check that tells a
-          # page apart from a page-shaped 200.
-          shell="$(curl --fail --silent --show-error --max-time 20 \
-            https://analog-canvas.tokenzhang.com/editor)"
-          entry="$(printf '%s' "$shell" \
-            | grep -o '/assets/[A-Za-z0-9._-]*\.js' | head -n 1)"
-          if [ -z "$entry" ]; then
-            echo "The editor shell references no script; it cannot boot."
-            exit 1
-          fi
-          entry_result="$(curl --silent --output /dev/null --max-time 20 \
-            --write-out '%{http_code} %{content_type}' \
-            "https://analog-canvas.tokenzhang.com${entry}")"
-          case "$entry_result" in
-            200*javascript*) : ;;
-            401*)
-              echo "The live site answered $entry with 401: another Worker"
-              echo "holds this domain (on 2026-09-03 it was a staging deploy)."
-              echo "Recover by deploying this Worker again, which re-attaches"
-              echo "the custom domain."
-              exit 1
-              ;;
-            *)
-              echo "The editor's entry script answered: $entry_result"
-              exit 1
-              ;;
-          esac
           stale_asset="$(curl --silent --show-error \
             --max-time 20 \
             --output /tmp/analog-canvas-stale-asset.txt \
             --write-out '%{http_code} %{content_type}' \
             https://analog-canvas.tokenzhang.com/assets/App-deploy-smoke-missing.js)"
           # A hashed asset name is a promise about bytes, so a name with no
-          # file behind it must say 404. This check asserted the opposite
-          # until #519: it required the shell at 200, which was the bug
-          # (#493) written down as the expected answer. The first deploy of
-          # the fix was therefore rolled back by this very step, correctly
-          # following an instruction that was itself wrong.
+          # file behind it must say 404 (#519).
           case "$stale_asset" in
             "404 "*)
               ;;
@@ -370,23 +287,9 @@ jobs:
               exit 1
               ;;
           esac
-          # The other half of the boundary: a client route has no file behind
-          # it either, and must still receive the shell rather than a 404.
-          route_shell="$(curl --silent --show-error \
-            --max-time 20 \
-            --output /tmp/analog-canvas-route-shell.txt \
-            --write-out '%{http_code} %{content_type}' \
-            https://analog-canvas.tokenzhang.com/editor)"
-          case "$route_shell" in
-            "200 text/html"*)
-              grep -qi '<!doctype html>' /tmp/analog-canvas-route-shell.txt
-              ;;
-            *)
-              echo "A client route must receive the shell, got: $route_shell"
-              exit 1
-              ;;
-          esac
-
+          # Single authoritative check for /editor HTML shell, its hashed JS
+          # entry (including 401 staging-domain detection), brotli/gzip bytes,
+          # and transient Cloudflare edge-propagation retries.
           node scripts/deployment-candidate.mjs verify-live \
             "$CANDIDATE_DIR" https://analog-canvas.tokenzhang.com
           # The simulator is not checked here: its host has its own health

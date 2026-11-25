@@ -1,9 +1,8 @@
 /**
- * Whether a newer deploy than this page is live (2026-10-13): the page's own
- * entry script against the one the editor's address serves now. A deploy
- * keeps the week's earlier assets online (scripts/retain-previous-assets.mjs),
- * so this page keeps working; the notice only says that a reload, once the
- * work is saved, brings the new version.
+ * Whether a newer deploy than this page is live: the page's own entry script
+ * against the one the editor's address serves now. When a new deploy ships,
+ * this notice prompts to reload once the work is saved, and any missing lazy
+ * chunk falls back cleanly through ChunkLoadFallback with automatic restore.
  */
 const LIVE_ENTRY =
   /<script[^>]*\btype="module"[^>]*\bsrc="(\/assets\/[^"]+\.js)"/u;

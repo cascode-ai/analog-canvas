@@ -76,12 +76,10 @@ behavior.
 
 ### Assets across deploys
 
-Each deploy publishes `/asset-history.json` (every served asset with the last
-deploy that served it) and uploads, beside its own build, the earlier assets a
-deploy served within 7 days (`scripts/retain-previous-assets.mjs`, at most 6000
-files, which get no brotli sibling), so a tab opened before the deploy still
-loads what it needs. A missing history or file is reported, never fatal; the
-first deploy starts the history.
+Each deploy uploads only its own build's assets. Tabs opened before a deploy
+notice the newer entry via `watchForNewDeploy` and recover any missing lazy
+chunk cleanly through `ChunkLoadFallback` (reloading with automatic work
+restoration) instead of carrying thousands of prior builds' hashed files.
 
 Only the deploy candidate, never `apps/editor/dist`, carries pre-compressed
 brotli siblings, and only for its own build's compressible assets. A client
