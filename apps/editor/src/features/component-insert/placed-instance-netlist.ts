@@ -1,7 +1,10 @@
 import type { InstanceNetlistData } from "@icm/model";
 
 import { initialInstanceNetlist } from "../netlist-export/netlist-authoring";
-import { initialComponentParameterValues } from "./component-parameters";
+import {
+  initialComponentParameterValues,
+  type PlacementProjectContext,
+} from "./component-parameters";
 
 /**
  * The netlist record a newly placed part carries, whoever places it: each
@@ -13,10 +16,11 @@ export function placedInstanceNetlist(
   symbolId: string,
   parameters: Readonly<Record<string, string>>,
   modelTarget?: string,
+  project?: PlacementProjectContext,
 ): InstanceNetlistData | undefined {
   return initialInstanceNetlist(
     symbolId,
-    { ...initialComponentParameterValues(symbolId), ...parameters },
+    { ...initialComponentParameterValues(symbolId, project), ...parameters },
     modelTarget,
   );
 }

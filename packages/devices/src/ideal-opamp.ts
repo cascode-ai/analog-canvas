@@ -26,6 +26,11 @@ export const OPAMP_TARGET = "opamp";
 /** The parameters that hold the op-amp's output limits. */
 export const OPAMP_HIGH_LIMIT = "vhigh";
 export const OPAMP_LOW_LIMIT = "vlow";
+/** Optional dynamic parameters: unity-gain bandwidth (Hz) and output resistance (Ω). */
+export const OPAMP_GBW = "gbw";
+export const OPAMP_ROUT = "rout";
+export const OPAMP_GBW_DEFAULT = "1e7";
+export const OPAMP_ROUT_DEFAULT = "100";
 
 /** The words each limit takes for the op-amp's own supply, in any case. */
 export const OPAMP_LIMIT_SUPPLIES = {
@@ -42,14 +47,28 @@ export const UNPOWERED_OPAMP_LIMITS = {
 export type OpampLimit = keyof typeof OPAMP_LIMIT_SUPPLIES;
 
 /**
- * The op-amp's bodies: the numeric body under the op-amp's own name, and
- * one for each set of limits read from its supplies. Each reserves its name.
+ * The op-amp's bodies: the numeric body under the op-amp's own name, one for
+ * each set of limits read from its supplies, and optional dynamic variants
+ * (`_gbw`, `_rout`, `_gbw_rout`) chosen only when the author sets `gbw` or
+ * `rout` (#2615). Each reserves its name.
  */
 export const IDEAL_OPAMP_BODIES = [
   OPAMP_TARGET,
   "icm_opamp_vdd",
   "icm_opamp_vss",
   "icm_opamp_vdd_vss",
+  "icm_opamp_gbw",
+  "icm_opamp_rout",
+  "icm_opamp_gbw_rout",
+  "icm_opamp_vdd_gbw",
+  "icm_opamp_vdd_rout",
+  "icm_opamp_vdd_gbw_rout",
+  "icm_opamp_vss_gbw",
+  "icm_opamp_vss_rout",
+  "icm_opamp_vss_gbw_rout",
+  "icm_opamp_vdd_vss_gbw",
+  "icm_opamp_vdd_vss_rout",
+  "icm_opamp_vdd_vss_gbw_rout",
 ] as const;
 
 export type IdealOpampBody = (typeof IDEAL_OPAMP_BODIES)[number];
@@ -82,13 +101,22 @@ export function isSupplyLimitParameter(name: string, value: string): boolean {
 }
 
 /** A limit's value as the op-amp's parameters hold it, in any case. */
-function opampLimitValue(
+function opampParameterValue(
   parameters: Readonly<Record<string, string>> | undefined,
-  limit: OpampLimit,
+  key: string,
 ): string | undefined {
   return Object.entries(parameters ?? {}).find(
-    ([name]) => name.toLowerCase() === limit,
+    ([name]) => name.toLowerCase() === key,
   )?.[1];
+}
+
+/** Whether an optional dynamic op-amp parameter (`gbw` or `rout`) is set. */
+export function opampHasDynamicParameter(
+  parameters: Readonly<Record<string, string>> | undefined,
+  key: typeof OPAMP_GBW | typeof OPAMP_ROUT,
+): boolean {
+  const value = opampParameterValue(parameters, key);
+  return value !== undefined && value.trim().length > 0;
 }
 
 /** Whether a limit is left at its default or set to its supply, any case. */
@@ -96,7 +124,7 @@ export function limitFollowsSupply(
   parameters: Readonly<Record<string, string>> | undefined,
   limit: OpampLimit,
 ): boolean {
-  const value = opampLimitValue(parameters, limit);
+  const value = opampParameterValue(parameters, limit);
   return value === undefined || isSupplyLimit(limit, value);
 }
 
@@ -104,7 +132,8 @@ export function limitFollowsSupply(
  * The body an ideal op-amp with these parameters calls. A limit that
  * follows its supply reads that supply when the op-amp is powered; any
  * other value is a level for the numeric body, which export checks is a
- * number.
+ * number. Setting `gbw` and/or `rout` selects the matching dynamic body so
+ * existing memoryless op-amps stay bit-for-bit identical (#2615).
  */
 export function idealOpampBodyFor(
   parameters: Readonly<Record<string, string>> | undefined,
@@ -112,22 +141,29 @@ export function idealOpampBodyFor(
 ): IdealOpampBody {
   const vdd = powered && limitFollowsSupply(parameters, OPAMP_HIGH_LIMIT);
   const vss = powered && limitFollowsSupply(parameters, OPAMP_LOW_LIMIT);
-  return vdd && vss
-    ? "icm_opamp_vdd_vss"
-    : vdd
-      ? "icm_opamp_vdd"
-      : vss
-        ? "icm_opamp_vss"
-        : OPAMP_TARGET;
+  const gbw = opampHasDynamicParameter(parameters, OPAMP_GBW);
+  const rout = opampHasDynamicParameter(parameters, OPAMP_ROUT);
+  const dynamicSuffix =
+    gbw && rout ? "_gbw_rout" : gbw ? "_gbw" : rout ? "_rout" : "";
+  if (vdd && vss) return `icm_opamp_vdd_vss${dynamicSuffix}` as IdealOpampBody;
+  if (vdd) return `icm_opamp_vdd${dynamicSuffix}` as IdealOpampBody;
+  if (vss) return `icm_opamp_vss${dynamicSuffix}` as IdealOpampBody;
+  return dynamicSuffix
+    ? (`icm_opamp${dynamicSuffix}` as IdealOpampBody)
+    : OPAMP_TARGET;
 }
 
-/** The supplies a body reads in place of a numeric limit. */
+/** The supplies and dynamic stages a body models. */
 export function idealOpampBodyReads(body: IdealOpampBody): {
   readonly vdd: boolean;
   readonly vss: boolean;
+  readonly gbw: boolean;
+  readonly rout: boolean;
 } {
   return {
-    vdd: body === "icm_opamp_vdd" || body === "icm_opamp_vdd_vss",
-    vss: body === "icm_opamp_vss" || body === "icm_opamp_vdd_vss",
+    vdd: body.includes("_vdd"),
+    vss: body.includes("_vss"),
+    gbw: body.includes("_gbw"),
+    rout: body.includes("_rout"),
   };
 }

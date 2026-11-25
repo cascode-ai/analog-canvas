@@ -604,6 +604,81 @@ describe("built-in Analog Block subcircuits", () => {
       );
   });
 
+  it("models optional gbw dominant pole and rout series resistance without changing default op-amps (#2615)", () => {
+    const makeOpamp = (parameters: Record<string, string>) => {
+      const project = analogBlockProject(
+        ["opamp"],
+        [
+          ["IN+", "plus"],
+          ["IN-", "minus"],
+          ["OUT", "out"],
+        ],
+      );
+      const instance = project.documents[0]!.instances.find(
+        (i) => i.id === "block-1",
+      )!;
+      instance.netlist!.parameters = parameters;
+      return project;
+    };
+
+    const gbwSpice = createDesignNetlistExport(makeOpamp({ gbw: "10Meg" }), {
+      format: "spice",
+      portCase: "upper",
+    });
+    expect(gbwSpice.status).toBe("ready");
+    if (gbwSpice.status !== "ready") return;
+    expect(gbwSpice.file.text).toContain(
+      "X1 VDD VSS plus minus out icm_opamp_vdd_vss_gbw gbw=10Meg",
+    );
+    expect(gbwSpice.file.text).toContain(
+      ".subckt icm_opamp_vdd_vss_gbw VDD VSS VIP VIN VOUT params: gain=1e6 gbw=1e7",
+    );
+    expect(gbwSpice.file.text).toContain("Rpole ngain nlin 1");
+    expect(gbwSpice.file.text).toContain(
+      "Cpole nlin 0 {gain/(6.283185307179586*gbw)}",
+    );
+    expect(gbwSpice.file.text).not.toContain("Rout ");
+
+    const bothSpice = createDesignNetlistExport(
+      makeOpamp({ gbw: "5Meg", rout: "150", vhigh: "3", vlow: "0" }),
+      { format: "spice", portCase: "upper" },
+    );
+    expect(bothSpice.status).toBe("ready");
+    if (bothSpice.status !== "ready") return;
+    expect(bothSpice.file.text).toContain(
+      "X1 VDD VSS plus minus out icm_opamp_gbw_rout gbw=5Meg rout=150 vhigh=3 vlow=0",
+    );
+    expect(bothSpice.file.text).toContain("Rout nclamp VOUT {rout}");
+
+    const bothSpectre = createDesignNetlistExport(
+      makeOpamp({ gbw: "5Meg", rout: "150" }),
+      { format: "spectre", portCase: "upper" },
+    );
+    expect(bothSpectre.status).toBe("ready");
+    if (bothSpectre.status !== "ready") return;
+    expect(bothSpectre.file.text).toContain(
+      "subckt icm_opamp_vdd_vss_gbw_rout (VDD VSS VIP VIN VOUT)",
+    );
+    expect(bothSpectre.file.text).toContain("Rpole (ngain nlin) resistor r=1");
+    expect(bothSpectre.file.text).toContain(
+      "Cpole (nlin 0) capacitor c=gain/(6.283185307179586*gbw)",
+    );
+    expect(bothSpectre.file.text).toContain(
+      "Rout (nclamp VOUT) resistor r=rout",
+    );
+
+    const invalid = createDesignNetlistExport(
+      makeOpamp({ gbw: "0", rout: "-10" }),
+      { format: "spice", portCase: "upper" },
+    );
+    expect(invalid.status).toBe("blocked");
+    expect(
+      invalid.diagnostics.filter(
+        (d) => d.code === "INVALID_IDEAL_OPAMP_PARAMETER",
+      ),
+    ).toHaveLength(2);
+  });
+
   for (const family of ["opamp", "opamp-differential"])
     for (const state of [
       "",

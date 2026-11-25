@@ -14,9 +14,13 @@ import {
   type IdealComparatorBody,
 } from "./ideal-comparator.js";
 import {
+  OPAMP_GBW,
+  OPAMP_GBW_DEFAULT,
   OPAMP_HIGH_LIMIT,
   OPAMP_LIMIT_SUPPLIES,
   OPAMP_LOW_LIMIT,
+  OPAMP_ROUT,
+  OPAMP_ROUT_DEFAULT,
   OPAMP_TARGET,
   UNPOWERED_OPAMP_LIMITS,
   idealOpampBodyReads,
@@ -117,6 +121,42 @@ function parameter(
   };
 }
 
+function optionalParameter(
+  name: string,
+  label: string,
+  placeholder: string,
+  unitHint: string,
+  help: string,
+): DeviceParameterDefinition {
+  return {
+    name,
+    label,
+    unitHint,
+    help,
+    placeholder,
+    required: false,
+    editor: "text",
+    displayRole: "none",
+  };
+}
+
+const OPAMP_DYNAMIC_PARAMETERS: readonly DeviceParameterDefinition[] = [
+  optionalParameter(
+    OPAMP_GBW,
+    "Unity-gain bandwidth",
+    OPAMP_GBW_DEFAULT,
+    "Hz",
+    "Optional dominant-pole unity-gain bandwidth (fp = gbw/gain). Leave blank for an ideal memoryless op-amp.",
+  ),
+  optionalParameter(
+    OPAMP_ROUT,
+    "Output resistance",
+    OPAMP_ROUT_DEFAULT,
+    "Ohm",
+    "Optional series output resistance at VOUT (each output on differential op-amps). Leave blank for zero output impedance.",
+  ),
+];
+
 // An ideal CMFB holds the outputs about vocm, from ground: a single supply
 // needs it where the outputs drive gates or a following stage.
 const differentialOpamp: readonly DeviceParameterDefinition[] = [
@@ -134,6 +174,7 @@ const differentialOpamp: readonly DeviceParameterDefinition[] = [
     "V",
     "Output common-mode level from ground, held as an ideal CMFB holds it: OUT± = vocm ± gain·(IN+ − IN−)/2.",
   ),
+  ...OPAMP_DYNAMIC_PARAMETERS,
 ];
 
 const analog = {
@@ -452,6 +493,7 @@ const opamp: readonly DeviceParameterDefinition[] = [
     keywords: [OPAMP_LIMIT_SUPPLIES[OPAMP_LOW_LIMIT]],
     expressions: false,
   },
+  ...OPAMP_DYNAMIC_PARAMETERS,
 ];
 
 const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
@@ -697,6 +739,10 @@ export interface IdealOpampBodyContract {
   readonly readsVdd: boolean;
   /** Its low limit is V(VSS), in place of a `vlow` parameter. */
   readonly readsVss: boolean;
+  /** Includes a single-pole dominant bandwidth stage controlled by `gbw`. */
+  readonly readsGbw: boolean;
+  /** Includes a series output resistance controlled by `rout`. */
+  readonly readsRout: boolean;
   /** Every body takes the op-amp's whole interface, in order. */
   readonly ports: readonly BuiltInSubcircuitPort[];
   /** The parameters the body declares, with the defaults it prints. */
@@ -719,13 +765,26 @@ export function idealOpampBodyContract(
     name: body,
     readsVdd: reads.vdd,
     readsVss: reads.vss,
+    readsGbw: reads.gbw,
+    readsRout: reads.rout,
     ports: model.ports,
-    parameters: model.parameters.flatMap((p) =>
-      p.name === OPAMP_HIGH_LIMIT || p.name === OPAMP_LOW_LIMIT
-        ? reads[p.name === OPAMP_HIGH_LIMIT ? "vdd" : "vss"]
+    parameters: model.parameters.flatMap((p) => {
+      if (p.name === OPAMP_HIGH_LIMIT || p.name === OPAMP_LOW_LIMIT) {
+        return reads[p.name === OPAMP_HIGH_LIMIT ? "vdd" : "vss"]
           ? []
-          : [{ name: p.name, defaultValue: UNPOWERED_OPAMP_LIMITS[p.name] }]
-        : [{ name: p.name, defaultValue: p.defaultValue! }],
-    ),
+          : [{ name: p.name, defaultValue: UNPOWERED_OPAMP_LIMITS[p.name] }];
+      }
+      if (p.name === OPAMP_GBW) {
+        return reads.gbw
+          ? [{ name: OPAMP_GBW, defaultValue: OPAMP_GBW_DEFAULT }]
+          : [];
+      }
+      if (p.name === OPAMP_ROUT) {
+        return reads.rout
+          ? [{ name: OPAMP_ROUT, defaultValue: OPAMP_ROUT_DEFAULT }]
+          : [];
+      }
+      return [{ name: p.name, defaultValue: p.defaultValue! }];
+    }),
   };
 }

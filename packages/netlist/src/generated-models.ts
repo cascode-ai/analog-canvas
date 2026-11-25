@@ -80,18 +80,35 @@ function idealOpampModel(target: IdealOpampBody): BehavioralModel {
   const low = body.readsVss ? "V(VSS)" : "vlow";
   const corner = `(1e-4*(${high}-${low}))*(1e-4*(${high}-${low}))+1e-12`;
   const above = `(0.5*(${low}+V(nlin)+sqrt((V(nlin)-${low})*(V(nlin)-${low})+${corner})))`;
+  const clampedNode = body.readsRout ? "nclamp" : "VOUT";
   return {
     name: body.name,
     ports: body.ports.map((port) => port.name),
     parameters: body.parameters,
     elements: [
-      voltage("Blin", "nlin", "0", "gain*(V(VIP)-V(VIN))"),
+      ...(body.readsGbw
+        ? [
+            voltage("Blin", "ngain", "0", "gain*(V(VIP)-V(VIN))"),
+            passive("resistor", "Rpole", "ngain", "nlin", "1", false),
+            passive(
+              "capacitor",
+              "Cpole",
+              "nlin",
+              "0",
+              "gain/(6.283185307179586*gbw)",
+              true,
+            ),
+          ]
+        : [voltage("Blin", "nlin", "0", "gain*(V(VIP)-V(VIN))")]),
       voltage(
         "Bcore",
-        "VOUT",
+        clampedNode,
         "0",
         `0.5*(${high}+${above}-sqrt((${high}-${above})*(${high}-${above})+${corner}))`,
       ),
+      ...(body.readsRout
+        ? [passive("resistor", "Rout", clampedNode, "VOUT", "rout", true)]
+        : []),
     ],
   };
 }

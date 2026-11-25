@@ -120,20 +120,74 @@ export function updateComponentParameterValues(
     : next;
 }
 
+const IC_PDK_PATTERN = /(?:sky130|sg13g2|gpdk045|ics55)/iu;
+
+/**
+ * Default DC bias current when placing a `current-source` into an IC MOSFET /
+ * PDK Project (#2614). Discrete and legacy Projects retain the catalog `"1m"`.
+ */
+export const IC_MOS_CURRENT_SOURCE_DEFAULT_DC = "10u";
+
+export type PlacementProjectContext = Partial<
+  Pick<CircuitProject, "documents" | "simulationFolders" | "modelSources">
+>;
+
+/** Whether a Project draws MOSFETs or references an integrated-circuit PDK. */
+export function projectUsesIcMosfets(
+  project?: PlacementProjectContext,
+): boolean {
+  if (!project) return false;
+  if (
+    project.documents?.some((document) =>
+      document.instances.some(
+        (instance) =>
+          deviceDescriptor(instance.symbolId)?.deviceClass === "mos",
+      ),
+    )
+  ) {
+    return true;
+  }
+  if (
+    project.simulationFolders?.some((folder) => {
+      const configPath = folder.input.configPath ?? "experiment.json";
+      const configFile = folder.input.files.find(
+        (file) => file.path === configPath,
+      );
+      return Boolean(configFile && IC_PDK_PATTERN.test(configFile.text));
+    })
+  ) {
+    return true;
+  }
+  return (
+    project.modelSources?.some(
+      (source) =>
+        IC_PDK_PATTERN.test(source.entry) ||
+        source.files.some((file) => IC_PDK_PATTERN.test(file.path)),
+    ) ?? false
+  );
+}
+
 /**
  * Placement seeds each parameter with its device default. A MOS placed with no
  * geometry could not display a value at all, so its Value toggle stayed
- * disabled until every field was typed by hand.
+ * disabled until every field was typed by hand. When placing a current source
+ * into an IC MOSFET / PDK Project, seed `dc` at 10u instead of 1m (#2614)
+ * without migrating existing saved drawings.
  */
 export function initialComponentParameterValues(
   symbolId: string,
+  project?: PlacementProjectContext,
 ): Record<string, string> {
-  return Object.fromEntries(
+  const values = Object.fromEntries(
     componentParameters(symbolId).map((parameter) => [
       parameter.key,
       parameter.defaultValue ?? "",
     ]),
   );
+  if (symbolId === "current-source" && projectUsesIcMosfets(project)) {
+    values.dc = IC_MOS_CURRENT_SOURCE_DEFAULT_DC;
+  }
+  return values;
 }
 
 export function effectiveComponentParameterValue(

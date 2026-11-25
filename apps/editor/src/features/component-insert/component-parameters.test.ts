@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
-import type { Instance } from "@icm/model";
+import {
+  createEmptyProject,
+  createSimulationFolder,
+  type Instance,
+} from "@icm/model";
 
 import {
+  IC_MOS_CURRENT_SOURCE_DEFAULT_DC,
   componentParameters,
   effectiveComponentParameterValue,
   initialComponentParameterValues,
+  projectUsesIcMosfets,
   updateComponentParameterValues,
 } from "./component-parameters";
 import { placedInstanceNetlist } from "./placed-instance-netlist";
@@ -348,5 +354,64 @@ describe("component parameter catalogue", () => {
     );
     expect(byKey.get("dutyCycle")).toBe("25");
     expect(byKey.get("initial")).toBe("0");
+  });
+
+  it("seeds current-source at 10u in IC MOSFET / PDK Projects while keeping 1m elsewhere (#2614)", () => {
+    expect(initialComponentParameterValues("current-source").dc).toBe("1m");
+
+    const discreteProject = createEmptyProject("discrete", "Discrete");
+    discreteProject.documents[0]!.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      placement: null,
+      reference: "R1",
+    });
+    expect(projectUsesIcMosfets(discreteProject)).toBe(false);
+    expect(
+      initialComponentParameterValues("current-source", discreteProject).dc,
+    ).toBe("1m");
+    expect(
+      placedInstanceNetlist("current-source", {}, undefined, discreteProject)
+        ?.parameters.dc,
+    ).toBe("1m");
+
+    const mosProject = createEmptyProject("mos", "MOS OTA");
+    mosProject.documents[0]!.instances.push({
+      id: "M1",
+      symbolId: "nmos",
+      placement: null,
+      reference: "M1",
+    });
+    expect(projectUsesIcMosfets(mosProject)).toBe(true);
+    expect(
+      initialComponentParameterValues("current-source", mosProject).dc,
+    ).toBe(IC_MOS_CURRENT_SOURCE_DEFAULT_DC);
+    expect(
+      placedInstanceNetlist("current-source", {}, undefined, mosProject)
+        ?.parameters.dc,
+    ).toBe("10u");
+    // Explicit user/Agent values always win over the IC default.
+    expect(
+      placedInstanceNetlist(
+        "current-source",
+        { dc: "50u" },
+        undefined,
+        mosProject,
+      )?.parameters.dc,
+    ).toBe("50u");
+
+    // A SKY130 simulation profile also signals an IC Project before the first MOS is placed.
+    const pdkProject = createEmptyProject("pdk", "SKY130 TB");
+    pdkProject.simulationFolders.push(
+      createSimulationFolder({
+        id: "sim-sky",
+        name: "OP",
+        profileId: "sky130-ngspice-v1",
+      }),
+    );
+    expect(projectUsesIcMosfets(pdkProject)).toBe(true);
+    expect(
+      initialComponentParameterValues("current-source", pdkProject).dc,
+    ).toBe("10u");
   });
 });
