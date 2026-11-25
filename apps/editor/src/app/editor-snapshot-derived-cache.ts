@@ -1,5 +1,5 @@
 import {
-  buildProjectConnectivityIndex,
+  buildCommittedProjectConnectivityIndex,
   cachedDocumentConnectivityIndex,
   deriveCrossings,
   updateCommittedCrossings,
@@ -18,7 +18,10 @@ import type { SymbolResolver } from "@icm/symbols";
 export function createEditorSnapshotDerivedCache() {
   const projects = new WeakMap<
     CircuitProject,
-    WeakMap<SymbolResolver, ReturnType<typeof buildProjectConnectivityIndex>>
+    WeakMap<
+      SymbolResolver,
+      ReturnType<typeof buildCommittedProjectConnectivityIndex>
+    >
   >();
   const documents = new WeakMap<
     SchematicDocument,
@@ -30,9 +33,7 @@ export function createEditorSnapshotDerivedCache() {
       let contexts = projects.get(project);
       const cached = contexts?.get(resolver);
       if (cached) return cached;
-      const result = buildProjectConnectivityIndex(project, resolver, {
-        reuseRestoredContent: true,
-      });
+      const result = buildCommittedProjectConnectivityIndex(project, resolver);
       if (!contexts) projects.set(project, (contexts = new WeakMap()));
       contexts.set(resolver, result);
       return result;
@@ -47,7 +48,11 @@ export function createEditorSnapshotDerivedCache() {
       const cached = contexts?.get(resolver);
       if (cached) return cached.crossings;
       const prior = previous?.deref();
-      const index = cachedDocumentConnectivityIndex(document, resolver);
+      const index = cachedDocumentConnectivityIndex(
+        document,
+        resolver,
+        "committed",
+      );
       // An explicitly supplied geometry can belong to an editing preview.
       const canonical =
         index && index.routingGeometry === geometry ? index : undefined;

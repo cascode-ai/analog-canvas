@@ -1,7 +1,7 @@
 import type { CircuitProject } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
-import { buildProjectConnectivityIndex } from "./connectivity-index.js";
+import { buildCommittedProjectConnectivityIndex } from "./connectivity-index.js";
 import { runErcChecks } from "./diagnostics/erc.js";
 
 /**
@@ -67,7 +67,7 @@ export function evaluateSubmissionGates(
   const failures: SubmissionGateFailure[] = [];
   const diagnostics = runErcChecks(
     project,
-    buildProjectConnectivityIndex(project, resolver),
+    buildCommittedProjectConnectivityIndex(project, resolver),
     resolver,
   );
 

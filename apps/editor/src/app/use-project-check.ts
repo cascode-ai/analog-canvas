@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  buildProjectConnectivityIndex,
+  buildCommittedProjectConnectivityIndex,
   type ProjectConnectivityIndex,
 } from "@icm/derived";
 import type { CircuitProject } from "@icm/model";
@@ -57,7 +57,7 @@ export function useProjectCheck({
       const candidateIndex =
         candidate === project
           ? index
-          : buildProjectConnectivityIndex(candidate, resolver);
+          : buildCommittedProjectConnectivityIndex(candidate, resolver);
       const candidateIdentity = projectCheckIdentity(
         candidate,
         sessionId,

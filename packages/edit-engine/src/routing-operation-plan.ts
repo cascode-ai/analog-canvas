@@ -793,6 +793,7 @@ export function gateCanvasRoutingOperation(
   const index = cachedDocumentConnectivityIndex(
     document,
     context.symbolResolver,
+    "committed",
   );
   if (
     !index ||

@@ -13,6 +13,7 @@ import {
   endpointKey,
   resolveRouteTap,
   type ResolvedDrawingScene,
+  type ResolvedDocumentRoutingGeometry,
   type RoutedComponent,
 } from "@icm/derived";
 import type { Point, SchematicDocument } from "@icm/model";
@@ -50,6 +51,7 @@ export interface UseWireCanvasControllerOptions {
     document: SchematicDocument;
     resolver: SymbolResolver;
     drawingScene?: ResolvedDrawingScene;
+    routingGeometry: ResolvedDocumentRoutingGeometry | undefined;
     wiringEndpoints: readonly WireSource[];
     routeGeometryRecords: readonly RouteGeometryRecord[];
     contactComponents: readonly RoutedComponent[];
@@ -126,6 +128,7 @@ export function useWireCanvasController({
     document,
     resolver,
     drawingScene,
+    routingGeometry,
     wiringEndpoints,
     routeGeometryRecords,
     contactComponents,
@@ -187,9 +190,11 @@ export function useWireCanvasController({
         document,
         resolver,
         contactComponents,
-        () => buildDocumentDerivedContext(document, resolver).routingGeometry,
+        () =>
+          routingGeometry ??
+          buildDocumentDerivedContext(document, resolver).routingGeometry,
       ),
-    [document, resolver, contactComponents],
+    [document, resolver, contactComponents, routingGeometry],
   );
 
   useEffect(() => {
