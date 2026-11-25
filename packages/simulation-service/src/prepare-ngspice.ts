@@ -228,6 +228,10 @@ export async function prepareNgspiceExecutionInput(
         primitiveModels
           .get(callScopes.get(statement) ?? "[]")
           ?.has(statement.master.toLowerCase()));
+  const isPdkDeviceMaster = (master: string) =>
+    !standardCellBindingForMaster(master) &&
+    (Boolean(reviewedExternalBindingForMaster(master)) ||
+      /^(?:sky130_fd_pr__|sg13_)/iu.test(master));
   const reviewedCalls = initialGraph.statements.flatMap(
     ({ path, statement }) => {
       if (
@@ -242,7 +246,7 @@ export async function prepareNgspiceExecutionInput(
         : null;
       if (
         origin?.kind !== "model-source" &&
-        !reviewedExternalBindingForMaster(statement.master)
+        !isPdkDeviceMaster(statement.master)
       )
         return [];
       return [{ path, statement, origin }];
@@ -297,25 +301,13 @@ export async function prepareNgspiceExecutionInput(
       })),
     );
   const supported = new Set(profile.devices?.map((name) => name.toLowerCase()));
-  const supportedLibraries = new Set(
-    (profile.devices ?? [])
-      .map((name) => reviewedExternalBindingForMaster(name)?.libraryId)
-      .filter(Boolean),
-  );
   const conflicts = reviewedCalls.filter((call) => {
+    if (profile.devices)
+      return !supported.has(call.statement.master!.toLowerCase());
     const library = reviewedExternalBindingForMaster(
       call.statement.master!,
     )?.libraryId;
-    return (
-      (call.origin?.kind === "model-source" ||
-        library === "sg13g2_pr" ||
-        (library &&
-          supportedLibraries.size > 0 &&
-          !supportedLibraries.has(library))) &&
-      (profile.devices
-        ? !supported.has(call.statement.master!.toLowerCase())
-        : true)
-    );
+    return call.origin?.kind === "model-source" || library === "sg13g2_pr";
   });
   if (conflicts.length)
     return compilationProblem(
@@ -339,7 +331,10 @@ export async function prepareNgspiceExecutionInput(
         return {
           code: "MODEL_SOURCE_PROFILE_CONFLICT",
           severity: "error" as const,
-          message: `The selected Profile does not qualify ${statement.master}; edit the model or select a qualified Profile.`,
+          message:
+            origin?.kind === "model-source"
+              ? `The selected Profile does not qualify ${statement.master}; edit the model or select a qualified Profile.`
+              : `The selected Profile does not qualify ${statement.master}; change the device or select a qualified Profile.`,
           path: ownerPath,
           sourceRef: { fileId: ownerPath, start: point, end: point },
           ...(model
