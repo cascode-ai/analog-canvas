@@ -37,7 +37,11 @@ Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
   verifies dependency identities, digests, mounts and sections; a mixed-process
   source runs when the Profile supplies it all. Native Spectre is converted
   ([simulation](simulation.md#shared-external-implementations)), never run as
-  Spectre.
+  Spectre. Non-blocking ngspice preparation advisories also warn without
+  rewriting input when `.ac` runs on a deck using SPICE3 `SW` switches
+  (ngspice-46 `SWacLoad` zeros small-signal switch conductance) or when metric
+  device `W`/`L` dimensions fall below 0.1 nm under SKY130 `.option scale=1.0u`
+  (or an explicit sub-millimetre `.option scale`).
 - The development `/api/simulate` endpoint (`ICM_SIMULATION_URL`) has no
   default binary or models and probes nothing; without that executor capabilities report
   `configured: false` and runs return `simulation-not-configured`, a deployment

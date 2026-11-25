@@ -1197,3 +1197,360 @@ describe("a Library gate bound to a PDK standard cell (#1596)", () => {
       ).toHaveLength(1);
   });
 });
+
+describe("ngspice preparation advisories", () => {
+  async function prepareSky130ModelSource(
+    id: string,
+    sourceText: string,
+    extraEntryLines: readonly string[] = [],
+  ) {
+    const project = createEmptyProject(id, id);
+    const applied = executeProjectTransaction(project, {
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      transactionId: `${id}-source`,
+      actor: { kind: "agent", id: "test" },
+      edits: [
+        {
+          kind: "apply_model_source",
+          source: {
+            id: "owner",
+            revision: 0,
+            language: "spice",
+            entry: "wrapper.spice",
+            dependencies: [],
+            files: [{ path: "wrapper.spice", text: sourceText }],
+          },
+          definitions: [{ definitionId: "stage", entry: "stage" }],
+        },
+      ],
+    });
+    expect(applied.ok).toBe(true);
+    if (!applied.ok) throw new Error("apply_model_source failed");
+    const next = applied.project;
+    next.documents[0]!.instances.push(
+      createExternalSubcircuitInstance(
+        "XTOP",
+        next.externalSubcircuitDefinitions[0]!,
+        { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      ),
+    );
+    const folder = createSimulationFolder({
+      id: "sky",
+      name: "SKY130",
+      profileId: hostedSky130.id,
+      engine: "ngspice",
+      documentId: next.topDocumentId,
+    });
+    if (extraEntryLines.length) {
+      const entry = folder.input.files.find(
+        (file) => file.path === folder.input.entry,
+      )!;
+      entry.text = entry.text.replace(
+        '.include "circuit.spice"',
+        [...extraEntryLines, '.include "circuit.spice"'].join("\n"),
+      );
+    }
+    next.simulationFolders = [folder];
+    const caps = nativeSweepFixture().caps;
+    caps.profiles = [
+      {
+        id: hostedSky130.id,
+        corners: hostedSky130.qualifiedScope.sections,
+        devices: hostedSky130.qualifiedScope.devices,
+        dependencies: [{ id: hostedSky130.models.id, sha256: "a".repeat(64) }],
+      },
+    ];
+    return prepareNgspiceExecutionInput(next, folder, caps);
+  }
+
+  async function prepareStandaloneDeck(
+    id: string,
+    deckLines: readonly string[],
+  ) {
+    const project = createEmptyProject(id, id);
+    const folder = createSimulationFolder({
+      id,
+      name: id,
+      profileId: "ngspice",
+      engine: "ngspice",
+      documentId: project.topDocumentId,
+    });
+    const entry = folder.input.files.find(
+      (file) => file.path === folder.input.entry,
+    )!;
+    entry.text = deckLines.join("\n") + "\n";
+    project.simulationFolders = [folder];
+    return prepareNgspiceExecutionInput(
+      project,
+      folder,
+      nativeSweepFixture().caps,
+    );
+  }
+
+  it("warns when an AC analysis runs on a deck using ngspice SW switches", async () => {
+    const { project, folder, entry, caps } = nativeSweepFixture();
+    const doc = project.documents[0]!;
+    doc.instances.push({
+      id: "S1",
+      symbolId: "ideal-switch",
+      reference: "S1",
+      placement: null,
+    });
+    doc.nets.push(
+      { id: "sw-a", terminals: [{ instanceId: "S1", pinName: "1" }] },
+      { id: "sw-b", terminals: [{ instanceId: "S1", pinName: "2" }] },
+    );
+    entry.text = entry.text.replace("\nop\n", "\nac dec 10 1 1Meg\n");
+    const prepared = await prepareNgspiceExecutionInput(project, folder, caps);
+    expect(prepared.ok, JSON.stringify(prepared)).toBe(true);
+    if (!prepared.ok) return;
+    expect(prepared.warnings).toContainEqual(
+      expect.stringMatching(/SWacLoad|zero.*conductance|SW switch/iu),
+    );
+  });
+
+  it("warns on ideal_chopper in a .control ac run and ideal_spdt in a .ac directive run", async () => {
+    const chopperProject = createEmptyProject("chopper-ac", "Chopper AC");
+    const chopperDoc = chopperProject.documents[0]!;
+    chopperDoc.instances.push({
+      id: "CH1",
+      symbolId: "chopper",
+      reference: "XCH1",
+      placement: null,
+    });
+    for (const pinName of ["INP", "INN", "OUTP", "OUTN"]) {
+      chopperDoc.nets.push({
+        id: `net-${pinName}`,
+        terminals: [{ instanceId: "CH1", pinName }],
+      });
+    }
+    const chopperFolder = createSimulationFolder({
+      id: "chop-ac",
+      name: "Chopper AC",
+      profileId: "ngspice",
+      engine: "ngspice",
+      documentId: chopperProject.topDocumentId,
+      template: "ac",
+    });
+    chopperProject.simulationFolders = [chopperFolder];
+    const chopperPrepared = await prepareNgspiceExecutionInput(
+      chopperProject,
+      chopperFolder,
+      nativeSweepFixture().caps,
+    );
+    expect(chopperPrepared.ok, JSON.stringify(chopperPrepared)).toBe(true);
+    if (!chopperPrepared.ok) return;
+    expect(chopperPrepared.warnings).toContainEqual(
+      expect.stringMatching(/SWacLoad|SW switch/iu),
+    );
+
+    const spdtProject = createEmptyProject("spdt-ac", "SPDT AC");
+    const spdtDoc = spdtProject.documents[0]!;
+    spdtDoc.instances.push({
+      id: "SP1",
+      symbolId: "spdt-switch",
+      reference: "XSP1",
+      placement: null,
+    });
+    for (const pinName of ["COM", "A", "B"]) {
+      spdtDoc.nets.push({
+        id: `net-${pinName}`,
+        terminals: [{ instanceId: "SP1", pinName }],
+      });
+    }
+    const spdtFolder = createSimulationFolder({
+      id: "spdt-ac",
+      name: "SPDT AC",
+      profileId: "ngspice",
+      engine: "ngspice",
+      documentId: spdtProject.topDocumentId,
+    });
+    const spdtEntry = spdtFolder.input.files.find(
+      (file) => file.path === spdtFolder.input.entry,
+    )!;
+    spdtEntry.text = [
+      "SPDT .ac directive",
+      '.include "circuit.spice"',
+      ".ac dec 10 1 1Meg",
+      ".end",
+      "",
+    ].join("\n");
+    spdtProject.simulationFolders = [spdtFolder];
+    const spdtPrepared = await prepareNgspiceExecutionInput(
+      spdtProject,
+      spdtFolder,
+      nativeSweepFixture().caps,
+    );
+    expect(spdtPrepared.ok, JSON.stringify(spdtPrepared)).toBe(true);
+    if (!spdtPrepared.ok) return;
+    expect(spdtPrepared.warnings).toContainEqual(
+      expect.stringMatching(/SWacLoad|SW switch/iu),
+    );
+  });
+
+  it("stays silent on TRAN/OP runs, PSpice vswitch models, and uncalled SW subcircuits", async () => {
+    const { project, folder, entry, caps } = nativeSweepFixture();
+    const doc = project.documents[0]!;
+    doc.instances.push({
+      id: "S1",
+      symbolId: "ideal-switch",
+      reference: "S1",
+      placement: null,
+    });
+    doc.nets.push(
+      { id: "sw-a", terminals: [{ instanceId: "S1", pinName: "1" }] },
+      { id: "sw-b", terminals: [{ instanceId: "S1", pinName: "2" }] },
+    );
+    entry.text = entry.text.replace("\nop\n", "\ntran 1n 100n\n");
+    const tranPrepared = await prepareNgspiceExecutionInput(
+      project,
+      folder,
+      caps,
+    );
+    expect(tranPrepared.ok, JSON.stringify(tranPrepared)).toBe(true);
+    if (tranPrepared.ok) {
+      expect(
+        tranPrepared.warnings.filter((w) => /SWacLoad|SW switch/iu.test(w)),
+      ).toEqual([]);
+    }
+
+    const vswitchPrepared = await prepareStandaloneDeck("vswitch-ac", [
+      "PSpice vswitch AC",
+      ".model my_vsw VSWITCH(RON=1 ROFF=1e12 VON=0.6 VOFF=0.4)",
+      "V1 in 0 AC 1",
+      "Vc ctrl 0 1",
+      "S1 in out ctrl 0 my_vsw",
+      "R1 out 0 1k",
+      ".ac dec 10 1 1Meg",
+      ".end",
+    ]);
+    expect(vswitchPrepared.ok, JSON.stringify(vswitchPrepared)).toBe(true);
+    if (vswitchPrepared.ok) {
+      expect(
+        vswitchPrepared.warnings.filter((w) => /SWacLoad|SW switch/iu.test(w)),
+      ).toEqual([]);
+    }
+
+    const uncalledPrepared = await prepareStandaloneDeck("uncalled-sw-ac", [
+      "Uncalled SW subcircuit",
+      ".subckt dead_sw a b ctrl",
+      ".model dead_m SW(RON=1 ROFF=1e12 VT=0.5 VH=0)",
+      "S1 a b ctrl 0 dead_m",
+      ".ends dead_sw",
+      "V1 in 0 AC 1",
+      "R1 in 0 1k",
+      ".ac dec 10 1 1Meg",
+      ".end",
+    ]);
+    expect(uncalledPrepared.ok, JSON.stringify(uncalledPrepared)).toBe(true);
+    if (uncalledPrepared.ok) {
+      expect(
+        uncalledPrepared.warnings.filter((w) => /SWacLoad|SW switch/iu.test(w)),
+      ).toEqual([]);
+    }
+  });
+
+  it("warns when SKY130 scale=1u mixes with metric W/L across single or multi-hop wrappers and quoted values", async () => {
+    const singleHop = await prepareSky130ModelSource(
+      "scale-conflict",
+      [
+        ".subckt IV_SKY_N d g s b params: W=1u L=150n",
+        "XM1 d g s b sky130_fd_pr__nfet_01v8 w={W} l={L}",
+        ".ends IV_SKY_N",
+        ".subckt stage",
+        "X1 1 2 0 0 IV_SKY_N W=2u L=180n",
+        ".ends stage",
+        "",
+      ].join("\n"),
+    );
+    expect(singleHop.ok, JSON.stringify(singleHop)).toBe(true);
+    if (singleHop.ok) {
+      expect(singleHop.warnings).toContainEqual(
+        expect.stringMatching(/option scale|scale=1u/iu),
+      );
+    }
+
+    const multiHop = await prepareSky130ModelSource(
+      "scale-multihop",
+      [
+        ".subckt INNER_N d g s b params: W=1 L=0.15",
+        "XM1 d g s b sky130_fd_pr__nfet_01v8 w='W' l='L'",
+        ".ends INNER_N",
+        ".subckt MID_N d g s b params: W=1 L=0.15",
+        "X1 d g s b INNER_N W={W} L={L}",
+        ".ends MID_N",
+        ".subckt stage",
+        "X2 1 2 0 0 MID_N W='2u' L='150n'",
+        ".ends stage",
+        "",
+      ].join("\n"),
+    );
+    expect(multiHop.ok, JSON.stringify(multiHop)).toBe(true);
+    if (multiHop.ok) {
+      expect(multiHop.warnings).toContainEqual(
+        expect.stringMatching(/option scale|scale=1u/iu),
+      );
+    }
+  });
+
+  it("respects wrapper unit conversion, explicit .option scale =1 override, and spaced .option scale =1.0u", async () => {
+    const safePrepared = await prepareSky130ModelSource(
+      "scale-convert",
+      [
+        ".subckt SAFE_N d g s b params: W=1u L=150n",
+        "XM1 d g s b sky130_fd_pr__nfet_01v8 w={W*1e6} l={L*1e6}",
+        ".ends SAFE_N",
+        ".subckt stage",
+        "X1 1 2 0 0 SAFE_N W=2u L=180n",
+        ".ends stage",
+        "",
+      ].join("\n"),
+    );
+    expect(safePrepared.ok, JSON.stringify(safePrepared)).toBe(true);
+    if (safePrepared.ok) {
+      expect(
+        safePrepared.warnings.filter((w) => /option scale|scale=1u/iu.test(w)),
+      ).toEqual([]);
+    }
+
+    // Explicit `.option scale =1` (with space before `=`) overrides SKY130 scale=1.0u.
+    const overridden = await prepareSky130ModelSource(
+      "scale-override",
+      [
+        ".subckt IV_SKY_N d g s b params: W=1u L=150n",
+        "XM1 d g s b sky130_fd_pr__nfet_01v8 w={W} l={L}",
+        ".ends IV_SKY_N",
+        ".subckt stage",
+        "X1 1 2 0 0 IV_SKY_N W=2u L=180n",
+        ".ends stage",
+        "",
+      ].join("\n"),
+      [".option scale =1"],
+    );
+    expect(overridden.ok, JSON.stringify(overridden)).toBe(true);
+    if (overridden.ok) {
+      expect(
+        overridden.warnings.filter((w) => /option scale|scale=1u/iu.test(w)),
+      ).toEqual([]);
+    }
+
+    // Explicit `.option scale =1.0u` (with space before `=`) triggers on metric M cards.
+    const metricPrepared = await prepareStandaloneDeck("metric-m", [
+      "Metric M under spaced scale=1.0u",
+      ".option scale =1.0u",
+      ".model n54 nmos level=54",
+      "M1 d g 0 0 n54 w=1u l='150n'",
+      "Vd d 0 1",
+      "Vg g 0 1",
+      ".op",
+      ".end",
+    ]);
+    expect(metricPrepared.ok, JSON.stringify(metricPrepared)).toBe(true);
+    if (metricPrepared.ok) {
+      expect(metricPrepared.warnings).toContainEqual(
+        expect.stringMatching(/option scale|scale=1u/iu),
+      );
+    }
+  });
+});
