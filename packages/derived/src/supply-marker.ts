@@ -13,12 +13,14 @@ const SUPPLY_MARKER_BY_SYMBOL = {
     name: "0",
     pinName: "0",
     domain: "ground",
+    polarity: "ground",
     scope: "global",
   },
   "vdd-port": {
     name: "VDD",
     pinName: "P",
     domain: "vdd",
+    polarity: "positive",
     scope: "global",
   },
   // A ground net with a name of its own (VSS, AGND): a named supply rail,
@@ -28,6 +30,7 @@ const SUPPLY_MARKER_BY_SYMBOL = {
     name: "VSS",
     pinName: "P",
     domain: "vdd",
+    polarity: "negative",
     scope: "global",
   },
 } as const;

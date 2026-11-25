@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   deriveMosBulkRouteFamily,
+  drawnNegativeSupplyNet,
   drawnSupplyLogicalNetIds,
+  drawsSupply,
   hasExplicitMosBulkRoute,
   isMosBulkTerminal,
   mosBodiesOffSourceSupply,
@@ -730,6 +732,158 @@ describe("a default body on another supply than its source (#1336)", () => {
       expect(namesNegativeSupply(name)).toBe(true);
     for (const name of ["VDD", "AVDD", "PVDD", "VCC", "VBIAS", "GND"])
       expect(namesNegativeSupply(name)).toBe(false);
+  });
+
+  it("excludes negative-named supplies and named-ground markers from positive supply resolution", () => {
+    // Split-supply Cell: VDD + VEE on vdd-port markers beside ground.
+    const split = createEmptyDocument("split", "Split");
+    split.instances.push(
+      mos("M1", "nmos"),
+      mos("M2", "pmos"),
+      { id: "GND1", symbolId: "ground", placement: null },
+      { id: "VDD1", symbolId: "vdd-port", placement: null },
+      { id: "VEE1", symbolId: "vdd-port", placement: null },
+    );
+    split.nets.push(
+      { id: "net-gnd", terminals: [{ instanceId: "GND1", pinName: "0" }] },
+      { id: "net-vdd", terminals: [{ instanceId: "VDD1", pinName: "P" }] },
+      { id: "net-vee", terminals: [{ instanceId: "VEE1", pinName: "P" }] },
+    );
+    split.connectivityEvidence.push(
+      {
+        id: "claim-vdd",
+        kind: "name-claim",
+        netId: "net-vdd",
+        name: "VDD",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "VDD1" },
+      },
+      {
+        id: "claim-vee",
+        kind: "name-claim",
+        netId: "net-vee",
+        name: "VEE",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "VEE1" },
+      },
+    );
+    expect(drawnSupplyNet(split, "vdd")?.id).toBe("net-vdd");
+    expect(drawnNegativeSupplyNet(split)?.id).toBe("net-vee");
+    expect(resolveMosBulkConnection(split, "M2")).toMatchObject({
+      status: "supply-default",
+      net: { id: "net-vdd" },
+    });
+
+    // Cell-Pin VDD (vdd-port) + Cell-Pin VSS (named-ground), no node 0.
+    const dualPin = createEmptyDocument("dual", "Dual");
+    dualPin.instances.push(
+      mos("MN", "nmos"),
+      mos("MP", "pmos"),
+      { id: "VDD1", symbolId: "vdd-port", placement: null },
+      { id: "VSS1", symbolId: "named-ground", placement: null },
+    );
+    dualPin.nets.push(
+      { id: "net-vdd", terminals: [{ instanceId: "VDD1", pinName: "P" }] },
+      { id: "net-vss", terminals: [{ instanceId: "VSS1", pinName: "P" }] },
+    );
+    dualPin.netlist = {
+      name: "dual",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "term-vdd",
+          name: "VDD",
+          netId: "net-vdd",
+          direction: "inout",
+          interfaceInstanceIds: ["VDD1"],
+        },
+        {
+          id: "term-vss",
+          name: "VSS",
+          netId: "net-vss",
+          direction: "inout",
+          interfaceInstanceIds: ["VSS1"],
+        },
+      ],
+    };
+    expect(drawnSupplyNet(dualPin, "vdd")?.id).toBe("net-vdd");
+    expect(drawnSupplyNet(dualPin, "ground")?.id).toBe("net-vss");
+    expect(supplyDefaultMosBulkNet(dualPin, "pmos")?.id).toBe("net-vdd");
+    expect(supplyDefaultMosBulkNet(dualPin, "nmos")?.id).toBe("net-vss");
+
+    // A Cell drawing only a negative rail or named-ground draws no positive supply.
+    const onlyNeg = createEmptyDocument("neg", "Neg");
+    onlyNeg.instances.push(
+      { id: "VEE1", symbolId: "vdd-port", placement: null },
+      { id: "AGND1", symbolId: "named-ground", placement: null },
+    );
+    onlyNeg.nets.push(
+      { id: "net-vee", terminals: [{ instanceId: "VEE1", pinName: "P" }] },
+      { id: "net-agnd", terminals: [{ instanceId: "AGND1", pinName: "P" }] },
+    );
+    onlyNeg.connectivityEvidence.push(
+      {
+        id: "claim-vee",
+        kind: "name-claim",
+        netId: "net-vee",
+        name: "VEE",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "VEE1" },
+      },
+      {
+        id: "claim-agnd",
+        kind: "name-claim",
+        netId: "net-agnd",
+        name: "AGND",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "AGND1" },
+      },
+    );
+    expect(drawnSupplyNet(onlyNeg, "vdd")).toBeUndefined();
+    expect(drawsSupply(onlyNeg, "vdd")).toBe(false);
+    expect(drawnNegativeSupplyNet(onlyNeg)?.id).toBe("net-vee");
+
+    // A formal VSS Cell Pin on a positive VDD supply marker stays contradictory.
+    const conflict = createEmptyDocument("conflict", "Conflict");
+    conflict.instances.push(
+      { id: "VDD1", symbolId: "vdd-port", placement: null },
+      { id: "PORT_VSS", symbolId: "port", placement: null },
+    );
+    conflict.nets.push({
+      id: "net-vdd",
+      terminals: [
+        { instanceId: "VDD1", pinName: "P" },
+        { instanceId: "PORT_VSS", pinName: "P" },
+      ],
+    });
+    conflict.connectivityEvidence.push({
+      id: "claim-vdd",
+      kind: "name-claim",
+      netId: "net-vdd",
+      name: "VDD",
+      scope: "global",
+      powerDomain: "vdd",
+      owner: { kind: "power-marker", objectId: "VDD1" },
+    });
+    conflict.netlist = {
+      name: "conflict",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "term-vss",
+          name: "VSS",
+          netId: "net-vdd",
+          direction: "passive",
+          interfaceInstanceIds: ["PORT_VSS"],
+        },
+      ],
+    };
+    expect(drawnSupplyNet(conflict, "ground")).toBeUndefined();
+    expect(drawsSupply(conflict, "ground")).toBe(true);
   });
 
   it("reads a copied Ground marker without its name claim as the same ground", () => {
