@@ -9,6 +9,7 @@ import {
 import { flushSync } from "react-dom";
 import {
   buildBoundsSpatialIndex,
+  cachedDocumentConnectivityIndex,
   objectStyleProfile,
   resolveAnnotationPresentation,
   resolveAnnotationText,
@@ -145,8 +146,12 @@ export function createCanvasDrawingQueries(
       add(instance.id, pad(box, stroke * miter));
     }
   }
-  const geometry = resolveDocumentRoutingGeometry(document, resolver);
-  const logicalNets = resolveDocumentLogicalNets(document);
+  const committed = cachedDocumentConnectivityIndex(document, resolver);
+  const geometry =
+    committed?.directRoutingGeometry ??
+    resolveDocumentRoutingGeometry(document, resolver);
+  const logicalNets =
+    committed?.logicalNetResolution ?? resolveDocumentLogicalNets(document);
   for (const annotation of document.annotations) {
     if (annotation.visible === false) continue;
     const text = resolveAnnotationText(
