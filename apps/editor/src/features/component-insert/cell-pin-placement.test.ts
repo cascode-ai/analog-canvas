@@ -4,9 +4,14 @@ import {
   executeProjectTransaction,
   planSetVddConnectionMode,
 } from "@icm/edit-engine";
+import {
+  resolveDocumentLogicalNets,
+  resolveEndpointConnection,
+} from "@icm/derived";
 import { createEmptyProject, type CircuitProject } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 
+import { planBrowserAgentCommand } from "../../agent/browser-agent-command";
 import { planPlacedCellPin } from "./cell-pin-placement";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -248,4 +253,215 @@ it("authors a vector Cell Pin through the GUI placement transaction with indepen
       }),
     ]),
   );
+});
+
+describe("placing a Port onto a labelled Net", () => {
+  function labelledResistorProject(withRemoteNet = false) {
+    const project = createEmptyProject("port-dedup", "Port dedup");
+    const document = project.documents[0]!;
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      reference: "R1",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push({
+      id: "net-out",
+      terminals: [{ instanceId: "R1", pinName: "2" }],
+    });
+    document.junctions.push({
+      id: "j-label",
+      position: { x: 200, y: 100 },
+      netId: "net-out",
+      role: "route-anchor",
+    });
+    document.connectivityEvidence.push({
+      id: "claim-out",
+      kind: "name-claim",
+      netId: "net-out",
+      name: "V_out1",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "label-out" },
+    });
+    document.annotations.push({
+      id: "label-out",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "net-out" },
+      anchor: {
+        kind: "object",
+        objectId: "j-label",
+        localOffset: { x: 10, y: 0 },
+        fallbackPosition: { x: 210, y: 100 },
+      },
+      netId: "net-out",
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    });
+    if (withRemoteNet) {
+      document.instances.push({
+        id: "R2",
+        symbolId: "resistor",
+        reference: "R2",
+        placement: {
+          position: { x: 400, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      });
+      document.nets.push({
+        id: "net-remote",
+        terminals: [{ instanceId: "R2", pinName: "1" }],
+      });
+      document.connectivityEvidence.push({
+        id: "claim-remote",
+        kind: "name-claim",
+        netId: "net-remote",
+        name: "V_out1",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "label-remote" },
+      });
+      document.annotations.push({
+        id: "label-remote",
+        kind: "net-label",
+        binding: { kind: "net-name", netId: "net-remote" },
+        anchor: { kind: "free", position: { x: 380, y: 90 } },
+        netId: "net-remote",
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      });
+    }
+    return project;
+  }
+
+  it("places the Port's formal label without dodging a Net Label that will be retired", () => {
+    const labelled = labelledResistorProject();
+    const baseline = labelledResistorProject();
+    baseline.documents[0]!.annotations = [];
+    baseline.documents[0]!.connectivityEvidence = [];
+    baseline.documents[0]!.junctions = [];
+
+    const placeOn = (project: CircuitProject) => {
+      const document = project.documents[0]!;
+      return executeProjectTransaction(project, {
+        transactionId: "place-port",
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        actor: { kind: "human", id: "test" },
+        edits: planPlacedCellPin(project, document.id, resolver, {
+          instance: {
+            id: "P1",
+            symbolId: "port",
+            placement: {
+              position: { x: 200, y: 100 },
+              rotation: 180,
+              mirror: "none",
+            },
+          },
+          terminalId: "terminal-p1",
+          name: "V_out1",
+          netId: "net-out",
+          direction: "output",
+          connectionEdits: [
+            {
+              kind: "connect_endpoints",
+              from: { kind: "terminal", instanceId: "P1", pinName: "P" },
+              to: { kind: "terminal", instanceId: "R1", pinName: "2" },
+            },
+          ],
+        }),
+      });
+    };
+
+    const labelledRes = placeOn(labelled);
+    const baselineRes = placeOn(baseline);
+    expect(labelledRes.ok, JSON.stringify(labelledRes)).toBe(true);
+    expect(baselineRes.ok, JSON.stringify(baselineRes)).toBe(true);
+    if (!labelledRes.ok || !baselineRes.ok) return;
+
+    const labelledDoc = labelledRes.project.documents[0]!;
+    expect(labelledDoc.annotations.map((a) => a.id)).not.toContain("label-out");
+    const labelledPort = labelledDoc.annotations.find(
+      (a) => a.binding?.kind === "cell-terminal-name",
+    );
+    const baselinePort = baselineRes.project.documents[0]!.annotations.find(
+      (a) => a.binding?.kind === "cell-terminal-name",
+    );
+    expect(labelledPort?.anchor).toEqual(baselinePort?.anchor);
+  });
+
+  it("retires the redundant Net Label through Agent place-components physical contact", () => {
+    const project = labelledResistorProject(true);
+    const document = project.documents[0]!;
+    const pin2 = resolveEndpointConnection(document, resolver, {
+      kind: "terminal",
+      instanceId: "R1",
+      pinName: "2",
+    })!.gridLanding;
+    // Place the pre-existing Net Label near the contacted pin so default
+    // placement would dodge it unless retiringNetLabelIds hides it.
+    document.junctions[0]!.position = { x: pin2.x + 20, y: pin2.y };
+    document.annotations[0]!.anchor = {
+      kind: "object",
+      objectId: "j-label",
+      localOffset: { x: 0, y: 0 },
+      fallbackPosition: { x: pin2.x + 20, y: pin2.y },
+    };
+
+    const plan = planBrowserAgentCommand(project, document.id, resolver, {
+      kind: "place-components",
+      instances: [
+        {
+          id: "P1",
+          symbolId: "port",
+          reference: "V_out1",
+          placement: { position: pin2, rotation: 180, mirror: "none" },
+        },
+      ],
+      pinAnchors: {
+        P1: { pinName: "P", position: pin2 },
+      },
+      terminalDirections: { P1: "output" },
+    });
+    expect("structureEdits" in plan).toBe(true);
+    if (!("structureEdits" in plan)) return;
+    const result = executeProjectTransaction(project, {
+      transactionId: "agent-place-port-on-labelled-pin",
+      projectId: project.id,
+      expectedStructureRevision: project.structureRevision,
+      actor: { kind: "agent", id: "test-agent" },
+      edits: plan.structureEdits,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    if (!result.ok) return;
+
+    const authored = result.project.documents[0]!;
+    expect(authored.annotations.map((a) => a.id)).not.toContain("label-out");
+    expect(authored.annotations.map((a) => a.id)).toContain("label-remote");
+    expect(authored.connectivityEvidence.map((e) => e.id)).not.toContain(
+      "claim-out",
+    );
+    expect(authored.junctions.map((j) => j.id)).not.toContain("j-label");
+    expect(authored.annotations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          binding: expect.objectContaining({ kind: "cell-terminal-name" }),
+        }),
+      ]),
+    );
+    const logical = resolveDocumentLogicalNets(authored);
+    const portNet = authored.nets.find((net) =>
+      net.terminals.some((t) => t.instanceId === "P1"),
+    );
+    expect(portNet?.terminals).toEqual(
+      expect.arrayContaining([
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "P1", pinName: "P" },
+      ]),
+    );
+    expect(logical.byBaseNetId.get(portNet!.id)?.baseNetIds).toEqual(
+      expect.arrayContaining([portNet!.id, "net-remote"]),
+    );
+  });
 });

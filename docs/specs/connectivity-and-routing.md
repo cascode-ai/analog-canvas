@@ -324,9 +324,14 @@ Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
   disconnected ones stay separate; cross-scope name or power conflicts are
   errors.
 - A Net Label on a formal Pin must match its name (case-insensitive); new
-  conflicts reject, imported ones show in ERC and block formal export. After a
-  cut, same-name owners stay joined by name; different Pin names on one
-  physical Net keep separate interfaces.
+  conflicts reject, imported ones show in ERC and block formal export. Adding a
+  scalar formal Port (`port`/`port-filled`) onto a Base Net with a pre-existing
+  matching-name local Net Label (unlocked, unaliased, non-selector,
+  non-layout-referenced) retires that redundant label, its owned local claim
+  and any now-unused unstyled label-anchor Junction in the same transaction
+  while leaving remote Net Labels intact. After a cut, same-name owners stay
+  joined by name; different Pin names on one physical Net keep separate
+  interfaces.
 - `connect_endpoints` never merges implicitly; the planner emits `merge_nets`
   first and, when names differ, removes only the `net-label` claims on the two
   participating Base Nets (supply markers, interfaces and remote labels stay) in

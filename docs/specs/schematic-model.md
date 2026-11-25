@@ -63,9 +63,7 @@ cross-Document edits use one Project transaction guarded by
   Logical Net, however each declaration is drawn (a VDD Power or Named Ground
   marker, a plain Port), while declarations, directions and Base Nets stay separate. A
   direction is a drawing hint (the block symbol's pin side), never checked; a
-  Port whose declarations differ reads passive. A
-  Port name may differ from a visible internal Net Label without overwriting
-  it.
+  Port whose declarations differ reads passive.
 - `port` is the hollow Cell Pin, `port-filled` the solid Bias Voltage Port
   (same storage). VDD Power and Named Ground (`named-ground`: Ground's bars
   naming a supply Net other than node `0`, default `VSS`, its name centred
