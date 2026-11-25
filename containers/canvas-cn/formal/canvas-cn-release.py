@@ -193,6 +193,9 @@ class Host:
     def seal_operation_inventory(self, pending):
         entrance('seal-project-operations/' + _maintenance.inventory_digest(pending))
 
+    def check_backup_space(self):
+        Snapshot().admit_capture()
+
     def backup(self, release):
         if not pathlib.Path('/run/canvas-cn-ingress/control.sock').is_socket():
             raise ReleaseError('entrance-not-installed')
@@ -571,6 +574,14 @@ def tick(args, host=None, fetcher=None, now=None):
         pending = dict(identity, firstSeen=now)
     if now - pending['firstSeen'] < args.settle_seconds:
         return dict(result, status='settling', pending=pending, lastCaughtUpAt=state.get('lastCaughtUpAt', now))
+    waiting_for_space = dict(result, health='failed', reason='retry', status='backup-headroom', pending=pending)
+    try:
+        host.check_backup_space()
+    except _maintenance.BackupHeadroom:
+        return waiting_for_space
+    except OSError:
+        return dict(result, health='failed', reason='release-failed', status='backup-failed',
+                    failedCommit=commit, failedReason='release-failed')
     commit, manifest, text = read_manifest(fetcher, published)
     releases = pathlib.Path(args.releases).resolve()
     target = releases / commit
@@ -623,6 +634,8 @@ def tick(args, host=None, fetcher=None, now=None):
     try:
         try:
             host.backup(target)
+        except _maintenance.BackupHeadroom:
+            return waiting_for_space
         except Exception as error:
             if isinstance(error, ReleaseError) and error.reason == 'uncertain-write':
                 return dict(result, health='failed', reason='release-failed', status='uncertain-write')

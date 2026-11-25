@@ -276,8 +276,15 @@ class SnapshotTest(unittest.TestCase):
             backups = root / 'backups'
             snapshot = Snapshot(root / 'data', backups)
             with patch.object(maintenance.shutil, 'disk_usage', return_value=type('Disk', (), {'free': 1})()):
-                with self.assertRaisesRegex(RuntimeError, 'backup-headroom'):
+                with self.assertRaises(maintenance.BackupHeadroom):
+                    snapshot.admit_capture()
+                self.assertFalse((backups / 'capacity.json').exists())
+                with self.assertRaises(maintenance.BackupHeadroom):
                     snapshot.prepare()
+                with patch.object(pathlib.Path, 'write_text',
+                                  side_effect=OSError(maintenance.errno.ENOSPC, 'No space left')):
+                    with self.assertRaises(maintenance.BackupHeadroom):
+                        snapshot.prepare()
             self.assertEqual(list(backups.glob('.incomplete.*')), [])
 
     def test_capture_includes_writes_through_an_existing_memory_mapping(self):
