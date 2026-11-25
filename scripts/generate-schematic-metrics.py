@@ -3,7 +3,9 @@
 Called by generate-schematic-fonts.mjs; fontTools is a local generation dependency.
 No font files are modified here. Measurements use em so the two families' units
 per em need not agree. Italic faces retain their own advances. A CFF face
-(Latin Modern Roman) is measured from its own outlines' bounds.
+(Latin Modern Roman) is measured from its own outlines' bounds. Metropolis's
+Greek is read from the ICM Greek faces drawn for it (generate-schematic-greek.py)
+when their directory is given.
 """
 import json
 import sys
@@ -16,7 +18,7 @@ primary_dir, fallback_dir, ranges_json, *rest = sys.argv[1:]
 ranges = json.loads(ranges_json)
 # The primary face's file for each style; Metropolis unless named (a
 # Document's chosen face, #1725, passes its own).
-primary_files = json.loads(rest[0]) if rest else {
+primary_files = json.loads(rest[0]) if rest and rest[0] != "null" else {
     "plain": "Metropolis-Regular.ttf",
     "bold": "Metropolis-Bold.ttf",
     "italic": "Metropolis-RegularItalic.ttf",
@@ -50,12 +52,22 @@ faces = [
     ("italic", "-Oblique"),
     ("boldItalic", "-BoldOblique"),
 ]
+greek_dir = Path(rest[1]) if len(rest) > 1 else None
+greek_files = {
+    "plain": "ICMGreek-Regular.ttf",
+    "bold": "ICMGreek-Bold.ttf",
+    "italic": "ICMGreek-Italic.ttf",
+    "boldItalic": "ICMGreek-BoldItalic.ttf",
+}
 fonts = {}
+greek = {}
 for style, fallback in faces:
     fonts[style] = (
         TTFont(Path(primary_dir) / primary_files[style]),
         TTFont(Path(fallback_dir) / f"DejaVuSans{fallback}.ttf"),
     )
+    if greek_dir:
+        greek[style] = TTFont(greek_dir / greek_files[style])
 
 primary_coverage = sorted(
     point for point in fonts["plain"][0].getBestCmap() if served(point)
@@ -67,13 +79,21 @@ for style, (primary, _) in fonts.items():
 
 # Keep the previously measured Greek and math symbols; Latin now covers the
 # entire served primary face, including accents and the micro sign.
-previous_symbols = "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩΪΫάέήίΰαβγδεζηθικλμνξοπρςστυφχψω°±×÷−√∞≈≠≤≥"
+# The variant letterforms (ϑ ϕ ϖ ϰ ϱ ϵ) are written for the same quantities
+# as their usual forms, the phi of a clock phase among them.
+previous_symbols = "ΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩΪΫάέήίΰαβγδεζηθικλμνξοπρςστυφχψωϑϕϖϰϱϵ°±×÷−√∞≈≠≤≥"
 glyphs = sorted(set(primary_coverage) | {ord(c) for c in previous_symbols})
 metrics = {"glyphs": "".join(chr(c) for c in glyphs)}
 for style, (primary, fallback) in fonts.items():
     advances, bearings = [], []
     for point in glyphs:
-        font = primary if point in primary.getBestCmap() else fallback
+        font = (
+            primary
+            if point in primary.getBestCmap()
+            else greek[style]
+            if style in greek and point in greek[style].getBestCmap()
+            else fallback
+        )
         glyph_name = font.getBestCmap()[point]
         advance, _ = font["hmtx"][glyph_name]
         left, right = horizontal_ink(font, glyph_name, advance)
@@ -85,4 +105,7 @@ for style, (primary, fallback) in fonts.items():
 print(json.dumps({
     "metrics": metrics,
     "primaryGlyphs": "".join(chr(c) for c in primary_coverage),
+    "greekGlyphs": "".join(
+        chr(c) for c in sorted(greek["plain"].getBestCmap()) if served(c)
+    ) if greek else "",
 }, ensure_ascii=False))

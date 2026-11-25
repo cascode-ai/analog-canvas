@@ -25,7 +25,7 @@ import type { SymbolResolver } from "@icm/symbols";
 import { renderFormulaDocument } from "./formula.js";
 import { renderFractionText } from "./fraction-text.js";
 import { renderPositionedOverbarScriptDocument } from "./positioned-rich-text.js";
-import { renderRichTextDocument } from "./rich-text.js";
+import { renderRichTextWithOverbars } from "./rich-text.js";
 import { escapeXml } from "./svg-markup.js";
 import { renderSymbolDefinitionBody } from "./symbol-render.js";
 
@@ -182,6 +182,18 @@ function renderDraftText(
       : {}),
   });
   if (object.polarity) {
+    const polarityText = (): string => {
+      const text = renderRichTextWithOverbars(content, profile, {
+        x: textPosition.x,
+        y: baselineY,
+        fontSize,
+        alignment: object.alignment,
+        color,
+        defaultBold: weight === "bold",
+        defaultItalic: italic === "italic",
+      });
+      return `<text x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${text.tspans}</text>${text.decorations}`;
+    };
     const strokeWidth =
       profile.strokes.annotation * (object.styleOverride?.strokeScale ?? 1);
     const markers = geometry.polarityLines
@@ -196,7 +208,7 @@ function renderDraftText(
         ? formula
         : positioned
           ? `<text x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}`
-          : `<text x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${renderRichTextDocument(content, profile, { lineOriginX: textPosition.x, fontSize, defaultBold: weight === "bold", defaultItalic: italic === "italic" })}</text>`);
+          : polarityText());
     return `<g data-object-id="${object.id}" data-kind="draft-text" data-polarity="${object.polarity}"${unresolved}>${markers}${text}</g>`;
   }
   // A free text at a quarter turn reads down or up the page, turned about
@@ -216,13 +228,19 @@ function renderDraftText(
   if (positioned) {
     return `<g${turned}><text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="start" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${positioned.tspans}</text>${positioned.decorations}</g>`;
   }
-  const markup = renderRichTextDocument(content, profile, {
-    lineOriginX: textPosition.x,
+  const markup = renderRichTextWithOverbars(content, profile, {
+    x: textPosition.x,
+    y: baselineY,
     fontSize,
+    alignment: object.alignment,
+    color,
     defaultBold: weight === "bold",
     defaultItalic: italic === "italic",
   });
-  return `<text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}"${turned} font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${markup}</text>`;
+  const text = `<text data-object-id="${object.id}" data-kind="draft-text"${unresolved} x="${textPosition.x}" y="${baselineY}" text-anchor="${object.alignment}"${turned} font-size="${fontSize}" font-weight="${weight}" font-style="${italic}" fill="${color}">${markup.tspans}</text>`;
+  return markup.decorations
+    ? `<g${turned}>${text.replace(turned, "")}${markup.decorations}</g>`
+    : text;
 }
 
 function renderConstructionLine(
@@ -409,9 +427,24 @@ function renderDraftCallout(
       : {}),
   });
   // P1: renderer consumes geometry.rotation (the single rotation truth).
-  const text = formula
-    ? `<g transform="rotate(${rotation} ${textPosition.x} ${textPosition.y})">${formula}</g>`
-    : `<text x="${textPosition.x}" y="${textPosition.y}" text-anchor="${object.alignment}" transform="rotate(${rotation} ${textPosition.x} ${textPosition.y})" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${renderRichTextDocument(object.content, profile, { lineOriginX: textPosition.x, fontSize, defaultBold: weight === "bold", defaultItalic: italic === "italic" })}</text>`;
+  const turn = `rotate(${rotation} ${textPosition.x} ${textPosition.y})`;
+  const callout = formula
+    ? undefined
+    : renderRichTextWithOverbars(object.content, profile, {
+        x: textPosition.x,
+        y: textPosition.y,
+        fontSize,
+        alignment: object.alignment,
+        // The callout's text takes its group's paint, and so does its bar.
+        color: object.styleOverride?.color ?? "inherit",
+        defaultBold: weight === "bold",
+        defaultItalic: italic === "italic",
+      });
+  const text = !callout
+    ? `<g transform="${turn}">${formula}</g>`
+    : callout.decorations
+      ? `<g transform="${turn}"><text x="${textPosition.x}" y="${textPosition.y}" text-anchor="${object.alignment}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${callout.tspans}</text>${callout.decorations}</g>`
+      : `<text x="${textPosition.x}" y="${textPosition.y}" text-anchor="${object.alignment}" transform="${turn}" font-size="${fontSize}" font-weight="${weight}" font-style="${italic}">${callout.tspans}</text>`;
   return `<g data-object-id="${object.id}" data-kind="draft-callout"${unresolved}>${leader}${text}</g>`;
 }
 

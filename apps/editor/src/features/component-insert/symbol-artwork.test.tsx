@@ -11,7 +11,12 @@ function expectDffPinNames(markup: string): void {
   expect(markup).toContain('data-pin-name="Q"');
   expect(markup).toContain('data-pin-name="QBAR"');
   expect(markup).toContain('data-text-run="overbar"');
-  expect(markup).toContain("text-decoration:overline");
+  // A drawn bar in the name's own paint, not the font's hairline (#2619).
+  expect(markup).not.toContain("text-decoration:overline");
+  expect(markup).toMatch(/<rect data-text-decoration="overbar"[^>]*\/>/u);
+  expect(markup).not.toMatch(
+    /data-text-decoration="overbar"[^>]*(?:fill|stroke)=/u,
+  );
   expect(markup).toContain("font-style:italic;font-weight:700");
   expect(markup).not.toContain(">QBAR</");
 }

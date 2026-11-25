@@ -1,8 +1,15 @@
-import { measureRichTextDocument, schematicTextAdvanceEm } from "@icm/derived";
+import {
+  measureRichTextDocument,
+  overbarGlyphTopEm,
+  overbarLine,
+  overbarLineSvg,
+  schematicTextAdvanceEm,
+  schematicTextInkEm,
+} from "@icm/derived";
 import type { SchematicStyleProfile, SchematicTextFace } from "@icm/derived";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
 
-import { renderRichTextDocument } from "./rich-text.js";
+import { renderRichTextWithOverbars } from "./rich-text.js";
 
 interface TextStyle {
   italic: boolean;
@@ -129,6 +136,40 @@ function segmentsWidth(
   );
 }
 
+/** Where `segments` put ink across, from where they start; null for none. */
+function segmentsInk(
+  segments: TextSegment[],
+  fontSize: number,
+  scale: number,
+  face?: SchematicTextFace,
+): { left: number; right: number } | null {
+  let x = 0;
+  let left = Infinity;
+  let right = -Infinity;
+  for (const segment of segments) {
+    const ink = schematicTextInkEm(
+      segment.text,
+      segment.bold ? "bold" : "plain",
+      segment.italic,
+      face,
+    );
+    if (ink) {
+      left = Math.min(left, x + ink.left * fontSize * scale);
+      right = Math.max(right, x + ink.right * fontSize * scale);
+    }
+    x += segmentWidth(segment, fontSize, scale, face);
+  }
+  return left <= right ? { left, right } : null;
+}
+
+/** How far `segments` reach above their baseline, in units. */
+function segmentsTop(segments: TextSegment[], size: number): number {
+  return Math.max(
+    0,
+    ...segments.map((segment) => overbarGlyphTopEm(segment.text) * size),
+  );
+}
+
 function styleAttribute(
   segment: TextSegment,
   profile: SchematicStyleProfile,
@@ -240,16 +281,24 @@ function overbarLayout(
     options.fontSize * scale * profile.typography.subscriptBaselineShiftEm;
   const superscriptY = options.y - shift;
   const subscriptY = options.y + shift;
-  const glyphAscent = 0.78;
-  const overbarGap = options.fontSize * 0.08;
-  const baseTop = options.y - options.fontSize * glyphAscent;
-  // Only a superscript can reach above the base, and only when there is one:
-  // clearing a superscript that is not there would float the bar.
-  const superscriptTop = superscriptRun
-    ? superscriptY - options.fontSize * scale * glyphAscent
-    : baseTop;
-  const lineY = Math.min(baseTop, superscriptTop) - overbarGap;
-  const strokeWidth = Math.max(1, profile.strokes.annotation);
+  // The bar clears the tallest glyph it covers: only a superscript can reach
+  // above the base, and only when there is one.
+  const top = Math.min(
+    options.y - segmentsTop(base, options.fontSize),
+    superscriptRun
+      ? superscriptY - segmentsTop(superscript, options.fontSize * scale)
+      : Infinity,
+  );
+  // It runs from the base's first ink to the last ink of the name.
+  const baseInk = segmentsInk(base, options.fontSize, 1, face);
+  const scriptRight = Math.max(
+    segmentsInk(subscript, options.fontSize, scale, face)?.right ?? -Infinity,
+    segmentsInk(superscript, options.fontSize, scale, face)?.right ?? -Infinity,
+  );
+  const inkLeft = baseInk?.left ?? 0;
+  const inkRight = Number.isFinite(scriptRight)
+    ? baseWidth + attachmentGap + scriptRight
+    : (baseInk?.right ?? nameWidth);
 
   return {
     width: nameWidth,
@@ -285,10 +334,18 @@ function overbarLayout(
         )
         .join("");
       // The bar belongs to the name: it spans the base and its scripts,
-      // one line from where the name starts to where it ends.
+      // one line over the name's ink.
       return {
         tspans: `<tspan data-text-run="overbar">${baseTspans}<tspan data-text-run="script-stack">${orderedScripts}</tspan></tspan>`,
-        decoration: `<line data-text-decoration="overbar" x1="${number(nameStartX)}" y1="${number(lineY)}" x2="${number(nameStartX + nameWidth)}" y2="${number(lineY)}" stroke="${options.color ?? profile.foreground}" stroke-width="${number(strokeWidth)}"/>`,
+        decoration: overbarLineSvg(
+          overbarLine({
+            left: nameStartX + inkLeft,
+            right: nameStartX + inkRight,
+            top,
+            fontSize: options.fontSize,
+          }),
+          options.color ?? profile.foreground,
+        ),
       };
     },
   };
@@ -373,16 +430,17 @@ export function renderPositionedOverbarScriptDocument(
       tspans += placed.tspans;
       decorations += placed.decoration;
     } else {
-      tspans += `<tspan x="${number(x)}" y="${number(options.y)}">${renderRichTextDocument(
-        { runs: chunk.runs },
-        profile,
-        {
-          lineOriginX: x,
-          fontSize: options.fontSize,
-          defaultBold: outer.style.bold,
-          defaultItalic: outer.style.italic,
-        },
-      )}</tspan>`;
+      const text = renderRichTextWithOverbars({ runs: chunk.runs }, profile, {
+        x,
+        y: options.y,
+        fontSize: options.fontSize,
+        alignment: "start",
+        ...(options.color ? { color: options.color } : {}),
+        defaultBold: outer.style.bold,
+        defaultItalic: outer.style.italic,
+      });
+      tspans += `<tspan x="${number(x)}" y="${number(options.y)}">${text.tspans}</tspan>`;
+      decorations += text.decorations;
     }
     x += widths[index]!;
   });

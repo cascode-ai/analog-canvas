@@ -90,8 +90,10 @@ and [browser flow](../../apps/editor/e2e/drawing-style.spec.ts) cover this lifec
 - Bound names compose into `<tspan>` runs by the
   [names and labels](names-and-labels.md) rules; case/slant actions keep
   color, weight and bars; electrical readers use bound names, never text.
-- A RichText overbar is one decoration over its span; scripts under it get no
-  extra bars. The whole line is measured before alignment, so continuation
+- A RichText overbar is one drawn line over its span's ink, 0.08 em thick and
+  0.1 em clear of the tallest glyph it covers, in the canvas, SVG, PNG and
+  PDF alike; scripts under it get no extra bars. A bar inside a fraction or
+  beside a formula keeps the font's overline. The whole line is measured before alignment, so continuation
   text cannot shift the anchor or escape export bounds.
 - New instance names keep 4 units between ink and artwork on any side. Name
   reads first with the value under it; above the part the value takes the

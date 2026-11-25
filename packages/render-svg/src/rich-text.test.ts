@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import { renderRichTextDocument } from "./rich-text.js";
 import {
+  renderRichTextDocument,
+  renderRichTextWithOverbars,
+  richTextOverbars,
+} from "./rich-text.js";
+import {
+  OVERBAR_THICKNESS_EM,
+  overbarGlyphTopEm,
+  overbarLine,
   razaviTextbookProfile,
   richTextLinePitches,
   richTextMetrics,
   schematicTextAdvanceEm,
+  schematicTextInkEm,
 } from "@icm/derived";
+import type { RichTextDocument } from "@icm/model";
 
 describe("renderRichTextDocument", () => {
   it("renders a plain text run escaped", () => {
@@ -259,5 +268,184 @@ describe("line breaks under a subscript (2026-10-15)", () => {
     expect(pitch).toBeGreaterThan(
       razaviTextbookProfile.typography.annotationFontSize,
     );
+  });
+});
+
+describe("bars the generic renderer draws as lines (#2619)", () => {
+  const profile = razaviTextbookProfile;
+  // Φ̄₂ as a switch's phase label stores it: the bar inside a bold span inside
+  // an italic one, with the subscript beside it, which the positioned path
+  // does not take.
+  const phase: RichTextDocument = {
+    runs: [
+      {
+        kind: "span",
+        style: "italic",
+        children: [
+          {
+            kind: "span",
+            style: "bold",
+            children: [
+              {
+                kind: "span",
+                style: "overbar",
+                children: [{ kind: "text", value: "Φ" }],
+              },
+            ],
+          },
+          {
+            kind: "span",
+            style: "subscript",
+            children: [{ kind: "text", value: "2" }],
+          },
+        ],
+      },
+    ],
+  };
+  const lines = (svg: string) =>
+    [...svg.matchAll(/<line data-text-decoration="overbar"[^>]*>/gu)].map(
+      (match) =>
+        Object.fromEntries(
+          [...match[0].matchAll(/([\w-]+)="(-?[\d.]+)"/gu)].map((pair) => [
+            pair[1]!,
+            Number(pair[2]),
+          ]),
+        ) as Record<string, number>,
+    );
+
+  it("draws a nested bar as one line over the glyph's ink, not a CSS overline", () => {
+    const rendered = renderRichTextWithOverbars(phase, profile, {
+      x: 100,
+      y: 50,
+      fontSize: 15.116,
+      alignment: "start",
+    });
+    expect(rendered.tspans).toContain('data-text-run="overbar"');
+    expect(rendered.tspans).not.toContain("text-decoration");
+    const [bar, ...rest] = lines(rendered.decorations);
+    expect(rest).toEqual([]);
+    const ink = schematicTextInkEm("Φ", "bold", true)!;
+    expect(bar!.x1).toBeCloseTo(100 + ink.left * 15.116, 6);
+    expect(bar!.x2).toBeCloseTo(100 + ink.right * 15.116, 6);
+    const line = overbarLine({
+      left: 0,
+      right: 0,
+      top: 50 - overbarGlyphTopEm("Φ") * 15.116,
+      fontSize: 15.116,
+    });
+    expect(bar!.y1).toBeCloseTo(line.y, 6);
+    expect(bar!["stroke-width"]).toBeCloseTo(line.thickness, 6);
+  });
+
+  it("anchors the bar with the line for middle and end alignment", () => {
+    const start = lines(
+      richTextOverbars(phase, profile, {
+        x: 100,
+        y: 50,
+        fontSize: 15.116,
+        alignment: "start",
+      })!,
+    )[0]!;
+    const width =
+      (schematicTextAdvanceEm("Φ", "bold", true) +
+        profile.typography.subscriptScale *
+          (profile.typography.subscriptHorizontalGapEm +
+            schematicTextAdvanceEm("2", "plain"))) *
+      15.116;
+    for (const [alignment, shift] of [
+      ["middle", width / 2],
+      ["end", width],
+    ] as const) {
+      const bar = lines(
+        richTextOverbars(phase, profile, {
+          x: 100,
+          y: 50,
+          fontSize: 15.116,
+          alignment,
+        })!,
+      )[0]!;
+      expect(bar.x1).toBeCloseTo(start.x1! - shift, 6);
+    }
+  });
+
+  it("draws a bar over a subscript where the subscript sits", () => {
+    const rendered = richTextOverbars(
+      {
+        runs: [
+          { kind: "text", value: "V" },
+          {
+            kind: "span",
+            style: "subscript",
+            children: [
+              {
+                kind: "span",
+                style: "overbar",
+                children: [{ kind: "text", value: "x" }],
+              },
+            ],
+          },
+        ],
+      },
+      profile,
+      { x: 0, y: 0, fontSize: 20, alignment: "start" },
+    )!;
+    const [bar] = lines(rendered);
+    const scale = profile.typography.subscriptScale;
+    const scriptSize = 20 * scale;
+    expect(bar!.x1).toBeGreaterThan(schematicTextAdvanceEm("V", "plain") * 20);
+    expect(bar!["stroke-width"]).toBeCloseTo(OVERBAR_THICKNESS_EM * 20, 6);
+    // Over the subscript's x height, below the base's cap line.
+    expect(bar!.y1).toBeGreaterThan(-0.69 * 20);
+    expect(bar!.y1).toBeLessThan(
+      scriptSize * profile.typography.subscriptBaselineShiftEm -
+        0.53 * scriptSize,
+    );
+  });
+
+  it("leaves a bar in a fraction to the CSS overline", () => {
+    const document: RichTextDocument = {
+      runs: [
+        {
+          kind: "fraction",
+          numerator: {
+            runs: [
+              {
+                kind: "span",
+                style: "overbar",
+                children: [{ kind: "text", value: "Q" }],
+              },
+            ],
+          },
+          denominator: { runs: [{ kind: "text", value: "2" }] },
+        },
+      ],
+    };
+    expect(
+      richTextOverbars(document, profile, {
+        x: 0,
+        y: 0,
+        fontSize: 20,
+        alignment: "start",
+      }),
+    ).toBeNull();
+    const rendered = renderRichTextWithOverbars(document, profile, {
+      x: 0,
+      y: 0,
+      fontSize: 20,
+      alignment: "start",
+    });
+    expect(rendered.decorations).toBe("");
+    expect(rendered.tspans).toContain("text-decoration:overline");
+  });
+
+  it("draws nothing for text without a bar", () => {
+    expect(
+      richTextOverbars({ runs: [{ kind: "text", value: "M1" }] }, profile, {
+        x: 0,
+        y: 0,
+        fontSize: 20,
+        alignment: "start",
+      }),
+    ).toBe("");
   });
 });

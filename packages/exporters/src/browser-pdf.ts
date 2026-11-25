@@ -11,6 +11,10 @@ import metropolisUrl from "../fonts/metropolis/Metropolis-Regular.ttf?url";
 import metropolisBoldUrl from "../fonts/metropolis/Metropolis-Bold.ttf?url";
 import metropolisItalicUrl from "../fonts/metropolis/Metropolis-RegularItalic.ttf?url";
 import metropolisBoldItalicUrl from "../fonts/metropolis/Metropolis-BoldItalic.ttf?url";
+import greekUrl from "../fonts/ICMGreek-Regular.ttf?url";
+import greekBoldUrl from "../fonts/ICMGreek-Bold.ttf?url";
+import greekItalicUrl from "../fonts/ICMGreek-Italic.ttf?url";
+import greekBoldItalicUrl from "../fonts/ICMGreek-BoldItalic.ttf?url";
 import serifUrl from "../fonts/liberation-serif/LiberationSerif-Regular.ttf?url";
 import serifBoldUrl from "../fonts/liberation-serif/LiberationSerif-Bold.ttf?url";
 import serifItalicUrl from "../fonts/liberation-serif/LiberationSerif-Italic.ttf?url";
@@ -24,6 +28,7 @@ import modernBoldUrl from "../fonts/ICMModern-Bold.ttf?url";
 import modernItalicUrl from "../fonts/ICMModern-Italic.ttf?url";
 import modernBoldItalicUrl from "../fonts/ICMModern-BoldItalic.ttf?url";
 import { latinModernGlyphs } from "./latin-modern-coverage.generated.js";
+import { greekGlyphs } from "./greek-coverage.generated.js";
 import { metropolisGlyphs } from "./metropolis-coverage.generated.js";
 import { sansGlyphs } from "./sans-coverage.generated.js";
 import { serifGlyphs } from "./serif-coverage.generated.js";
@@ -50,8 +55,8 @@ import {
 } from "./svg2pdf-compat.js";
 
 /**
- * Embed the same stack the canvas draws: Metropolis, DejaVu for glyphs it
- * lacks, and the round period; or, for a Document set in a face of its
+ * Embed the same stack the canvas draws: Metropolis, ICM Greek for its Greek,
+ * DejaVu for other glyphs it lacks, and the round period; or, for a Document set in a face of its
  * choosing, that face and DejaVu: unmodified Liberation Serif or Liberation
  * Sans, or Latin Modern Roman as the TrueType ICM Modern (jsPDF embeds no
  * CFF outlines). CJK text, which the canvas draws in a system face, takes
@@ -62,6 +67,7 @@ const SCHEMATIC_FAMILY = "ICM Schematic";
 const SERIF_FAMILY = "ICM Schematic Serif";
 const SANS_FAMILY = "ICM Schematic Sans";
 const MODERN_FAMILY = "ICM Schematic Modern";
+const GREEK_FAMILY = "ICM Greek";
 const SYMBOL_FAMILY = "ICM Symbols";
 const PERIOD_FAMILY = "ICM Round Period";
 // Letters, not digits: a family name token may not start with a digit.
@@ -99,6 +105,12 @@ const SCHEMATIC_FACES: Record<string, Record<PdfFontStyle, string>> = {
     italic: modernItalicUrl,
     bolditalic: modernBoldItalicUrl,
   },
+  [GREEK_FAMILY]: {
+    normal: greekUrl,
+    bold: greekBoldUrl,
+    italic: greekItalicUrl,
+    bolditalic: greekBoldItalicUrl,
+  },
   [SYMBOL_FAMILY]: {
     normal: dejaVuSansUrl,
     bold: dejaVuSansBoldUrl,
@@ -116,12 +128,15 @@ function fallbackFamily(glyph: string): string {
   return (face === undefined ? undefined : CJK_FAMILIES[face]) ?? SYMBOL_FAMILY;
 }
 const primaryGlyphs = new Set(metropolisGlyphs);
+const metropolisGreek = new Set(greekGlyphs);
 function familyForGlyph(glyph: string): string {
   return glyph === "."
     ? PERIOD_FAMILY
     : primaryGlyphs.has(glyph)
       ? SCHEMATIC_FAMILY
-      : fallbackFamily(glyph);
+      : metropolisGreek.has(glyph)
+        ? GREEK_FAMILY
+        : fallbackFamily(glyph);
 }
 /** A chosen face's family for the glyphs it holds, without a round period. */
 function chosenFamilyForGlyph(family: string, glyphs: string) {

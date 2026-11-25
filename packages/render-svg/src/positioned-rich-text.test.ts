@@ -1,11 +1,31 @@
 import { describe, expect, it } from "vitest";
 
-import { razaviTextbookProfile, schematicTextAdvanceEm } from "@icm/derived";
+import {
+  OVERBAR_GAP_EM,
+  OVERBAR_THICKNESS_EM,
+  razaviTextbookProfile,
+  schematicTextAdvanceEm,
+  schematicTextInkEm,
+} from "@icm/derived";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
 
 import { renderPositionedOverbarScriptDocument } from "./positioned-rich-text.js";
 
 type ScriptStyle = "subscript" | "superscript";
+
+const scriptSize = 20 * razaviTextbookProfile.typography.subscriptScale;
+/** Where upright regular `text` inks, from where it starts, at `size`. */
+function ink(text: string, size = 20): { left: number; right: number } {
+  const em = schematicTextInkEm(text, "plain");
+  if (!em) throw new Error(`${text} draws nothing`);
+  return { left: em.left * size, right: em.right * size };
+}
+/** The bar's centre line over glyphs reaching `topEm` above the baseline. */
+function barY(topEm: number, size = 20): number {
+  return (
+    -topEm * size - size * OVERBAR_GAP_EM - (size * OVERBAR_THICKNESS_EM) / 2
+  );
+}
 
 function overbarExpression(options?: {
   base?: string;
@@ -119,15 +139,20 @@ describe("renderPositionedOverbarScriptDocument", () => {
       numericAttribute(base, "y"),
     );
 
+    // The bar spans the name's ink: from I's stem to the last script glyph.
     const lineX1 = numericAttribute(overbar, "x1");
     const lineX2 = numericAttribute(overbar, "x2");
     const contentRight = Math.max(
-      subscriptX + numericAttribute(subscript, "data-text-advance"),
-      superscriptX + numericAttribute(superscript, "data-text-advance"),
+      subscriptX + ink("n2", scriptSize).right,
+      superscriptX + ink("2", scriptSize).right,
     );
-    expect(lineX1).toBe(numericAttribute(base, "x"));
-    expect(lineX2).toBeCloseTo(lineX1 + rendered.width, 6);
+    expect(lineX1).toBeCloseTo(numericAttribute(base, "x") + ink("I").left, 6);
+    expect(lineX2).toBeLessThanOrEqual(lineX1 + rendered.width);
     expect(lineX2).toBeCloseTo(contentRight, 5);
+    expect(numericAttribute(overbar, "stroke-width")).toBeCloseTo(
+      20 * OVERBAR_THICKNESS_EM,
+      6,
+    );
     expect(numericAttribute(overbar, "y1")).toBe(
       numericAttribute(overbar, "y2"),
     );
@@ -201,8 +226,7 @@ describe("renderPositionedOverbarScriptDocument", () => {
       numericAttribute(superscript, "data-text-advance"),
     );
     expect(numericAttribute(overbar, "x2")).toBeCloseTo(
-      numericAttribute(subscript, "x") +
-        numericAttribute(subscript, "data-text-advance"),
+      numericAttribute(subscript, "x") + ink("WW", scriptSize).right,
       5,
     );
   });
@@ -272,9 +296,9 @@ describe("renderPositionedOverbarScriptDocument", () => {
     const line = /y1="(-?[\d.]+)"[^>]*x2="(-?[\d.]+)"/u.exec(
       positioned!.decorations,
     )!;
-    // Just clear of the cap line, and spanning exactly the text it covers.
-    expect(Number(line[1])).toBeCloseTo(-(20 * 0.78) - 20 * 0.08, 5);
-    expect(Number(line[2])).toBeCloseTo(positioned!.width, 5);
+    // Clear of the ascender of t, spanning the ink of the text it covers.
+    expect(Number(line[1])).toBeCloseTo(barY(0.72), 5);
+    expect(Number(line[2])).toBeCloseTo(ink("Vout").right, 5);
   });
 
   it("uses the requested paint for the explicit overbar decoration", () => {
@@ -322,7 +346,7 @@ describe("renderPositionedOverbarScriptDocument", () => {
     // One bar, not one per tspan, and a subscript cannot lift it.
     expect(positioned!.decorations.match(/<line /gu)).toHaveLength(1);
     const y = Number(/y1="(-?[\d.]+)"/u.exec(positioned!.decorations)![1]);
-    expect(y).toBeCloseTo(-(20 * 0.78) - 20 * 0.08, 5);
+    expect(y).toBeCloseTo(barY(0.69), 5);
   });
 
   it("leaves multiline overbars to the general rich-text renderer", () => {
@@ -422,17 +446,22 @@ describe("an overbar followed by more of the line", () => {
       'data-text-run="subscript"',
     );
 
-    expect(numericAttribute(overbar, "x1")).toBe(numericAttribute(base, "x"));
+    const boldInk = (text: string, size: number, italic = false) => {
+      const em = schematicTextInkEm(text, "bold", italic)!;
+      return { left: em.left * size, right: em.right * size };
+    };
+    expect(numericAttribute(overbar, "x1")).toBeCloseTo(
+      numericAttribute(base, "x") + boldInk("I", 20, true).left,
+      6,
+    );
     const superscript = tagAttributes(
       rendered.tspans,
       "tspan",
       'data-text-run="superscript"',
     );
     const nameRight = Math.max(
-      numericAttribute(subscript, "x") +
-        numericAttribute(subscript, "data-text-advance"),
-      numericAttribute(superscript, "x") +
-        numericAttribute(superscript, "data-text-advance"),
+      numericAttribute(subscript, "x") + boldInk("n", scriptSize).right,
+      numericAttribute(superscript, "x") + boldInk("2", scriptSize).right,
     );
     expect(numericAttribute(overbar, "x2")).toBeCloseTo(nameRight, 6);
     // The reported width covers the whole line, so the bar ends short of it.
@@ -543,10 +572,9 @@ describe("several barred names on one line", () => {
       "tspan",
       'data-text-run="subscript"',
     );
-    // The first bar runs from I to the end of its subscript N.
+    // The first bar runs from I to the ink end of its subscript N.
     expect(first.x2).toBeCloseTo(
-      numericAttribute(subscript, "x") +
-        numericAttribute(subscript, "data-text-advance"),
+      numericAttribute(subscript, "x") + ink("N", scriptSize).right,
       5,
     );
     // Both bars sit at one height, and the second starts after " & ".
@@ -558,7 +586,12 @@ describe("several barred names on one line", () => {
   it("lays the line out across its whole width", () => {
     const rendered = render(twoNames, "end");
     const drawn = bars(rendered.decorations);
-    // Right-aligned at x = 100, the line ends where the last bar ends.
-    expect(drawn.at(-1)!.x2).toBeCloseTo(100, 6);
+    // Right-aligned at x = 100, the line ends where the last bar's V does:
+    // the bar stops at V's ink, its right side bearing short of the end.
+    const v = schematicTextInkEm("V", "plain")!;
+    expect(drawn.at(-1)!.x2).toBeCloseTo(
+      100 - (schematicTextAdvanceEm("V", "plain") - v.right) * 20,
+      6,
+    );
   });
 });

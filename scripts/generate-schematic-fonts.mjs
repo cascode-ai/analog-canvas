@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Browser subsets and shared metrics for Metropolis and its DejaVu Sans
- * symbol fallback, and for the faces a Document may choose instead (#1725):
+ * Browser subsets and shared metrics for Metropolis, the ICM Greek drawn
+ * for it from DejaVu Sans (scripts/generate-schematic-greek.py, #2619), and
+ * its DejaVu Sans symbol fallback, and for the faces a Document may choose
+ * instead (#1725):
  * Liberation Serif (served as ICM Serif), Liberation Sans (ICM Sans) and
  * Latin Modern Roman (ICM Modern). Also writes the authored round-period face
  * for Node, and Latin Modern's TrueType subsets for the PDF and Node.
@@ -13,8 +15,9 @@
  * published.
  *
  * Needs Python's fontTools (python3 -m fontTools.subset) with brotli, which
- * WOFF2 is compressed with (pip install fonttools brotli; the committed faces
- * were written with fontTools 4.60.2 and brotli 1.2.0). --check rebuilds
+ * WOFF2 is compressed with, and skia-pathops, which thins the Greek (pip
+ * install fonttools brotli skia-pathops; the committed faces were written
+ * with fontTools 4.60.2, brotli 1.2.0 and skia-pathops 0.9.2). --check rebuilds
  * into a temporary directory and fails when a committed face differs. A
  * local check: the faces change only with this script or the font package.
  */
@@ -127,6 +130,14 @@ const NODE_FONT_FACES = ["Regular", "RegularItalic", "Bold", "BoldItalic"].map(
 );
 
 /**
+ * Metropolis's Greek, each style a TrueType face for the PDF and a WOFF2
+ * subset the browser serves as Metropolis for U+0370-03FF.
+ */
+const GREEK_FONT_FACES = ["Regular", "Bold", "Italic", "BoldItalic"].map(
+  (style) => `ICMGreek-${style}`,
+);
+
+/**
  * Latin with its accents and combining marks, Greek, punctuation, scripts,
  * letterlike symbols (Ω, ℃), arrows, mathematical operators and geometric
  * shapes. Keep in step with SCHEMATIC_FONT_UNICODE_RANGE in
@@ -222,6 +233,22 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     if (check) {
       if (!readFileSync(periodPath).equals(period)) stale.push(periodPath);
     }
+    python(
+      "generate-schematic-greek.py",
+      [metropolis, ttf, directory],
+      "draw Metropolis's Greek",
+    );
+    for (const face of GREEK_FONT_FACES) {
+      subset(face, directory, metropolis, join(directory, `${face}.ttf`));
+      if (!check) continue;
+      for (const name of [`${face}.ttf`, `${face}.schematic.woff2`])
+        if (
+          !readFileSync(join(directory, name)).equals(
+            readFileSync(join(output, name)),
+          )
+        )
+          stale.push(name);
+    }
     for (const face of SCHEMATIC_FONT_FACES) {
       subset(face, directory, metropolis);
       if (!check) continue;
@@ -272,6 +299,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         ttf,
         join(directory, "ICMRoundPeriod.ttf"),
         directory,
+        directory,
       ],
       { encoding: "utf8" },
     );
@@ -292,12 +320,14 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         metropolis,
         ttf,
         JSON.stringify(SCHEMATIC_FONT_UNICODES),
+        "null",
+        directory,
       ],
       { encoding: "utf8" },
     );
     if (tables.status !== 0)
       throw new Error(`Cannot read schematic metrics: ${tables.stderr}`);
-    const { metrics, primaryGlyphs } = JSON.parse(tables.stdout);
+    const { metrics, primaryGlyphs, greekGlyphs } = JSON.parse(tables.stdout);
     const chosenTables = DOCUMENT_FONT_FACES.map((chosen) => {
       const result = spawnSync(
         "python3",
@@ -322,6 +352,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       [
         "packages/exporters/src/metropolis-coverage.generated.ts",
         `export const metropolisGlyphs = ${JSON.stringify(primaryGlyphs)};`,
+      ],
+      [
+        "packages/exporters/src/greek-coverage.generated.ts",
+        `export const greekGlyphs = ${JSON.stringify(greekGlyphs)};`,
       ],
       ...chosenTables.flatMap(({ chosen, ...tables }) => [
         [
@@ -350,7 +384,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       process.exitCode = 1;
     } else
       console.log(
-        `Schematic fonts: ${SCHEMATIC_FONT_FACES.length + 4 * DOCUMENT_FONT_FACES.length} faces ${check ? "current" : "written"}`,
+        `Schematic fonts: ${SCHEMATIC_FONT_FACES.length + GREEK_FONT_FACES.length + 4 * DOCUMENT_FONT_FACES.length} faces ${check ? "current" : "written"}`,
       );
   } finally {
     if (check) rmSync(directory, { recursive: true, force: true });

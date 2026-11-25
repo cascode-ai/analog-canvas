@@ -6,6 +6,10 @@ import metropolisUrl from "../fonts/Metropolis-Regular.schematic.woff2?url";
 import metropolisBoldUrl from "../fonts/Metropolis-Bold.schematic.woff2?url";
 import metropolisItalicUrl from "../fonts/Metropolis-RegularItalic.schematic.woff2?url";
 import metropolisBoldItalicUrl from "../fonts/Metropolis-BoldItalic.schematic.woff2?url";
+import greekUrl from "../fonts/ICMGreek-Regular.schematic.woff2?url";
+import greekBoldUrl from "../fonts/ICMGreek-Bold.schematic.woff2?url";
+import greekItalicUrl from "../fonts/ICMGreek-Italic.schematic.woff2?url";
+import greekBoldItalicUrl from "../fonts/ICMGreek-BoldItalic.schematic.woff2?url";
 import serifUrl from "../fonts/ICMSerif-Regular.schematic.woff2?url";
 import serifBoldUrl from "../fonts/ICMSerif-Bold.schematic.woff2?url";
 import serifItalicUrl from "../fonts/ICMSerif-Italic.schematic.woff2?url";
@@ -25,9 +29,10 @@ import type { SchematicTextFace } from "@icm/derived";
  * Document can choose another face instead (#1725), each renamed from its
  * originals as their licenses ask: ICM Serif (Liberation Serif, Times New
  * Roman's metrics), ICM Sans (Liberation Sans, Arial's) or ICM Modern (Latin
- * Modern Roman, LaTeX's). DejaVu supplies Greek and math glyphs a face lacks.
- * All are served and measured from the same pinned files, on every operating
- * system.
+ * Modern Roman, LaTeX's). Metropolis's Greek is ICM Greek, DejaVu's drawn to
+ * Metropolis's proportions (#2619), as the PDF and headless faces set it.
+ * DejaVu supplies the math glyphs, and Greek another face lacks. All are
+ * served and measured from the same pinned files, on every operating system.
  */
 
 /** The family each face is served as. */
@@ -68,13 +73,41 @@ export const SCHEMATIC_FONT_UNICODE_RANGE = [
   "U+25A0-25FF",
 ].join(",");
 
-const FACES = [
+/** Greek and Coptic: Metropolis serves them from its ICM Greek files. */
+export const SCHEMATIC_GREEK_UNICODE_RANGE = "U+0370-03FF";
+
+/** Metropolis's own files: every served character but Greek. */
+export const METROPOLIS_UNICODE_RANGE = SCHEMATIC_FONT_UNICODE_RANGE.split(",")
+  .filter((range) => range !== SCHEMATIC_GREEK_UNICODE_RANGE)
+  .join(",");
+
+interface FontFace {
+  url: string;
+  weight: number;
+  style: string;
+  family: string;
+  /** The characters this file serves; all the faces hold when absent. */
+  range?: string;
+}
+
+const FACES: readonly FontFace[] = [
   ...[
     { url: metropolisUrl, weight: 400, style: "normal" },
     { url: metropolisBoldUrl, weight: 700, style: "normal" },
     { url: metropolisItalicUrl, weight: 400, style: "italic" },
     { url: metropolisBoldItalicUrl, weight: 700, style: "italic" },
-  ].map((face) => ({ ...face, family: "Metropolis" })),
+  ].map((face) => ({
+    ...face,
+    family: "Metropolis",
+    range: METROPOLIS_UNICODE_RANGE,
+  })),
+  // Fetched only when a label sets Greek.
+  ...styles("Metropolis", [
+    greekUrl,
+    greekBoldUrl,
+    greekItalicUrl,
+    greekBoldItalicUrl,
+  ]).map((face) => ({ ...face, range: SCHEMATIC_GREEK_UNICODE_RANGE })),
   ...styles("ICM Serif", [
     serifUrl,
     serifBoldUrl,
@@ -119,8 +152,8 @@ const FACES = [
  * lacks are drawn by the stack's next face; label positions do not depend
  * on it, as they come from the tables.
  */
-function fontFaceRule(face: (typeof FACES)[number], source: string): string {
-  return `@font-face{font-family:"${face.family}";src:${source};font-weight:${face.weight};font-style:${face.style};font-display:swap;unicode-range:${SCHEMATIC_FONT_UNICODE_RANGE}}`;
+function fontFaceRule(face: FontFace, source: string): string {
+  return `@font-face{font-family:"${face.family}";src:${source};font-weight:${face.weight};font-style:${face.style};font-display:swap;unicode-range:${face.range ?? SCHEMATIC_FONT_UNICODE_RANGE}}`;
 }
 
 /**

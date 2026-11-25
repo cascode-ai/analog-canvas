@@ -46,7 +46,7 @@ import type {
   SymbolResolver,
 } from "@icm/symbols";
 
-import { renderRichTextDocument } from "./rich-text.js";
+import { renderRichTextDocument, richTextOverbars } from "./rich-text.js";
 import {
   schematicTextFontSize,
   schematicTextSizeAttribute,
@@ -451,7 +451,16 @@ export function renderVisiblePinNames(
       const colorStyle = foregroundOverride
         ? ` style="fill:${escapeXml(foregroundOverride)}"`
         : "";
-      return `<text data-pin-name="${escapeXml(pin.name)}" x="${x}" y="${y}" text-anchor="${alignment}"${sizeAttribute}${colorStyle}>${renderRichTextDocument(formatted, profile, { fontSize: schematicTextFontSize("pin-name", profile) })}</text>`;
+      const bars = richTextOverbars(formatted, profile, {
+        x,
+        y,
+        fontSize: pinFontSize,
+        alignment,
+        lineOriginX: 0,
+        // Painted as the name is: its override, else its group's fill.
+        color: foregroundOverride ? escapeXml(foregroundOverride) : "inherit",
+      });
+      return `<text data-pin-name="${escapeXml(pin.name)}" x="${x}" y="${y}" text-anchor="${alignment}"${sizeAttribute}${colorStyle}>${renderRichTextDocument(formatted, profile, { fontSize: schematicTextFontSize("pin-name", profile), overbarLines: bars !== null })}</text>${bars ?? ""}`;
     })
     .join("");
 }

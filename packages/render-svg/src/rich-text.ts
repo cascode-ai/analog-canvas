@@ -4,8 +4,13 @@ import {
   fractionPartBaselines,
   fractionPartScale,
   measureLabelText,
+  overbarGlyphTopEm,
+  overbarLine,
+  overbarLineSvg,
   richTextLinePitches,
   richTextMetrics,
+  schematicTextAdvanceEm,
+  schematicTextInkEm,
 } from "@icm/derived";
 import { flattenRichText } from "@icm/model";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
@@ -19,6 +24,8 @@ interface RenderContext {
   lineOriginX: number;
   fontSize: number;
   baselineOffset: number;
+  /** Bars are drawn as lines beside the text, not as a CSS overline. */
+  overbarLines: boolean;
 }
 
 interface RenderState {
@@ -52,6 +59,12 @@ export function renderRichTextDocument(
     fontSize?: number;
     defaultItalic?: boolean;
     defaultBold?: boolean;
+    /**
+     * The caller draws each bar from richTextOverbars, so a barred span
+     * carries no CSS overline. Without it the font's own overline is drawn,
+     * the fallback for bars richTextOverbars cannot place.
+     */
+    overbarLines?: boolean;
   } = {},
 ): string {
   const context: RenderContext = {
@@ -63,6 +76,7 @@ export function renderRichTextDocument(
     lineOriginX: options.lineOriginX ?? 0,
     fontSize: options.fontSize ?? profile.typography.annotationFontSize,
     baselineOffset: 0,
+    overbarLines: options.overbarLines ?? false,
   };
   const typography = profile.typography;
   return renderRuns(document.runs, context, {
@@ -268,7 +282,9 @@ function renderSpan(
       uppercase: ctx.uppercase || node.style === "uppercase",
     };
     const decoration =
-      node.style === "overbar" ? ";text-decoration:overline" : "";
+      node.style === "overbar" && !ctx.overbarLines
+        ? ";text-decoration:overline"
+        : "";
     return `<tspan data-text-run="${node.style === "overbar" ? "overbar" : "span"}" style="${styleAttribute(childCtx)}${decoration}">${renderRuns(node.children, childCtx, state)}</tspan>`;
   }
 
@@ -296,4 +312,275 @@ function renderSpan(
     baselineOffset: targetOffset,
   };
   return `<tspan data-text-run="${node.style}" dx="${number(dx)}" dy="${number(dy)}" font-size="${number(scriptFontSize)}px" style="${styleAttribute(scriptCtx)}">${renderRuns(node.children, scriptCtx, state)}</tspan>`;
+}
+
+interface OverbarInk {
+  left: number;
+  right: number;
+  top: number;
+}
+
+interface OverbarWalk {
+  bold: boolean;
+  italic: boolean;
+  upper: boolean;
+  lower: boolean;
+  fontSize: number;
+  /** The baseline's drop below the line's, as renderSpan sets it. */
+  baseline: number;
+}
+
+/**
+ * Where renderRichTextDocument sets each bar: every line's advance and the
+ * ink of the barred glyphs on it, from where the line starts, in the same
+ * advance tables, script gaps and script stacks the renderer and label
+ * measurement use. Null for content holding a fraction or a formula, which
+ * set their parts by other rules.
+ */
+function overbarLayout(
+  document: RichTextDocument,
+  profile: SchematicStyleProfile,
+  fontSize: number,
+  style: { bold: boolean; italic: boolean },
+): { width: number; bars: OverbarInk[] }[] | null {
+  const typography = profile.typography;
+  const lines: { width: number; bars: OverbarInk[] }[] = [
+    { width: 0, bars: [] },
+  ];
+  const open: OverbarInk[] = [];
+  let x = 0;
+  const closeSegment = (bar: OverbarInk) => {
+    if (bar.left <= bar.right) lines.at(-1)!.bars.push({ ...bar });
+    bar.left = Infinity;
+    bar.right = -Infinity;
+    bar.top = Infinity;
+  };
+  const visit = (runs: readonly RichTextRun[], at: OverbarWalk): boolean => {
+    for (let index = 0; index < runs.length; index += 1) {
+      const run = runs[index]!;
+      const next = runs[index + 1];
+      if (isScriptSpan(run) && isScriptSpan(next) && run.style !== next.style) {
+        // A script stack: the narrower script first, the wider over it, the
+        // line going on after the wider one (renderScriptStack).
+        const start =
+          x +
+          at.fontSize *
+            typography.subscriptScale *
+            typography.subscriptHorizontalGapEm;
+        x = start;
+        if (!visitScript(run, at, 0)) return false;
+        const firstEnd = x;
+        x = start;
+        if (!visitScript(next, at, 0)) return false;
+        x = Math.max(firstEnd, x);
+        index += 1;
+        continue;
+      }
+      switch (run.kind) {
+        case "line-break":
+          open.forEach(closeSegment);
+          lines.at(-1)!.width = x;
+          lines.push({ width: 0, bars: [] });
+          x = 0;
+          break;
+        case "text": {
+          const value = at.upper
+            ? run.value.toUpperCase()
+            : at.lower
+              ? run.value.toLowerCase()
+              : run.value;
+          const weight = at.bold ? "bold" : "plain";
+          const face = typography.face;
+          const ink = schematicTextInkEm(value, weight, at.italic, face);
+          if (ink) {
+            const top = at.baseline - overbarGlyphTopEm(value) * at.fontSize;
+            for (const bar of open) {
+              bar.left = Math.min(bar.left, x + ink.left * at.fontSize);
+              bar.right = Math.max(bar.right, x + ink.right * at.fontSize);
+              bar.top = Math.min(bar.top, top);
+            }
+          }
+          x +=
+            schematicTextAdvanceEm(value, weight, at.italic, face) *
+            at.fontSize;
+          break;
+        }
+        case "span": {
+          if (run.style === "subscript" || run.style === "superscript") {
+            if (
+              !visitScript(
+                run,
+                at,
+                run.style === "subscript"
+                  ? at.fontSize *
+                      typography.subscriptScale *
+                      typography.subscriptHorizontalGapEm
+                  : 0,
+              )
+            )
+              return false;
+            break;
+          }
+          const bar =
+            run.style === "overbar"
+              ? { left: Infinity, right: -Infinity, top: Infinity }
+              : undefined;
+          if (bar) open.push(bar);
+          const nested = visit(run.children, {
+            ...at,
+            bold: at.bold || run.style === "bold",
+            italic: at.italic || run.style === "italic",
+            upper: at.upper || run.style === "uppercase",
+            lower: at.lower || run.style === "lowercase",
+          });
+          if (!nested) return false;
+          if (bar) {
+            open.pop();
+            closeSegment(bar);
+          }
+          break;
+        }
+        case "math":
+        case "fraction":
+          return false;
+      }
+    }
+    return true;
+  };
+  const visitScript = (
+    run: Extract<RichTextRun, { kind: "span" }>,
+    at: OverbarWalk,
+    gap: number,
+  ): boolean => {
+    const scriptSize = at.fontSize * typography.subscriptScale;
+    const shift = scriptSize * typography.subscriptBaselineShiftEm;
+    x += gap;
+    return visit(run.children, {
+      ...at,
+      italic: false,
+      fontSize: scriptSize,
+      baseline: at.baseline + (run.style === "subscript" ? shift : -shift),
+    });
+  };
+  const complete = visit(document.runs, {
+    ...style,
+    upper: false,
+    lower: false,
+    fontSize,
+    baseline: 0,
+  });
+  if (!complete) return null;
+  lines.at(-1)!.width = x;
+  return lines;
+}
+
+/**
+ * The bars of a document renderRichTextDocument sets in a <text> at (x, y)
+ * with `alignment`, as SVG lines to draw after that <text>, each from the
+ * shared overbar geometry. Empty when nothing is barred; null when a bar
+ * stands in a fraction or beside a formula, which keep the CSS overline.
+ */
+export function richTextOverbars(
+  document: RichTextDocument,
+  profile: SchematicStyleProfile,
+  options: {
+    x: number;
+    y: number;
+    fontSize: number;
+    alignment: "start" | "middle" | "end";
+    /** The bars' paint; "inherit" fills them as the group fills its text. */
+    color?: string;
+    defaultBold?: boolean;
+    defaultItalic?: boolean;
+    /** Where line breaks return to; `x` when absent. */
+    lineOriginX?: number;
+  },
+): string | null {
+  if (!hasOverbar(document.runs)) return "";
+  const lines = overbarLayout(document, profile, options.fontSize, {
+    bold: options.defaultBold ?? false,
+    italic: options.defaultItalic ?? false,
+  });
+  if (!lines) return null;
+  const typography = profile.typography;
+  const pitches = richTextLinePitches(document, {
+    fontSize: options.fontSize,
+    lineHeight: typography.lineHeight,
+    subscriptScale: typography.subscriptScale,
+    subscriptBaselineShiftEm: typography.subscriptBaselineShiftEm,
+    subscriptHorizontalGapEm: typography.subscriptHorizontalGapEm,
+  });
+  let baseline = options.y;
+  let output = "";
+  lines.forEach((line, index) => {
+    if (index > 0)
+      baseline +=
+        pitches[index - 1] ?? options.fontSize * typography.lineHeight;
+    // SVG anchors each line, a text chunk of its own, by its own advance.
+    const anchor = index > 0 ? (options.lineOriginX ?? options.x) : options.x;
+    const start =
+      options.alignment === "start"
+        ? anchor
+        : options.alignment === "end"
+          ? anchor - line.width
+          : anchor - line.width / 2;
+    for (const bar of line.bars)
+      output += overbarLineSvg(
+        overbarLine({
+          left: start + bar.left,
+          right: start + bar.right,
+          top: baseline + bar.top,
+          fontSize: options.fontSize,
+        }),
+        options.color === "inherit"
+          ? undefined
+          : (options.color ?? profile.foreground),
+      );
+  });
+  return output;
+}
+
+function hasOverbar(runs: readonly RichTextRun[]): boolean {
+  return runs.some((run) =>
+    run.kind === "span"
+      ? run.style === "overbar" || hasOverbar(run.children)
+      : run.kind === "fraction" &&
+        (hasOverbar(run.numerator.runs) || hasOverbar(run.denominator.runs)),
+  );
+}
+
+/**
+ * Rich text for a <text> at (x, y) and the bars to draw after it: each bar a
+ * line in the shared geometry where it can be placed, else the CSS overline.
+ */
+export function renderRichTextWithOverbars(
+  document: RichTextDocument,
+  profile: SchematicStyleProfile,
+  options: {
+    x: number;
+    y: number;
+    fontSize: number;
+    alignment: "start" | "middle" | "end";
+    color?: string;
+    defaultBold?: boolean;
+    defaultItalic?: boolean;
+    /** Line breaks return here; `x` when absent. */
+    lineOriginX?: number;
+  },
+): { tspans: string; decorations: string } {
+  const decorations = richTextOverbars(document, profile, options);
+  return {
+    tspans: renderRichTextDocument(document, profile, {
+      lineOriginX: options.lineOriginX ?? options.x,
+      fontSize: options.fontSize,
+      ...(options.defaultBold !== undefined
+        ? { defaultBold: options.defaultBold }
+        : {}),
+      ...(options.defaultItalic !== undefined
+        ? { defaultItalic: options.defaultItalic }
+        : {}),
+      overbarLines: decorations !== null,
+    }),
+    decorations: decorations ?? "",
+  };
 }
