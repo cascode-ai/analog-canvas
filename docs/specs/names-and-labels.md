@@ -123,18 +123,22 @@ redraws seen drawings), whether the name was typed, connected or generated:
 - Agent **arrange-labels** moves only eligible labels of requested Instances
   (visible, unrotated, unlocked, at default style, in their default rows, an
   earlier value-over-name stack or another side's rows; hand-moved ones only
-  with `includeManual`) to bounded nearby positions; it never resets all
-  labels. A group an earlier arrangement left clear in another side's rows
+  with `includeManual`, and then only those the label findings report, moved
+  only to a place they leave clear, else left with reason `crowded`; clear
+  ones are left with reason `clear`) to bounded nearby positions; it never
+  resets all labels. A group an earlier arrangement left clear in another side's rows
   stays unless a side is asked for.
   Reference and value move together (default side, other sides, then slid
   along a side while half the group stays beside the part), name first with
   the value under it (above the part: value nearest, name a row over). A place
-  is clear of wires, parts, labels and free text with word/line spacing, ~10
+  is clear of wires, parts, labels and free text with word/line spacing and,
+  for a part's name or value, 2 units from the stroke edge of any wire, rail,
+  junction dot or part drawing (`VISUAL_LABEL_CROWDED`), ~10
   units from a neighbour's label on the row, a line's space from junction
   dots, no foreign wire between label and part or name and value, and no
   reading as another part's label. Failing that, a place the label findings
-  would report (`VISUAL_LABEL_CLEARANCE`, `_OVERLAP`, `_OWNER_DISTANCE`,
-  `_RUN_ON`) ranks below any they would not, overlap outranks crowding, and
+  would report (`VISUAL_LABEL_CLEARANCE`, `_CROWDED`, `_OVERLAP`,
+  `_OWNER_DISTANCE`, `_RUN_ON`) ranks below any they would not, overlap outranks crowding, and
   the Reference is kept clear before the value; a label still reported takes
   the nearest place within three grid steps they leave clear, else it stays
   and the warning shows. Series two-terminal parts on a wired horizontal row

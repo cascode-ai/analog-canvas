@@ -53,6 +53,11 @@ interface EligibleLabel {
   readonly sizeScale: number;
   /** Eligible only as standing in another side's rows, where a pass put it. */
   readonly arranged: boolean;
+  /**
+   * Moved by hand and eligible only for `includeManual` because the label
+   * findings report it: it moves only to a place they leave clear (#2619).
+   */
+  readonly repair: boolean;
 }
 
 /** Where the current and every earlier rule put an untouched label. */
@@ -79,7 +84,12 @@ const DEFAULT_SLOTS: Readonly<
 export interface LabelLeftInPlace {
   labelId: string;
   instanceId: string;
-  reason: "locked" | "rotated" | "custom" | "moved";
+  /**
+   * moved: by hand, without includeManual; clear: by hand, and nothing the
+   * label findings report; crowded: by hand and reported, with no clear
+   * place to repair it to (#2619).
+   */
+  reason: "locked" | "rotated" | "custom" | "moved" | "clear" | "crowded";
 }
 
 /**
@@ -107,8 +117,17 @@ export interface ArrangeInstanceLabelsOptions {
   compact?: boolean | undefined;
   avoidCollisions?: boolean | undefined;
   referenceStyle?: "preserve" | "first-letter-subscript" | undefined;
-  /** Re-place labels moved by hand too; locked and custom ones stay. */
+  /**
+   * Re-place labels moved by hand that the label findings report (a wire, a
+   * part or a label over or crowding it, far from its part, run on), only to
+   * a place they leave clear (#2619); clear, locked and custom ones stay.
+   */
   includeManual?: boolean | undefined;
+  /**
+   * Repair labels moved by hand as includeManual does, without its other
+   * effects: the textbook preset's (#2619).
+   */
+  repairManual?: boolean | undefined;
   /**
    * The side tried first. "outside" is the side away from the drawing's
    * centre line, so the two halves of a symmetric circuit mirror (#1519).
@@ -360,13 +379,22 @@ export function arrangeInstanceLabelsReport(
     );
     const inSideRows =
       sideSlot !== null && DEFAULT_SLOTS[slot].includes(sideSlot.slot);
-    const inDefaultRow =
-      at(slot) ||
-      inOwnSlot ||
-      stackedValueFirst(instance.id).has(original.id) ||
-      options.includeManual === true;
+    const placed =
+      at(slot) || inOwnSlot || stackedValueFirst(instance.id).has(original.id);
+    // A hand-moved label is repaired, not re-placed: one clear where its
+    // author put it stays there.
+    const repairs =
+      options.includeManual === true || options.repairManual === true;
+    const repair =
+      !placed &&
+      !inReferenceSlot &&
+      !inSideRows &&
+      repairs &&
+      violatesClearance(original);
+    const inDefaultRow = placed || repair;
     const inValueRow = !inReferenceSlot && (inDefaultRow || inSideRows);
-    if (!inValueRow && !inReferenceSlot) return leave("moved");
+    if (!inValueRow && !inReferenceSlot)
+      return leave(repairs ? "clear" : "moved");
     const annotation =
       reference &&
       !cellName &&
@@ -386,7 +414,17 @@ export function arrangeInstanceLabelsReport(
       compact,
       sizeScale,
       arranged: !inReferenceSlot && !inDefaultRow,
+      repair,
     };
+  }
+
+  /**
+   * Whether the label findings report `label` where it stands: a wire, a
+   * part or another label drawn over it or crowding it, or it far from its
+   * part or running on into a neighbour's.
+   */
+  function violatesClearance(label: Annotation): boolean {
+    return !context.clearAt(label);
   }
 
   const edits: SchematicEdit[] = [];
@@ -1010,8 +1048,23 @@ export function arrangeInstanceLabelsReport(
       alignment: label.original.alignment,
     }));
     const kept = total(originals);
+    // A group with a label repaired for includeManual moves only where it
+    // meets nothing and no crowding: a telescopic op amp's M3 had been moved
+    // onto its drain's junction dot and M7 across its VDD stub, and a summing
+    // amplifier's R2 split from its 20kΩ, under R3's (#2619).
+    const repairedClear =
+      !group.some((label) => label.repair) || clear(total(chosen));
+    if (!repairedClear)
+      for (const label of group)
+        if (label.repair)
+          left.push({
+            labelId: label.original.id,
+            instanceId: ownerId,
+            reason: "crowded",
+          });
     if (
       better(kept, total(chosen)) ||
+      !repairedClear ||
       (!options.side && group.some((label) => label.arranged) && clear(kept))
     )
       chosen = originals;

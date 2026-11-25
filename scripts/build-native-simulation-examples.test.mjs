@@ -55,6 +55,14 @@ const expectedClearanceLabels = {
   "ota-library/document-ota-5t-testbench": libraryTbClearanceLabels,
   "ota-library/document-ota-5t-testbench-sin": libraryTbClearanceLabels,
 };
+// Labels under the 2-unit clearance from their own part's strokes (#2619),
+// pinned by owner as clearance findings are. No fixture geometry is changed.
+const expectedCrowdedLabels = {
+  "rc/cell-rc-highpass": ["instance-label-C1"],
+  "common-source/cell-common-source": ["instance-label-VIN"],
+  "ota-library/document-ota-5t-testbench": ["instance-value-IBIAS"],
+  "ota-library/document-ota-5t-testbench-sin": ["instance-value-IBIAS"],
+};
 // The reviewed common-source drawing leaves one wire ending in the open, which
 // ERC_DANGLING_WIRE names: the dashed bulk wire from XM1. The stub from the
 // supply's minus pin ends on a Junction exactly on the Ground marker's pin, so
@@ -132,6 +140,18 @@ test.each([
               diagnostic.parameters.conflictingObjectCount,
             ).toBeGreaterThan(0);
           }
+          const crowdedNotes = inspection.document.diagnostics.filter(
+            (diagnostic) => diagnostic.code === "VISUAL_LABEL_CROWDED",
+          );
+          expect(crowdedNotes.map((d) => d.objectIds[0]).sort()).toEqual(
+            [...(expectedCrowdedLabels[`${item.id}/${doc.id}`] ?? [])].sort(),
+          );
+          for (const diagnostic of crowdedNotes)
+            expect(diagnostic).toMatchObject({
+              category: "observation",
+              severity: "warning",
+              gateEligible: false,
+            });
           const openWireEnds = inspection.document.diagnostics.filter(
             (diagnostic) => diagnostic.code === "ERC_DANGLING_WIRE",
           );
@@ -149,6 +169,7 @@ test.each([
             (diagnostic) =>
               diagnostic.code !== "IMPORT_REFERENCE_UNAVAILABLE" &&
               diagnostic.code !== "VISUAL_LABEL_CLEARANCE" &&
+              diagnostic.code !== "VISUAL_LABEL_CROWDED" &&
               diagnostic.code !== "ERC_DANGLING_WIRE" &&
               diagnostic.code !== "GENERATED_NET_NAME",
           );

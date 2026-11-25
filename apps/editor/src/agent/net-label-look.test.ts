@@ -381,6 +381,7 @@ it("puts an Agent label on the far side of its wire when another Net's runs besi
   expect(ink.x + ink.width).toBeLessThan(0);
   expect(context.findingsAt(label)).toEqual({
     struck: [],
+    crowded: [],
     overlapped: [],
     runsOn: [],
   });

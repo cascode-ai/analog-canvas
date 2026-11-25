@@ -175,16 +175,16 @@ describe("opt-in label arrangement", () => {
     // The value's default row is covered twice. Every other side clears the
     // value but puts the Reference on a label: one conflict against two, so
     // the whole group used to move and the part's name was drawn over text.
-    // Wires just above the Reference row, and a row higher, leave the group
-    // no room to slide up, and a wire between its rows does not count as
-    // room.
+    // Wires just above the Reference row, its least clearance clear of
+    // them (#2619), and a row higher, leave the group no room to slide up,
+    // and a wire between its rows does not count as room.
     const { doc, instance } = fixture();
     doc.nets.push({ id: "n", terminals: [] });
     doc.junctions.push(
-      { id: "a", netId: "n", position: { x: 0, y: 92 } },
-      { id: "b", netId: "n", position: { x: 92, y: 92 } },
-      { id: "c", netId: "n", position: { x: 108, y: 92 } },
-      { id: "d", netId: "n", position: { x: 200, y: 92 } },
+      { id: "a", netId: "n", position: { x: 0, y: 90 } },
+      { id: "b", netId: "n", position: { x: 92, y: 90 } },
+      { id: "c", netId: "n", position: { x: 108, y: 90 } },
+      { id: "d", netId: "n", position: { x: 200, y: 90 } },
     );
     for (const [id, start, end] of [
       ["left", "a", "b"],
@@ -1107,6 +1107,7 @@ describe("opt-in label arrangement", () => {
       const moved = doc.annotations.find((a) => a.id === name.id)!;
       expect(context.findingsAt(moved)).toEqual({
         struck: [],
+        crowded: [],
         overlapped: [],
         runsOn: [],
       });

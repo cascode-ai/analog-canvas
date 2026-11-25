@@ -66,6 +66,7 @@ it("reports wire intersection and owner distance as observations, ignores hidden
   const ink = context.measure(far).inkBounds;
   expect(context.findingsAt(far)).toEqual({
     struck: ["w"],
+    crowded: [],
     overlapped: [],
     ownerGap: checks[1]!.parameters!.gap,
     runsOn: [],
@@ -575,11 +576,12 @@ it("measures a value by its glyphs' outlines as the label advance tables set the
   const close = valueAt("end", 326.5);
   expect(close.ink.x).toBeCloseTo(276.59, 1);
   expect(close.findings).toEqual(overPlates);
-  // Three units farther right is clear; F ends 0.589524 short of the anchor.
+  // Three units farther right is off the plates; F ends 0.589524 short of
+  // the anchor. Under two units from their strokes, it is crowded (#2619).
   const clear = valueAt("end", 329.5);
   expect(clear.ink.x).toBeCloseTo(279.59, 1);
   expect(clear.ink.x + clear.ink.width).toBeCloseTo(328.91, 1);
-  expect(clear.findings).toEqual([]);
+  expect(clear.findings).toEqual([["VISUAL_LABEL_CROWDED", ["value", "CT1"]]]);
   // A start-aligned value stands on its anchor by the same bearing: CT2's
   // spot 12 right of the centre is clear, 6 right of it is not.
   expect(valueAt("start", 282).findings).toEqual([]);
@@ -780,5 +782,97 @@ describe("labels that run on (#1412)", () => {
     expect(runOn()).toEqual([]);
     row(["R1-value", "R2-value"], 105, 10);
     expect(runOn().map((d) => d.objectIds)).toEqual([["R1-value", "R2-value"]]);
+  });
+});
+
+describe("a part's label crowding a wire or a part (#2619)", () => {
+  /** A resistor, its name at its default place, and a wire `below` its ink. */
+  function drawing(below: number | null) {
+    const doc = createEmptyDocument("d", "Crowded");
+    doc.instances.push({
+      id: "R1",
+      reference: "R1",
+      symbolId: "resistor",
+      placement: { position: { x: 100, y: 100 }, rotation: 0, mirror: "none" },
+    });
+    const style = resolveDocumentStyleProfile(doc.presentation);
+    const resolved = resolver.resolve("resistor")!;
+    const placed = defaultInstanceLabelPlacement(
+      doc.instances[0]!,
+      resolved,
+      style,
+      doc.presentation.grid,
+    )!;
+    doc.annotations.push({
+      id: "name",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "R1" },
+      anchor: {
+        kind: "object",
+        objectId: "R1",
+        localOffset: {
+          x: placed.position.x - 100,
+          y: placed.position.y - 100,
+        },
+        fallbackPosition: placed.position,
+      },
+      alignment: placed.alignment,
+      rotation: 0,
+      locked: false,
+    });
+    const ink = createLabelClearanceContext(doc, resolver).measure(
+      doc.annotations[0]!,
+    ).inkBounds;
+    if (below !== null) {
+      // The wire's stroke edge `below` units under the name's ink.
+      const y = ink.y + ink.height + below + 0.8;
+      doc.nets.push({ id: "n", terminals: [] });
+      doc.junctions.push(
+        { id: "a", netId: "n", position: { x: ink.x - 40, y } },
+        { id: "b", netId: "n", position: { x: ink.x + ink.width + 40, y } },
+      );
+      doc.routes.push(
+        createRoutePath({
+          id: "w",
+          netId: "n",
+          start: { kind: "junction", junctionId: "a" },
+          end: { kind: "junction", junctionId: "b" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    return doc;
+  }
+  const findings = (doc: ReturnType<typeof drawing>) =>
+    diagnoseLabelClearance(doc, resolver).map((d) => [
+      d.code,
+      d.objectIds,
+      d.parameters,
+    ]);
+
+  it("leaves a default place alone: its own part's stroke is clear", () => {
+    expect(findings(drawing(null))).toEqual([]);
+  });
+
+  it("warns under two units from a wire's stroke edge, not a line's centre", () => {
+    expect(findings(drawing(1))).toEqual([
+      [
+        "VISUAL_LABEL_CROWDED",
+        ["name", "w"],
+        { clearance: 1, minimumClearance: 2, conflictingObjectCount: 1 },
+      ],
+    ]);
+    expect(findings(drawing(2.5))).toEqual([]);
+    const doc = drawing(1);
+    const context = createLabelClearanceContext(doc, resolver);
+    expect(context.findingsAt(doc.annotations[0]!).crowded).toEqual(["w"]);
+    expect(context.clearAt(doc.annotations[0]!)).toBe(false);
+  });
+
+  it("leaves text drawn over the wire to VISUAL_LABEL_CLEARANCE", () => {
+    expect(findings(drawing(-6)).map(([code]) => code)).toEqual([
+      "VISUAL_LABEL_CLEARANCE",
+    ]);
   });
 });

@@ -481,7 +481,9 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
       includeManual: z
         .boolean()
         .optional()
-        .describe("Also re-place labels moved by hand."),
+        .describe(
+          "Also repair labels moved by hand that the label findings report (struck, crowded, overlapping, far from their part), only to a clear place.",
+        ),
       side: z
         .enum(["left", "right", "top", "bottom", "outside"])
         .optional()
