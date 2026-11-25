@@ -32,6 +32,7 @@ import {
   terminalLocator,
 } from "./erc-shared.js";
 import { reportOpAmpPositiveFeedback } from "./opamp-positive-feedback.js";
+import { reportSwitchChecks } from "./switch-checks.js";
 import {
   findExternalMasterCollisions,
   libraryPartRetarget,
@@ -803,6 +804,7 @@ export function runErcChecks(
       diagnostics,
     );
     reportOpAmpPositiveFeedback(project, document, logicalNets, diagnostics);
+    reportSwitchChecks(project, document, logicalNets, resolver, diagnostics);
     reportDanglingWires(document, docIndex, diagnostics);
     reportNetLabelsNamingNothing(document, diagnostics);
     reportOverbarNameMismatches(document, diagnostics);
