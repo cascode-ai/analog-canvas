@@ -15,9 +15,10 @@ the region components in [regional publications](regional-resources.md).
 - AUTH issues a 120-second opaque capability bound to one command digest and its
   destination. Redemption revalidates the original session or regional grant,
   including its current subject. A session change invalidates the capability.
-  Dataset import alone also accepts an Owner token: AUTH revalidates the current
+  Dataset import, single Community entry updates and local simulation-check
+  verification routes also accept an Owner token: AUTH revalidates the current
   token and Owner role before issuing and redeeming the bounded capability. The
-  publication peer never receives the original Owner token.
+  peer never receives the original Owner token.
 - A peer command or writer lookup may wait through a domestic maintenance hold
   of up to 60 seconds. The transport allows 120 seconds, including execution;
   upstream proxies must not expire sooner. This does not replay a sent command
@@ -85,6 +86,12 @@ the region components in [regional publications](regional-resources.md).
   intentional rerun. Partial acceptance reports failed writers or IDs with HTTP
   207 and retains the browser's retry identity. Progress totals writer-owned
   results once; an unavailable writer makes the combined progress unavailable.
+  Local verification (`GET /api/gallery/simulation-checks/inputs`,
+  `GET /api/gallery/<id>/simulation-check/input`,
+  `POST /api/gallery/<id>/simulation-check`) merges both writers' input lists
+  and routes per-entry reads and verdict writes to the entry's writer via
+  `/api/resource-actions/maintenance`, catching up the Gallery stream before
+  acknowledging a recorded verdict.
 - Like changes follow the interaction writer, including Dataset stores and the
   Owner's heart increments/decrements. The browser first prepares an intent and
   persists its command ID, writer and expected interaction state before mutation.
@@ -114,11 +121,14 @@ the region components in [regional publications](regional-resources.md).
   items has its own writer and receipt; a failed or pending item is reported as
   such, while other items may succeed. A single publication command is bounded
   to 3 MiB. Unsupported Dataset routes retain their original restrictions.
-- A foreign Community drawing update first catches up the private Project stream
-  at its writer, then commits publication and binding together. Its entrance catches
-  up both ordered streams before success and compares the resulting links. Each
-  catch-up is bounded to 64 events and 20 seconds. Conflicted private saves are
-  retained under the Project conflict protocol, not overwritten by publication.
+- A foreign Community drawing update carrying a `cloudProjectId` first catches
+  up the private Project stream at its writer, then commits publication and
+  binding together. Its entrance catches up both ordered streams before success
+  and compares the resulting links. Updates without a `cloudProjectId` catch up
+  only the Gallery stream so unrelated private Project stream lag never masks a
+  committed Gallery write. Each catch-up is bounded to 64 events and 20 seconds.
+  Conflicted private saves are retained under the Project conflict protocol, not
+  overwritten by publication.
 - Optional rejection email uses a durable delivery ID and frozen complete provider payload
   (sender, recipients, subject, text and reply address).
   Confirmed delivery is never resent. An uncertain send may retry the same provider

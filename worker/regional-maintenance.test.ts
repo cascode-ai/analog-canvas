@@ -596,3 +596,187 @@ it("refuses format commands at the writer without an admin, for another writer o
     original,
   );
 });
+
+it("lists, reads, and records local simulation checks across regions with an Owner token (#2610)", async () => {
+  const t = await pair(),
+    cnId = await t.publish(t.cn),
+    overseasId = await t.publish(t.overseas);
+  const benchText = testbenchProjectText();
+  const folderName = JSON.parse(benchText).simulationFolders[0].name as string;
+  expect(
+    (
+      await t.cn.call(`/api/gallery/${cnId}`, "PUT", "local-bench-cn", {
+        name: "CN Bench",
+        description: "",
+        tags: [],
+        projectText: benchText,
+      })
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await t.overseas.call(
+        `/api/gallery/${overseasId}`,
+        "PUT",
+        "local-bench-os",
+        {
+          name: "Overseas Bench",
+          description: "",
+          tags: [],
+          projectText: benchText,
+        },
+      )
+    ).status,
+  ).toBe(200);
+  await sync(t.cn, t.overseas);
+  await sync(t.overseas, t.cn);
+
+  const ownerCookie = await ownerAccountOf(t.auth.source);
+  const minted = (await (
+    await t.auth.source.authDurable.fetch(
+      new Request(ORIGIN + "/api/auth/owner-tokens", {
+        method: "POST",
+        headers: { origin: ORIGIN, cookie: ownerCookie },
+        body: JSON.stringify({ label: "Local sim verify" }),
+      }),
+    )
+  ).json()) as { token: string };
+  const authHeaders = {
+    authorization: "Bearer " + minted.token,
+    "content-type": "application/json",
+  };
+
+  // Unauthorized and non-Owner callers stay refused.
+  expect(
+    (
+      await t.overseas.route(
+        new Request(ORIGIN + "/api/gallery/simulation-checks/inputs"),
+      )
+    ).status,
+  ).toBe(401);
+  expect(
+    (
+      await t.overseas.route(
+        new Request(ORIGIN + `/api/gallery/${cnId}/simulation-check/input`, {
+          headers: { origin: ORIGIN, cookie: t.cookie },
+        }),
+      )
+    ).status,
+  ).toBe(403);
+
+  // Inputs merges both overseas and CN public entries with testbenches.
+  const inputsRes = await t.overseas.route(
+    new Request(ORIGIN + "/api/gallery/simulation-checks/inputs", {
+      headers: authHeaders,
+    }),
+  );
+  expect(inputsRes.status, await inputsRes.clone().text()).toBe(200);
+  const listed = (await inputsRes.json()) as {
+    entries: { id: string; name: string }[];
+  };
+  expect(listed.entries.map((entry) => entry.id)).toEqual(
+    expect.arrayContaining([overseasId, cnId]),
+  );
+
+  // Reading a foreign-region (CN-owned) entry's input routes to its writer instead of 409 wrong-writer.
+  const inputRes = await t.overseas.route(
+    new Request(ORIGIN + `/api/gallery/${cnId}/simulation-check/input`, {
+      headers: authHeaders,
+    }),
+  );
+  expect(inputRes.status, await inputRes.clone().text()).toBe(200);
+  const input = (await inputRes.json()) as {
+    id: string;
+    name: string;
+    projectText: string;
+    projectDigest: string;
+    testbenchDigest: string;
+  };
+  expect(input).toMatchObject({
+    id: cnId,
+    name: "CN Bench",
+    projectDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
+    testbenchDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
+  });
+
+  // Stale digest is refused with 409 stale-content from the writer.
+  const staleRes = await t.overseas.route(
+    new Request(ORIGIN + `/api/gallery/${cnId}/simulation-check`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        projectDigest: "0".repeat(64),
+        testbenchDigest: input.testbenchDigest,
+        status: "pass",
+        checkedAt: new Date().toISOString(),
+        folders: [
+          {
+            name: folderName,
+            status: "pass",
+            simulator: "ngspice ngspice-46",
+            profileId: "hosted-sky130-ngspice-v1",
+            specs: [
+              {
+                name: "vmid",
+                expected: "[0.45, 0.55]",
+                value: 0.5,
+                unit: "V",
+                judgment: "pass",
+              },
+            ],
+          },
+        ],
+      }),
+    }),
+  );
+  expect(staleRes.status).toBe(409);
+  expect(await staleRes.json()).toEqual({ error: "stale-content" });
+
+  // Recording a valid local verdict routes to CN, commits, and catches up overseas immediately.
+  const checkedAt = new Date().toISOString();
+  const recordRes = await t.overseas.route(
+    new Request(ORIGIN + `/api/gallery/${cnId}/simulation-check`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        projectDigest: input.projectDigest,
+        testbenchDigest: input.testbenchDigest,
+        status: "pass",
+        checkedAt,
+        folders: [
+          {
+            name: folderName,
+            status: "pass",
+            simulator: "ngspice ngspice-46",
+            profileId: "hosted-sky130-ngspice-v1",
+            specs: [
+              {
+                name: "vmid",
+                expected: "[0.45, 0.55]",
+                value: 0.5,
+                unit: "V",
+                judgment: "pass",
+              },
+            ],
+          },
+        ],
+      }),
+    }),
+  );
+  expect(recordRes.status, await recordRes.clone().text()).toBe(200);
+  expect(await recordRes.json()).toMatchObject({
+    recorded: true,
+    check: { status: "pass", origin: "local" },
+  });
+
+  // Overseas immediately sees the recorded verdict without needing a manual sync.
+  const readCheck = await t.overseas.route(
+    new Request(ORIGIN + `/api/gallery/${cnId}/simulation-check`, {
+      headers: { cookie: ownerCookie },
+    }),
+  );
+  expect(readCheck.status).toBe(200);
+  expect(await readCheck.json()).toMatchObject({
+    check: { status: "pass", origin: "local" },
+  });
+});
