@@ -300,6 +300,50 @@ describe("selection boards", () => {
     });
   });
 
+  it("takes an agent's changes under its account's API token", async () => {
+    const minted = await env.authDurable.fetch(
+      new Request(`${ORIGIN}/api/auth/owner-tokens`, {
+        method: "POST",
+        headers: {
+          Cookie: collaborator,
+          Origin: ORIGIN,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ label: "agent" }),
+      }),
+    );
+    expect(minted.status).toBe(201);
+    const { token } = (await minted.json()) as { token: string };
+    const agent = (bearer: string) =>
+      routeBoardsRequest(
+        new Request(`${ORIGIN}/api/board/changes`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${bearer}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            changes: [
+              { kind: "add", entry: "entry-a", note: "picked by an agent" },
+              { kind: "add", entry: `${ORIGIN}/g/entry-b` },
+            ],
+          }),
+        }),
+        env,
+      );
+    const refused = await agent(`${token}x`);
+    expect(refused?.status).toBe(401);
+    expect(await refused!.json()).toEqual({ error: "bad-token" });
+    const board = await json((await agent(token))!);
+    expect(
+      board.items.map((item: any) => [item.entryId, item.addedBy]),
+    ).toEqual([
+      ["entry-a", "friend"],
+      ["entry-b", "friend"],
+    ]);
+    expect(board.board.createdBy).toBe("friend");
+  });
+
   it("takes only public entries, each once, within the slots, all or none", async () => {
     await makeBoard();
     const change = async (changes: unknown[]) =>

@@ -116,11 +116,16 @@ it("validates Owner import tokens without a cached revocation or browser session
     path: "/api/auth/owner-tokens",
     body: { label: "Regional import" },
   };
+  // Any account mints its own API token; only the Owner's names the Owner.
+  const memberMinted = await (
+    await rpc(h, "account", { ...operation, grant: member.grant })
+  ).json();
+  expect(memberMinted).toMatchObject({ result: { status: 201 } });
   expect(
     await (
-      await rpc(h, "account", { ...operation, grant: member.grant })
+      await rpc(h, "owner-token", { token: memberMinted.result.body.token })
     ).json(),
-  ).toMatchObject({ result: { status: 403 } });
+  ).toMatchObject({ user: { id: member.user.id } });
   const minted = await (
     await rpc(h, "account", { ...operation, grant: owner.grant })
   ).json();

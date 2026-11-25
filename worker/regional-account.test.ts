@@ -285,19 +285,22 @@ it("changes the authoritative profile through a domestic session and immediately
   });
 });
 
-it("manages Owner tokens domestically and validates them only for Dataset import without caching revocation", async () => {
+it("manages API tokens domestically and validates only the Owner's for Dataset import without caching revocation", async () => {
   const h = accounts();
   const owner = await h.connect(await ownerAccountOf(h.source));
   const admin = await h.connect(await adminOf(h.source));
   const member = await h.connect(await makerOf(h.source));
-  for (const cookie of [admin, member])
-    expect(
-      (
-        await h.call("/api/auth/owner-tokens", cookie, "POST", {
-          label: "denied",
-        })
-      ).status,
-    ).toBe(403);
+  const memberToken = await h.call("/api/auth/owner-tokens", member, "POST", {
+    label: "member agent",
+  });
+  expect(memberToken.status).toBe(201);
+  expect(
+    (
+      await h.call("/api/auth/owner-tokens", admin, "POST", {
+        label: "admin agent",
+      })
+    ).status,
+  ).toBe(201);
   const minted = await h.call("/api/auth/owner-tokens", owner, "POST", {
     label: "regional import",
   });
@@ -329,6 +332,8 @@ it("manages Owner tokens domestically and validates them only for Dataset import
       }),
     );
   expect((await importing(token)).status).toBe(200);
+  // Any account's token, but only the Owner's imports.
+  expect((await importing((await memberToken.json()).token)).status).toBe(403);
   expect(
     (
       await h.region.fetch(

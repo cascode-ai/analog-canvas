@@ -625,7 +625,8 @@ export class AuthDO {
         expires_at TEXT NOT NULL
       ) WITHOUT ROWID
     `);
-    // Owner tokens (#1769): a bearer per machine for dataset imports.
+    // API tokens (#1769): a bearer per machine. Any account's edits the
+    // selection board; only the Owner's also opens the dataset imports.
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS owner_tokens (
         token_hash TEXT PRIMARY KEY,
@@ -1919,15 +1920,18 @@ export class AuthDO {
   // --- Owner tokens (#1769) ----------------------------------------------
 
   /**
-   * Mint (POST {label}), list (GET) and revoke (DELETE /<id>) Owner tokens:
-   * a signed-in Owner's same-origin session alone, never a token. The raw
-   * token is returned once, at minting; only its hash is kept.
+   * Mint (POST {label}), list (GET) and revoke (DELETE /<id>) the caller's own
+   * API tokens: a signed-in same-origin session alone, never a token. Any
+   * account may hold them; the routes that take one decide what it opens, and
+   * the Owner tools still take only the Owner's. The raw token is returned
+   * once, at minting; only its hash is kept.
    */
   private async ownerTokens(request: Request, rest: string): Promise<Response> {
     if (!sameOrigin(request)) return noStoreJson({ error: "forbidden" }, 403);
     const caller = await this.sessionUser(request);
     if (!caller) return noStoreJson({ error: "unauthorized" }, 401);
-    if (!caller.isOwner) return noStoreJson({ error: "owner-only" }, 403);
+    // A person's own account holds them, never an AI account a browser switched to.
+    if (caller.seat) return noStoreJson({ error: "ai-account" }, 403);
     const method = request.method;
     if (rest === "" && method === "GET") {
       const tokens = this.sql
@@ -1938,7 +1942,8 @@ export class AuthDO {
           lastUsedAt: string | null;
         }>(
           `SELECT id, label, created_at AS createdAt, last_used_at AS lastUsedAt
-           FROM owner_tokens ORDER BY created_at, id`,
+           FROM owner_tokens WHERE user_id = ? ORDER BY created_at, id`,
+          caller.id,
         )
         .toArray();
       return noStoreJson({ tokens });
@@ -1966,7 +1971,11 @@ export class AuthDO {
     const id = /^\/([^/]+)$/u.exec(rest)?.[1];
     if (id && method === "DELETE") {
       const found = this.sql
-        .exec<{ id: string }>("SELECT id FROM owner_tokens WHERE id = ?", id)
+        .exec<{ id: string }>(
+          "SELECT id FROM owner_tokens WHERE id = ? AND user_id = ?",
+          id,
+          caller.id,
+        )
         .toArray();
       if (found.length === 0) return noStoreJson({ error: "not-found" }, 404);
       this.sql.exec("DELETE FROM owner_tokens WHERE id = ?", id);
@@ -1975,7 +1984,7 @@ export class AuthDO {
     return Response.json({ error: "not-found" }, { status: 404 });
   }
 
-  /** The account an Owner token's bearer belongs to; marks the token used. */
+  /** The account an API token's bearer belongs to; marks the token used. */
   private async ownerTokenUser(request: Request): Promise<SessionUser | null> {
     const token = /^Bearer (\S+)$/u.exec(
       request.headers.get("Authorization") ?? "",

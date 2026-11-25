@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-/** One Owner upload token as the server lists it (#1769); never its secret. */
+/** One API token as the server lists it (#1769); never its secret. */
 export interface OwnerTokenRow {
   id: string;
   label: string;
@@ -98,12 +98,12 @@ type Copy =
   | { status: "failed"; message: string };
 
 /**
- * The Owner's upload tokens (#1769), on the account's Settings: one click
- * mints a token for this computer and copies it, never showing it, for the
- * dataset import to read from the command line; the tokens are listed by
- * label and each can be revoked.
+ * The account's API tokens (#1769), on its Settings: one click mints a token
+ * for this computer and copies it, never showing it, for an agent or script
+ * to edit the selection board as this account (the Owner's also uploads
+ * dataset redraws); the tokens are listed by label and each can be revoked.
  */
-export function OwnerTokensSection() {
+export function OwnerTokensSection({ owner = false }: { owner?: boolean }) {
   const [tokens, setTokens] = useState<OwnerTokenRow[] | null | "failed">(null);
   const [label, setLabel] = useState(() =>
     defaultTokenLabel(
@@ -143,10 +143,19 @@ export function OwnerTokensSection() {
       aria-labelledby="account-owner-tokens"
       data-testid="owner-tokens"
     >
-      <h3 id="account-owner-tokens">Upload token</h3>
+      <h3 id="account-owner-tokens">API token</h3>
       <p className="account-page-note">
-        Lets this computer upload dataset redraws from the command line. Copy
-        one, then save it as <code>{OWNER_TOKEN_FILE}</code>.
+        Lets an agent or script on this computer edit the{" "}
+        <a href="/boards">selection board</a> as you: send{" "}
+        <code>POST /api/board/changes</code> with{" "}
+        <code>Authorization: Bearer &lt;token&gt;</code>.
+        {owner ? (
+          <>
+            {" "}
+            It also uploads dataset redraws from the command line once saved as{" "}
+            <code>{OWNER_TOKEN_FILE}</code>.
+          </>
+        ) : null}
       </p>
       <form
         className="account-page-row owner-token-form"
@@ -169,7 +178,7 @@ export function OwnerTokensSection() {
           data-testid="owner-token-copy"
           disabled={!label.trim() || copy.status === "busy"}
         >
-          {copy.status === "busy" ? "Copying…" : "Copy upload token"}
+          {copy.status === "busy" ? "Copying…" : "Copy API token"}
         </button>
       </form>
       {copy.status === "copied" ? (
@@ -178,8 +187,14 @@ export function OwnerTokensSection() {
           role="status"
           data-testid="owner-token-copied"
         >
-          Upload token copied. Save it on this computer as{" "}
-          <code>{OWNER_TOKEN_FILE}</code> to upload from the command line.
+          API token copied. Keep it secret: it edits as you until you revoke it.
+          {owner ? (
+            <>
+              {" "}
+              Save it as <code>{OWNER_TOKEN_FILE}</code> to upload from the
+              command line.
+            </>
+          ) : null}
         </p>
       ) : copy.status === "failed" ? (
         <p
