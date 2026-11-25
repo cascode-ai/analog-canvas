@@ -8,6 +8,7 @@ import type {
 } from "./schema.js";
 import {
   formatLabelSubscripts,
+  hasRichTextOverbar,
   identifierTextDocument,
   identifierSubscriptCase,
   rewriteRichTextIdentifier,
@@ -368,8 +369,15 @@ export function renamedLabelFormat(
   // A format that spells its name character by character keeps each
   // character's style, so an authored subscript survives the rename. A new
   // name with an underscore places its subscript at that underscore, the
-  // historical encoding a stored display may use to spell its name.
-  if (!nextName.includes("_") && flattenRichText(format) === previousName)
+  // historical encoding a stored display may use to spell its name. An
+  // overbar is name-bearing (`_bar`), so overbarred formats always pass
+  // through `rewriteRichTextIdentifier` to drop stale bars on non-`_bar`
+  // names instead of rendering double-negated text.
+  if (
+    !nextName.includes("_") &&
+    !hasRichTextOverbar(format) &&
+    flattenRichText(format) === previousName
+  )
     return rewriteRichTextPlainText(format, nextName);
   return rewriteRichTextIdentifier(
     format,

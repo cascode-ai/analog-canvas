@@ -210,16 +210,33 @@ describe("standard label looks", () => {
         },
       ],
     };
+    const overbarred = {
+      runs: [
+        {
+          kind: "span" as const,
+          style: "overbar" as const,
+          children: [
+            {
+              kind: "span" as const,
+              style: "bold" as const,
+              children: [{ kind: "text" as const, value: "CK" }],
+            },
+          ],
+        },
+      ],
+    };
     pin("rfp");
     pin("rfn", { locked: true });
     pin("vin", { formatOverride: roleLabelFormat("voltage-node", "vin")! });
     pin("vb", { formatOverride: flat });
+    pin("CK", { formatOverride: overbarred });
     let renamed = project;
     for (const [name, next] of [
       ["rfp", "vrfp"],
       ["rfn", "vrfn"],
       ["vin", "rfin"],
       ["vb", "vbn"],
+      ["CK", "CKB"],
     ] as const) {
       const result = executeProjectTransaction(renamed, {
         transactionId: `rename-${name}`,
@@ -252,6 +269,17 @@ describe("standard label looks", () => {
           kind: "span",
           style: "bold",
           children: [{ kind: "text", value: "vbn" }],
+        },
+      ],
+    });
+    // Renaming an overbarred Pin without _bar clears the stale overbar instead
+    // of double-negating it as overbar(CKB).
+    expect(look("CK")).toEqual({
+      runs: [
+        {
+          kind: "span",
+          style: "bold",
+          children: [{ kind: "text", value: "CKB" }],
         },
       ],
     });
