@@ -6,7 +6,7 @@ import {
   junctionElectricalEndpoints,
   routeElectricalConnections,
 } from "@icm/model";
-import type { SchematicDocument } from "@icm/model";
+import type { RouteEndpoint, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
@@ -60,6 +60,8 @@ export interface DocumentDerivedContext {
   readonly routeDegreeByEndpointKey: ReadonlyMap<string, number>;
   readonly endpointConnections: ReadonlyMap<string, EndpointConnection>;
   readonly routingGeometry: ResolvedDocumentRoutingGeometry;
+  /** Geometry obtained by resolving authored Route endpoints directly, including ambiguous legacy keys. */
+  readonly directRoutingGeometry: ResolvedDocumentRoutingGeometry;
   readonly contactEvidence: DocumentContactEvidence;
   readonly contactsByNetId: ReadonlyMap<string, readonly CoincidentContact[]>;
   readonly netLabelBindingsByNetId: ReadonlyMap<
@@ -103,27 +105,43 @@ export function buildDocumentDerivedContext(
     document.annotations,
     (item) => item.netId,
   );
-  const endpoints = new Map(
-    [
-      ...document.nets.flatMap((net) =>
-        net.terminals.map((terminal) => ({
-          kind: "terminal" as const,
-          ...terminal,
-        })),
-      ),
-      ...document.junctions.map((junction) => ({
-        kind: "junction" as const,
-        junctionId: junction.id,
+  const endpoints = new Map<string, RouteEndpoint>();
+  let hasAliasedEndpoints = false;
+  const authoredEndpoints: RouteEndpoint[] = [
+    ...document.nets.flatMap((net) =>
+      net.terminals.map((terminal) => ({
+        kind: "terminal" as const,
+        ...terminal,
       })),
-      ...document.junctions
-        .flatMap(junctionElectricalEndpoints)
-        .map((item) => item.endpoint),
-      ...document.routes
-        .flatMap(routeElectricalConnections)
-        .flatMap((edge) => edge.endpoints),
-      ...document.routes.flatMap((route) => [route.start, routeEnd(route)]),
-    ].map((endpoint) => [endpointKey(endpoint), endpoint] as const),
-  );
+    ),
+    ...document.junctions.map((junction) => ({
+      kind: "junction" as const,
+      junctionId: junction.id,
+    })),
+    ...document.junctions
+      .flatMap(junctionElectricalEndpoints)
+      .map((item) => item.endpoint),
+    ...document.routes
+      .flatMap(routeElectricalConnections)
+      .flatMap((edge) => edge.endpoints),
+    ...document.routes.flatMap((route) => [route.start, routeEnd(route)]),
+  ];
+  for (const endpoint of authoredEndpoints) {
+    const key = endpointKey(endpoint);
+    const previous = endpoints.get(key);
+    if (previous && previous !== endpoint && !hasAliasedEndpoints) {
+      hasAliasedEndpoints =
+        previous.memberId !== endpoint.memberId ||
+        (previous.kind === "junction" &&
+          endpoint.kind === "junction" &&
+          previous.junctionId !== endpoint.junctionId) ||
+        (previous.kind === "terminal" &&
+          endpoint.kind === "terminal" &&
+          (previous.instanceId !== endpoint.instanceId ||
+            previous.pinName !== endpoint.pinName));
+    }
+    endpoints.set(key, endpoint);
+  }
   const endpointConnections = new Map<string, EndpointConnection>();
   for (const [key, endpoint] of endpoints) {
     const connection = resolveEndpointConnection(
@@ -227,6 +245,14 @@ export function buildDocumentDerivedContext(
     routeDegreeByEndpointKey,
     endpointConnections,
     routingGeometry,
+    directRoutingGeometry: hasAliasedEndpoints
+      ? resolveDocumentRoutingGeometry(
+          document,
+          resolver,
+          undefined,
+          endpointLookup,
+        )
+      : routingGeometry,
     contactEvidence,
     contactsByNetId: groupedBy(contactEvidence.contacts, (item) => item.netId),
     netLabelBindingsByNetId,

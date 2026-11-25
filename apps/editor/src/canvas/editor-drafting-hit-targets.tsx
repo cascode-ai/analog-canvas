@@ -6,6 +6,7 @@ import type {
 
 import {
   arcPathData,
+  cachedDocumentConnectivityIndex,
   arrowArtwork,
   resolveDocumentRoutingGeometry,
   objectStyleProfile,
@@ -89,12 +90,11 @@ export function EditorDraftingHitTargets({
     );
   }, [scene, document.drafting]);
   const electricalRank = scene.rank({ kind: "electrical" });
-  // `resolveDraftingObjectGeometry` re-derived the whole Document's route
-  // geometry on every call, so a Project with hundreds of drafting objects
-  // paid to resolve all of its Routes hundreds of times per render. Derive it
-  // once here and hand it to each call.
   const routingGeometry = useMemo(
-    () => resolveDocumentRoutingGeometry(document, resolver),
+    () =>
+      cachedDocumentConnectivityIndex(document, resolver)
+        ?.directRoutingGeometry ??
+      resolveDocumentRoutingGeometry(document, resolver),
     [document, resolver],
   );
   const visibleObjects = draftingObjects.filter(

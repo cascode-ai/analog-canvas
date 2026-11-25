@@ -210,10 +210,18 @@ function buildDocumentIndex(
       source !== document ? documentIndexCache.get(source) : undefined;
     if (prior?.revision === source.revision && prior.resolver === resolver) {
       const documentRevision = document.revision;
+      const routingGeometry = {
+        ...prior.index.routingGeometry,
+        documentRevision,
+      };
       const index = {
         ...prior.index,
         documentRevision,
-        routingGeometry: { ...prior.index.routingGeometry, documentRevision },
+        routingGeometry,
+        directRoutingGeometry:
+          prior.index.directRoutingGeometry === prior.index.routingGeometry
+            ? routingGeometry
+            : { ...prior.index.directRoutingGeometry, documentRevision },
         spatialIndex: { ...prior.index.spatialIndex, documentRevision },
       };
       documentIndexCache.set(document, {

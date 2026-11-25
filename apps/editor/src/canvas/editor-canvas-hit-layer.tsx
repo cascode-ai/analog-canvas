@@ -7,6 +7,7 @@ import type {
 } from "react";
 
 import {
+  cachedDocumentConnectivityIndex,
   derivePowerRailComponent,
   endpointKey,
   instanceSupportsBodyFill,
@@ -356,19 +357,17 @@ function SelectionHitTargets({
   children,
   controlSensorCandidate,
 }: SelectionHitTargetProps & { children: ReactNode }) {
-  // Every Annotation hit box needs the Document's routing geometry. Deriving
-  // it once per render replaces one full re-derivation per Annotation, which
-  // is what made this layer dominate a drag on a large Project.
+  const committed = cachedDocumentConnectivityIndex(document, resolver);
   const routingGeometry = useMemo(
-    () => resolveDocumentRoutingGeometry(document, resolver),
-    [document, resolver],
+    () =>
+      committed?.directRoutingGeometry ??
+      resolveDocumentRoutingGeometry(document, resolver),
+    [committed, document, resolver],
   );
-  // An Annotation's hit box and the visibility filter both resolve a Net
-  // label's text, and that resolution re-derived logical Nets unless it was
-  // handed them. One pass per render serves every Annotation.
   const logicalNets = useMemo(
-    () => resolveDocumentLogicalNets(document),
-    [document],
+    () =>
+      committed?.logicalNetResolution ?? resolveDocumentLogicalNets(document),
+    [committed, document],
   );
   // Hover changes neither visible ink nor text bounds. Resolve them only when
   // their document/style inputs change, including projected move documents.

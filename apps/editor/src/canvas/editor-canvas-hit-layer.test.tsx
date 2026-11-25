@@ -1,10 +1,14 @@
-import { createRoutePath } from "@icm/model";
+import {
+  createRoutePath,
+  createEmptyDocument,
+  freezeSnapshot,
+} from "@icm/model";
 import type { WireSource } from "@icm/edit-engine";
 import {
+  buildCellDiagnosticIndex,
   resolveDocumentRoutingGeometry,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
-import { createEmptyDocument } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -55,6 +59,50 @@ function emptySelectionProps(document = createEmptyDocument("cell", "Cell")) {
     onRoutePointerDown: vi.fn(),
     onAnnotationPointerDown: vi.fn(),
   };
+}
+
+function markerDocument() {
+  const document = createEmptyDocument("cell", "Cell");
+  document.nets.push({ id: "net", terminals: [] });
+  document.junctions.push(
+    { id: "a", netId: "net", position: { x: 0, y: 0 }, role: "route-anchor" },
+    {
+      id: "b",
+      netId: "net",
+      position: { x: 40, y: 0 },
+      role: "route-anchor",
+    },
+  );
+  document.routes.push(
+    createRoutePath({
+      id: "route",
+      netId: "net",
+      start: { kind: "junction", junctionId: "a" },
+      end: { kind: "junction", junctionId: "b" },
+      bends: [],
+      modes: ["manual"],
+    }),
+  );
+  document.annotations.push({
+    id: "note",
+    kind: "route-marker",
+    markerKind: "current",
+    content: { runs: [{ kind: "text", value: "I_1" }] },
+    anchor: {
+      kind: "route",
+      routeId: "route",
+      legId: document.routes[0]!.legs[0]!.id,
+      t: 0.5,
+      normalOffset: -14,
+      direction: "forward",
+      orientation: "follow",
+      fallbackPosition: { x: 20, y: -14 },
+    },
+    alignment: "middle",
+    rotation: 0,
+    locked: false,
+  });
+  return document;
 }
 
 describe("editor canvas hit layer", () => {
@@ -159,47 +207,84 @@ describe("editor canvas hit layer", () => {
     expect(markup).toContain("<polygon");
   });
 
-  it("keeps endpoints between routes and annotations in hit order", () => {
-    const document = createEmptyDocument("cell", "Cell");
-    document.nets.push({ id: "net", terminals: [] });
+  it("keeps a route marker pick box on the geometry of each preview and committed Cell", () => {
+    const committed = freezeSnapshot(markerDocument());
+    const resolver = new InMemorySymbolResolver(builtInSymbols);
+    function markerY(document: typeof committed) {
+      const markup = renderToStaticMarkup(
+        <EditorCanvasHitLayer
+          selection={{ ...emptySelectionProps(document), resolver }}
+          endpoints={emptyEndpointProps(document)}
+        />,
+      );
+      const hit = /data-testid="annotation-hit-note"[^>]* y="([^"]+)"/u.exec(
+        markup,
+      );
+      if (!hit) throw new Error("missing marker pick box");
+      return Number(hit[1]);
+    }
+    const before = markerY(committed);
+    buildCellDiagnosticIndex(committed, resolver);
+    expect(markerY(committed)).toBe(before);
+    const preview = structuredClone(committed);
+    for (const junction of preview.junctions) junction.position.y += 100;
+    expect(markerY(preview)).toBeCloseTo(before + 100);
+    expect(markerY(committed)).toBe(before);
+  });
+
+  it("keeps the scalar route marker in place when a bus member spells its junction ID", () => {
+    const document = markerDocument();
+    const scalar = "J:member:x";
+    document.junctions[0]!.id = scalar;
+    document.routes[0]!.start = { kind: "junction", junctionId: scalar };
+    document.nets.push(
+      ...["lane-x", "lane-y"].map((id) => ({ id, terminals: [] })),
+    );
     document.junctions.push(
-      { id: "a", netId: "net", position: { x: 0, y: 0 }, role: "route-anchor" },
       {
-        id: "b",
-        netId: "net",
-        position: { x: 40, y: 0 },
-        role: "route-anchor",
+        id: "J",
+        netId: "lane-x",
+        position: { x: -80, y: 0 },
+        members: [
+          { id: "x", netId: "lane-x" },
+          { id: "y", netId: "lane-y" },
+        ],
       },
+      { id: "end", netId: "lane-x", position: { x: -40, y: 0 } },
     );
     document.routes.push(
       createRoutePath({
-        id: "route",
-        netId: "net",
-        start: { kind: "junction", junctionId: "a" },
-        end: { kind: "junction", junctionId: "b" },
+        id: "bus-route",
+        netId: "lane-x",
+        start: { kind: "junction", junctionId: "J", memberId: "x" },
+        end: { kind: "junction", junctionId: "end" },
         bends: [],
         modes: ["manual"],
       }),
     );
-    document.annotations.push({
-      id: "note",
-      kind: "route-marker",
-      markerKind: "current",
-      content: { runs: [{ kind: "text", value: "I_1" }] },
-      anchor: {
-        kind: "route",
-        routeId: "route",
-        legId: document.routes[0]!.legs[0]!.id,
-        t: 0.5,
-        normalOffset: -14,
-        direction: "forward",
-        orientation: "follow",
-        fallbackPosition: { x: 20, y: -14 },
-      },
-      alignment: "middle",
-      rotation: 0,
-      locked: false,
+    const committed = freezeSnapshot(document);
+    const selection = emptySelectionProps(committed);
+    const render = (value: typeof committed) =>
+      renderToStaticMarkup(
+        <EditorCanvasHitLayer
+          selection={{ ...selection, document: value }}
+          endpoints={emptyEndpointProps(value)}
+        />,
+      );
+    const before = render(structuredClone(committed));
+    const index = buildCellDiagnosticIndex(
+      committed,
+      selection.resolver,
+    ).documents.get(committed.id)!;
+    expect(index.routingGeometry.routes.get("route")!.centerline[0]).toEqual({
+      x: -80,
+      y: 0,
     });
+    expect(render(committed)).toBe(before);
+  });
+
+  it("keeps endpoints between routes and annotations in hit order", () => {
+    const document = markerDocument();
     const selection = emptySelectionProps(document);
     const geometry = resolveDocumentRoutingGeometry(
       document,
