@@ -842,6 +842,109 @@ describe("moderator appointment", () => {
     expect(revoked.status).toBe(200);
     expect((await me(auth, reviewerCookie))?.role).toBe("user");
   });
+
+  it("lists appointed moderators grouped by verified email for the admin alone", async () => {
+    const auth = harness(
+      {
+        RESEND_API_KEY: "rk",
+        ADMIN_EMAILS: "owner@example.com",
+        GOOGLE_CLIENT_ID: "gcid",
+        GOOGLE_CLIENT_SECRET: "gsec",
+      },
+      [
+        (url) =>
+          url.startsWith("https://oauth2.googleapis.com/token")
+            ? Response.json({ access_token: "g-tok" })
+            : null,
+        (url) =>
+          url.startsWith("https://openidconnect.googleapis.com/")
+            ? Response.json({
+                sub: "g-sub-1",
+                email: "Reviewer@Example.com",
+                email_verified: true,
+                name: "Tom Cajot",
+              })
+            : null,
+      ],
+    );
+    // First sign in via Google, then also via email with the same verified email.
+    const start = await auth.call("/api/auth/google/start");
+    const state = new URL(start.headers.get("location") ?? "").searchParams.get(
+      "state",
+    )!;
+    const googleCb = await auth.call(
+      `/api/auth/google/callback?code=g1&state=${state}`,
+      { cookie: `icm_oauth_state=${state}` },
+    );
+    expect(cookieValue(googleCb, "icm_session")).toBeTruthy();
+
+    const adminCookie = await emailSignIn(auth, "owner@example.com");
+    const reviewerCookie = await emailSignIn(auth, "reviewer@example.com");
+    await auth.call("/api/auth/profile", {
+      method: "POST",
+      cookie: reviewerCookie,
+      body: JSON.stringify({ displayName: "Tom Cajot" }),
+    });
+
+    // Anonymous and non-admin callers are refused.
+    expect((await auth.call("/api/auth/users/moderators")).status).toBe(401);
+    expect(
+      (
+        await auth.call("/api/auth/users/moderators", {
+          cookie: reviewerCookie,
+        })
+      ).status,
+    ).toBe(401);
+
+    const empty = await auth.call("/api/auth/users/moderators", {
+      cookie: adminCookie,
+    });
+    expect(empty.status).toBe(200);
+    expect(await empty.json()).toEqual({ moderators: [] });
+
+    await auth.call("/api/auth/users/role", {
+      method: "POST",
+      cookie: adminCookie,
+      body: JSON.stringify({
+        email: "reviewer@example.com",
+        role: "moderator",
+      }),
+    });
+
+    // Appointed moderators still cannot read the admin list.
+    expect(
+      (
+        await auth.call("/api/auth/users/moderators", {
+          cookie: reviewerCookie,
+        })
+      ).status,
+    ).toBe(401);
+
+    const listed = await auth.call("/api/auth/users/moderators", {
+      cookie: adminCookie,
+    });
+    expect(listed.status).toBe(200);
+    expect(await listed.json()).toEqual({
+      moderators: [
+        {
+          email: "reviewer@example.com",
+          displayName: "Tom Cajot",
+          providers: ["email", "google"],
+        },
+      ],
+    });
+
+    await auth.call("/api/auth/users/role", {
+      method: "POST",
+      cookie: adminCookie,
+      body: JSON.stringify({ email: "reviewer@example.com", role: "user" }),
+    });
+    const afterRevoke = await auth.call("/api/auth/users/moderators", {
+      cookie: adminCookie,
+    });
+    expect(afterRevoke.status).toBe(200);
+    expect(await afterRevoke.json()).toEqual({ moderators: [] });
+  });
 });
 
 describe("AI accounts", () => {

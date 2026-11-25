@@ -193,6 +193,9 @@ test("the Owner restores, recycles or deletes rejected and binned work in one cl
     { id: "bin-1", name: "Old Sketch", recycledAt: "2026-08-22T08:00:00.000Z" },
   ];
   const calls: string[] = [];
+  await page.route("**/api/auth/users/moderators", (route) =>
+    route.fulfill({ json: { moderators: [] } }),
+  );
   await page.route("**/api/gallery/rejected", (route) =>
     route.fulfill({ json: { entries: rejected } }),
   );
@@ -273,6 +276,9 @@ test("moderation uses full-width responsive masonry and keyboard-accessible card
     previewWidth: 400,
     previewHeight: index % 3 ? 240 : 400,
   }));
+  await page.route("**/api/auth/users/moderators", (route) =>
+    route.fulfill({ json: { moderators: [] } }),
+  );
   await page.route("**/api/gallery/rejected", (route) =>
     route.fulfill({ json: { entries } }),
   );
@@ -339,6 +345,9 @@ test("moderation keeps failed actions visible and retries collection loading", a
   let loadFailed = true;
   let restoreFailed = true;
   let restored = false;
+  await page.route("**/api/auth/users/moderators", (route) =>
+    route.fulfill({ json: { moderators: [] } }),
+  );
   await page.route("**/api/gallery/rejected", (route) =>
     loadFailed
       ? route.fulfill({ status: 503, json: {} })
@@ -368,6 +377,71 @@ test("moderation keeps failed actions visible and retries collection loading", a
   restoreFailed = false;
   await page.getByTestId("rejected-restore-retry-entry").click();
   await expect(page.getByTestId("rejected-empty")).toBeVisible();
+});
+
+test("admins can appoint and revoke moderators from the moderation panel", async ({
+  page,
+}) => {
+  await signIn(page, OWNER);
+  let moderators: {
+    email: string;
+    displayName: string;
+    providers: string[];
+  }[] = [];
+  await page.route("**/api/gallery/rejected", (route) =>
+    route.fulfill({ json: { entries: [] } }),
+  );
+  await page.route("**/api/gallery/recycled", (route) =>
+    route.fulfill({ json: { entries: [] } }),
+  );
+  await page.route("**/api/auth/users/moderators", (route) =>
+    route.fulfill({ json: { moderators } }),
+  );
+  await page.route("**/api/auth/users/role", (route) => {
+    const body = route.request().postDataJSON() as {
+      email: string;
+      role: "moderator" | "user";
+    };
+    if (body.email === "missing@example.com") {
+      return route.fulfill({ status: 404, json: { error: "no-such-user" } });
+    }
+    if (body.role === "moderator") {
+      moderators = [
+        {
+          email: body.email,
+          displayName: "Tom Cajot",
+          providers: ["google"],
+        },
+      ];
+    } else {
+      moderators = moderators.filter((row) => row.email !== body.email);
+    }
+    return route.fulfill({ json: { updated: 1, role: body.role } });
+  });
+
+  await page.goto("/moderation");
+  await expect(page.getByTestId("moderator-empty")).toBeVisible();
+
+  await page.getByTestId("moderator-email-input").fill("missing@example.com");
+  await page.getByTestId("moderator-add").click();
+  await expect(page.getByTestId("moderator-error")).toContainText(
+    "No account found with that verified email",
+  );
+
+  await page.getByTestId("moderator-email-input").fill("tomcajot@gmail.com");
+  await page.getByTestId("moderator-add").click();
+  await expect(page.getByTestId("moderator-notice")).toContainText(
+    "tomcajot@gmail.com is now a moderator.",
+  );
+  await expect(
+    page.getByTestId("moderator-row-tomcajot@gmail.com"),
+  ).toContainText("Tom Cajot");
+
+  await page.getByTestId("moderator-revoke-tomcajot@gmail.com").click();
+  await expect(page.getByTestId("moderator-notice")).toContainText(
+    "Removed moderator access for tomcajot@gmail.com.",
+  );
+  await expect(page.getByTestId("moderator-empty")).toBeVisible();
 });
 
 test("authors can filter pending visual reviews and resolve their own drawing", async ({

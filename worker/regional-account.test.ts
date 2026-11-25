@@ -223,18 +223,36 @@ it("retains administrator role controls through the grant and refreshes affected
       role,
     });
   expect((await setRole(member, "moderator")).status).toBe(401);
+  expect((await h.call("/api/auth/users/moderators", member)).status).toBe(401);
+  expect(
+    await (await h.call("/api/auth/users/moderators", admin)).json(),
+  ).toEqual({ moderators: [] });
   expect((await setRole(admin, "moderator")).status).toBe(200);
+  expect(
+    await (await h.call("/api/auth/users/moderators", admin)).json(),
+  ).toEqual({
+    moderators: [
+      expect.objectContaining({
+        email: "maker@example.com",
+        providers: ["email"],
+      }),
+    ],
+  });
   h.advance(30_000);
   await h.region.alarm();
   expect(
     (await (await h.call("/api/auth/me", member)).json()).user,
   ).toMatchObject({ role: "moderator", isAdmin: false });
+  expect((await h.call("/api/auth/users/moderators", member)).status).toBe(401);
   expect((await h.call("/api/auth/admin/stats", member)).status).toBe(401);
   expect(
     (await (await h.call("/api/auth/admin/stats", admin)).json())
       .registeredAccounts,
   ).toBe(2);
   expect((await setRole(admin, "user")).status).toBe(200);
+  expect(
+    await (await h.call("/api/auth/users/moderators", admin)).json(),
+  ).toEqual({ moderators: [] });
   h.advance(30_000);
   await h.region.alarm();
   expect((await (await h.call("/api/auth/me", member)).json()).user.role).toBe(

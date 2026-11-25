@@ -85,6 +85,7 @@ export function isRegionalAccountRoute(method: string, path: string): boolean {
   return [
     "POST /api/auth/profile",
     "POST /api/auth/account/delete",
+    "GET /api/auth/users/moderators",
     "POST /api/auth/users/role",
     "GET /api/auth/admin/stats",
     "GET /api/auth/owner-tokens",

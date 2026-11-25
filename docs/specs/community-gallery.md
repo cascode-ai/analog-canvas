@@ -325,9 +325,11 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
     rule version, not backed up, counted by the scheduled pass (100 per
     store a tick), again after an edit, and on an account's own read of its
     still uncounted circuits; null while unreadable.
-- Moderators: `users.role` (`user`/`moderator`), set by the super-admin via
-  `POST /api/auth/users/role` `{email, role}` for every account with that
-  verified email. Bin and maintenance stay admin-only. No bulk model fill.
+- Moderators: `users.role` (`user`/`moderator`), listed by the super-admin via
+  `GET /api/auth/users/moderators` and appointed or revoked via
+  `POST /api/auth/users/role` `{email, role}` (exposed in the super-admin's
+  Moderation panel) for every account with that verified email. Bin and
+  maintenance stay admin-only. No bulk model fill.
 - `POST /api/gallery/<id>/like` (same-origin) toggles one like per account.
   The Owner's accounts instead add a heart each press and take one back with
   `?take=1` (⌥-click), the last taking the like away; `likes` counts hearts.
