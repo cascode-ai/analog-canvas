@@ -9,8 +9,9 @@ dependency identities from the selected Profile's capabilities (model-symbol
 information is tied to a dependency digest and section), and never infer a
 family from one accepted device.
 
-A device a Project model source calls must be in the Profile's qualified
-`devices`, else Prepare refuses it with `MODEL_SOURCE_PROFILE_CONFLICT`. Hosted
+Any reviewed PDK device — whether drawn directly or called from a Project model
+source — must be in the Profile's qualified `devices`, else Prepare refuses it
+with `MODEL_SOURCE_PROFILE_CONFLICT`. Hosted
 SKY130 qualifies the 5 V `nfet_g5v0d10v5`/`pfet_g5v0d10v5` pair and both
 vertical PNP sizes (`pnp_05v5_W0p68L0p68`, `pnp_05v5_W3p40L3p40`), and
 the four-terminal `npn_05v5_W1p00L1p00` (`C B E S`, `S` as below). Its ngspice

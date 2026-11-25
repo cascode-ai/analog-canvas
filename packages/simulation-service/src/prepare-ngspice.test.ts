@@ -463,6 +463,134 @@ describe("ngspice authored input identity", () => {
       expect(deck).not.toMatch(new RegExp(`^D\\S* .*${master}`, "mu"));
     },
   );
+  // #2556: directly drawn reviewed devices enforce the Profile's qualified
+  // device list symmetrically with model-source calls.
+  it.each([
+    ["nmos", "sky130_fd_pr__nfet_g5v0d10v5", true],
+    ["nmos", "sky130_fd_pr__nfet_03v3_nvt", false],
+    ["npn", "sky130_fd_pr__npn_05v5_W1p00L1p00", true],
+    ["npn", "sky130_fd_pr__npn_11v0_W1p00L1p00", false],
+    ["inductor", "sky130_fd_pr__ind_05_125", false],
+  ] as const)(
+    "enforces the hosted SKY130 Profile's qualified devices on directly drawn %s (%s)",
+    async (symbolId, master, qualified) => {
+      let project = createEmptyProject("drawn-qual", "Drawn qualification");
+      const top = project.documents[0]!;
+      const pins =
+        symbolId === "nmos"
+          ? ["D", "G", "S", "B"]
+          : symbolId === "npn"
+            ? ["C", "B", "E"]
+            : ["1", "2"];
+      top.instances.push(
+        {
+          id: "GND1",
+          symbolId: "ground",
+          placement: {
+            position: { x: -40, y: 0 },
+            rotation: 0,
+            mirror: "none",
+          },
+        },
+        {
+          id: "U1",
+          symbolId,
+          reference:
+            symbolId === "nmos" ? "M1" : symbolId === "npn" ? "Q1" : "L1",
+          placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+          netlist: {
+            binding:
+              symbolId === "nmos"
+                ? { kind: "model", deviceClass: "mos", name: "NMOS" }
+                : symbolId === "npn"
+                  ? { kind: "model", deviceClass: "bjt", name: "NPN" }
+                  : { kind: "primitive", deviceClass: "inductor" },
+            parameters: {},
+          },
+        },
+      );
+      top.nets.push({
+        id: "gnd",
+        terminals: [
+          { instanceId: "GND1", pinName: "0" },
+          { instanceId: "U1", pinName: pins[0]! },
+        ],
+      });
+      for (const [index, pinName] of pins.slice(1).entries()) {
+        top.nets.push({
+          id: `n${index + 1}`,
+          terminals: [{ instanceId: "U1", pinName }],
+        });
+      }
+      const bound = executeProjectTransaction(project, {
+        projectId: project.id,
+        expectedStructureRevision: project.structureRevision,
+        transactionId: "drawn-qual-bind",
+        actor: { kind: "agent", id: "test" },
+        edits: planSetDeviceModelTarget(project, top.id, "U1", master),
+      });
+      expect(bound.ok, JSON.stringify(bound)).toBe(true);
+      if (!bound.ok) return;
+      project = bound.project;
+      const hiddenGroundPins =
+        master === "sky130_fd_pr__npn_05v5_W1p00L1p00"
+          ? ["S"]
+          : symbolId === "inductor"
+            ? ["CT", "SUB"]
+            : [];
+      if (hiddenGroundPins.length) {
+        project = {
+          ...project,
+          documents: project.documents.map((doc) =>
+            doc.id !== top.id
+              ? doc
+              : {
+                  ...doc,
+                  nets: doc.nets.map((net) =>
+                    net.id !== "gnd"
+                      ? net
+                      : {
+                          ...net,
+                          terminals: [
+                            ...net.terminals,
+                            ...hiddenGroundPins.map((pinName) => ({
+                              instanceId: "U1",
+                              pinName,
+                            })),
+                          ],
+                        },
+                  ),
+                },
+          ),
+        };
+      }
+      const folder = createSimulationFolder({
+        id: "process",
+        name: "Process",
+        profileId: "ngspice",
+        engine: "ngspice",
+        documentId: project.topDocumentId,
+      });
+      project.simulationFolders = [folder];
+      const caps = nativeSweepFixture().caps;
+      caps.profiles[0]!.devices = hostedSky130.qualifiedScope.devices;
+      const prepared = await prepareNgspiceExecutionInput(
+        project,
+        folder,
+        caps,
+      );
+      expect(prepared.ok, JSON.stringify(prepared)).toBe(qualified);
+      if (!prepared.ok) {
+        expect(prepared.error.diagnostics?.[0]).toMatchObject({
+          code: "MODEL_SOURCE_PROFILE_CONFLICT",
+          message: `The selected Profile does not qualify ${master}; change the device or select a qualified Profile.`,
+        });
+        expect(prepared.error.diagnostics?.[0]).not.toHaveProperty(
+          "modelSource",
+        );
+      }
+    },
+  );
   it.each([false, true])(
     "protects global device models while respecting a testbench's local scope (%s)",
     async (local) => {
