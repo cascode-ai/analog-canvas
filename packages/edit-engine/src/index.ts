@@ -62,6 +62,10 @@ export * from "./component-draft-management.js";
 export * from "./project-cell-import.js";
 export * from "./project-cell-body-import.js";
 export * from "./power-rail-label.js";
+export {
+  findRedundantNetLabelsForPort,
+  removableLabelJunctionIds,
+} from "./redundant-port-net-label.js";
 export * from "./project-copy-dependencies.js";
 export * from "./circuit-component-package.js";
 export * from "./legacy-circuit-repair.js";

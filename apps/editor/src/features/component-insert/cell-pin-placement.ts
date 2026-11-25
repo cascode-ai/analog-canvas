@@ -1,7 +1,9 @@
 import {
+  findRedundantNetLabelsForPort,
   freePowerRailLabel,
-  junctionInUse,
   planCreateCellPin,
+  proposePlacementContact,
+  removableLabelJunctionIds,
   type SchematicEdit,
 } from "@icm/edit-engine";
 import {
@@ -13,6 +15,7 @@ import {
 } from "@icm/model";
 import {
   resolveDocumentStyleProfile,
+  resolveEndpointConnection,
   supplyMarkerForSymbol,
   type SchematicStyleProfile,
 } from "@icm/derived";
@@ -22,6 +25,7 @@ import {
   planInitialMosBulkDefault,
   supplyMarkerBodyDomain,
 } from "./mos-bulk-defaults";
+import { createInsertedInstanceConnectionContext } from "./placement-connectivity";
 import { vddPowerLabelAnnotation } from "./vdd-power-label";
 
 /** Shared electrical/display proposal; callers retain their own contact policy. */
@@ -50,6 +54,9 @@ export function planPlacedCellPin(
   const resolved = supply
     ? resolver.resolve(input.instance.symbolId)
     : undefined;
+  const hiddenLabelIds = !supply
+    ? retiringNetLabelIds(document, resolver, input, name)
+    : undefined;
   const annotation =
     supply && resolved
       ? {
@@ -66,7 +73,7 @@ export function planPlacedCellPin(
           },
         }
       : defaultInstanceDisplayAnnotations(
-          withPrecedingDisplay(document, input.precedingEdits),
+          withPrecedingDisplay(document, input.precedingEdits, hiddenLabelIds),
           input.instance,
           resolver,
           input.styleProfile ??
@@ -162,14 +169,6 @@ function retireKeptSupplyPin(
   { label, pin }: KeptSupplyPin,
   markerNetId: string,
 ): SchematicEdit[] {
-  // The label stood on a Junction no rail reaches; it goes with the label
-  // unless something else still uses it.
-  const junctionId =
-    label.anchor.kind === "object" ? label.anchor.objectId : undefined;
-  const unlabelled = {
-    ...document,
-    annotations: document.annotations.filter((item) => item.id !== label.id),
-  };
   return [
     // A marker dropped on the supply's own Net is on it already.
     ...(pin.netId === markerNetId
@@ -183,12 +182,73 @@ function retireKeptSupplyPin(
         ]),
     { kind: "remove_schematic_annotation", annotationId: label.id },
     { kind: "remove_cell_terminal", terminalId: pin.id },
-    ...(junctionId !== undefined &&
-    document.junctions.some((junction) => junction.id === junctionId) &&
-    !junctionInUse(unlabelled, junctionId)
-      ? [{ kind: "remove_junction" as const, junctionId }]
-      : []),
+    ...removableLabelJunctionIds(document, [label]).map(
+      (junctionId): SchematicEdit => ({
+        kind: "remove_junction",
+        junctionId,
+      }),
+    ),
   ];
+}
+
+/**
+ * Net Labels that committing this scalar Port will retire on its target or
+ * physically contacted Base Net, hidden from default display placement so the
+ * Port's own formal label does not dodge a label that is about to disappear.
+ */
+function retiringNetLabelIds(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  input: {
+    instance: Instance;
+    netId: string;
+    precedingEdits?: readonly SchematicEdit[];
+  },
+  name: string,
+): ReadonlySet<string> | undefined {
+  let targetNetId: string | undefined;
+  if (document.nets.some((net) => net.id === input.netId)) {
+    targetNetId = input.netId;
+  } else if (input.instance.placement) {
+    const context = createInsertedInstanceConnectionContext(document, resolver);
+    const contact = proposePlacementContact(
+      document,
+      resolver,
+      input.instance,
+      context.endpoints,
+      { context: context.contactContext, powerMarker: false },
+    );
+    if (contact.matched && !contact.ambiguous && !contact.rejected) {
+      targetNetId = contact.netId;
+    } else if (!contact.ambiguous && !contact.rejected) {
+      const pinLanding = resolveEndpointConnection(
+        { ...document, instances: [...document.instances, input.instance] },
+        resolver,
+        { kind: "terminal", instanceId: input.instance.id, pinName: "P" },
+      )?.gridLanding;
+      if (pinLanding) {
+        targetNetId = document.junctions.find(
+          (junction) =>
+            !junction.members &&
+            junction.position.x === pinLanding.x &&
+            junction.position.y === pinLanding.y,
+        )?.netId;
+      }
+    }
+  }
+  if (!targetNetId) return undefined;
+  const upsertedIds = new Set(
+    (input.precedingEdits ?? []).flatMap((edit) =>
+      edit.kind === "upsert_schematic_annotation" ? [edit.annotation.id] : [],
+    ),
+  );
+  const retired = findRedundantNetLabelsForPort(
+    document,
+    targetNetId,
+    name,
+    upsertedIds,
+  );
+  return retired.length ? new Set(retired.map((label) => label.id)) : undefined;
 }
 
 /**
@@ -199,11 +259,16 @@ function retireKeptSupplyPin(
 function withPrecedingDisplay(
   document: SchematicDocument,
   edits: readonly SchematicEdit[] | undefined,
+  hiddenAnnotationIds?: ReadonlySet<string>,
 ): SchematicDocument {
-  if (!edits?.length) return document;
+  if (!edits?.length && !hiddenAnnotationIds?.size) return document;
   const instances = [...document.instances];
-  const annotations = [...document.annotations];
-  for (const edit of edits)
+  let annotations = hiddenAnnotationIds?.size
+    ? document.annotations.filter(
+        (annotation) => !hiddenAnnotationIds.has(annotation.id),
+      )
+    : [...document.annotations];
+  for (const edit of edits ?? [])
     if (edit.kind === "add_instance") instances.push(edit.instance);
     else if (edit.kind === "upsert_schematic_annotation") {
       const index = annotations.findIndex(

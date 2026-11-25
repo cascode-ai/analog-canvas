@@ -59,6 +59,7 @@ import {
   nextPhysicalContactOperation,
 } from "./transaction-connectivity-normalizer.js";
 import { applyCellResetEdit } from "./transaction-cell-reset.js";
+import { retireRedundantNetLabelsForAddedCellTerminals } from "./redundant-port-net-label.js";
 import {
   applyCellInterfaceEdit,
   inheritCellPortFormatting,
@@ -1114,6 +1115,14 @@ export function executeTransaction(
       changedObjectIds,
     );
   }
+
+  const retiredRedundantLabels = retireRedundantNetLabelsForAddedCellTerminals(
+    draft,
+    transaction,
+    changedObjectIds,
+    deferNetPrune,
+  );
+  connectivityChanged ||= retiredRedundantLabels;
 
   let coalescedEndpoints: ReadonlyMap<string, string> | undefined;
   if (resolver) {
