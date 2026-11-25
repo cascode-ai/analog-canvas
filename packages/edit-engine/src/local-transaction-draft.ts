@@ -102,7 +102,7 @@ const validatedDraftWork = new WeakMap<
   TransactionDraftWork
 >();
 
-/** Work evidence belongs to this execution result, never to the persisted model or Agent response. */
+/** @internal Regression probes read work on this exact result, outside the persisted model and Agent response. */
 export function readTransactionDraftWork(result: SchematicDocument) {
   return validatedDraftWork.get(result);
 }

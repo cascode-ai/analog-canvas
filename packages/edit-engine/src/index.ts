@@ -1,3 +1,4 @@
+/** @internal Native placement tests verify the two draft boundaries through the actual engine result. */
 export { readTransactionDraftWork } from "./local-transaction-draft.js";
 export * from "./drafting-transform.js";
 export * from "./annotation-reflection.js";
