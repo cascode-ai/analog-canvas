@@ -14,11 +14,18 @@ import { runErcChecks } from "./diagnostics/erc.js";
  *   members or carries a sanctioned intent (formal boundary, global supply,
  *   implicit pin, or explicit NoConnect) already classified by ERC;
  * - near-empty submissions — fewer than 2 instances and fewer than 3
- *   drafting objects including a text (pure block diagrams stay clean).
+ *   drafting objects including a text (pure block diagrams stay clean);
+ * - stale simulation folders — any folder whose circuit binding references a
+ *   missing Cell, or spec-less scratch folders left alongside folders that
+ *   declare `@spec` checks (#2617).
  */
 
 export type SubmissionGateCode =
-  "erc-errors" | "erc-warnings" | "floating-endpoints" | "empty-project";
+  | "erc-errors"
+  | "erc-warnings"
+  | "floating-endpoints"
+  | "empty-project"
+  | "stale-simulation-folders";
 
 export interface SubmissionGateFailure {
   code: SubmissionGateCode;
@@ -58,6 +65,42 @@ function formatDiagnosticExamples(
   return diagnostics
     .slice(0, EXAMPLE_LIMIT)
     .map((diagnostic) => `${diagnostic.code}: ${diagnostic.primary.objectId}`);
+}
+
+const SIMULATION_SPEC_LINE = /^\s*(?:\*|\/\/)\s*@spec\b/imu;
+
+function folderHasSpecDeclaration(
+  folder: NonNullable<CircuitProject["simulationFolders"]>[number],
+): boolean {
+  const configPath = folder.input.configPath;
+  return folder.input.files.some(
+    (file) => file.path !== configPath && SIMULATION_SPEC_LINE.test(file.text),
+  );
+}
+
+function staleSimulationFolderExamples(project: CircuitProject): string[] {
+  const folders = project.simulationFolders ?? [];
+  if (folders.length === 0) return [];
+  const documentIds = new Set(project.documents.map((doc) => doc.id));
+  const issues: string[] = [];
+  const specPresence = folders.map((folder) => ({
+    folder,
+    hasSpec: folderHasSpecDeclaration(folder),
+  }));
+  const hasAnySpec = specPresence.some((entry) => entry.hasSpec);
+  for (const { folder, hasSpec } of specPresence) {
+    const missingBinding = folder.input.circuitBindings.find(
+      (binding) => !documentIds.has(binding.documentId),
+    );
+    if (missingBinding) {
+      issues.push(`${folder.name} (missing Cell ${missingBinding.documentId})`);
+      continue;
+    }
+    if (folders.length > 1 && hasAnySpec && !hasSpec) {
+      issues.push(`${folder.name} (no @spec)`);
+    }
+  }
+  return issues;
 }
 
 export function evaluateSubmissionGates(
@@ -128,6 +171,17 @@ export function evaluateSubmissionGates(
         "Too little content: place at least 2 components, or a drawing with 3+ objects including text",
       count: 1,
       examples: [],
+    });
+  }
+
+  const staleFolders = staleSimulationFolderExamples(project);
+  if (staleFolders.length > 0) {
+    failures.push({
+      code: "stale-simulation-folders",
+      message:
+        "Remove or update stale simulation folders that lack @spec checks or bind missing Cells",
+      count: staleFolders.length,
+      examples: staleFolders.slice(0, EXAMPLE_LIMIT),
     });
   }
 

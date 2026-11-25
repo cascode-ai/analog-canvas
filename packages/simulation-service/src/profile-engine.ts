@@ -2,7 +2,7 @@ import {
   readSimulationExperimentConfig,
   type ProjectSimulationFolder,
 } from "@icm/model";
-import { problem, type Capabilities } from "./contract.js";
+import { problem, type Capabilities, type Problem } from "./contract.js";
 
 export type SimulationEngine = "ngspice" | "vacask";
 
@@ -28,24 +28,37 @@ export function resolveSimulationEngine(
   caps: Pick<Capabilities, "profiles" | "rawfileCollection">,
 ) {
   const config = readSimulationExperimentConfig(folder);
-  if (!config.ok)
-    return {
-      ok: false as const,
-      error: {
-        code: "SIMULATION_COMPILE_REFUSED",
-        message: config.message,
-        stage: "prepare" as const,
-        recovery: "fix-input" as const,
-        diagnostics: [
-          {
-            code: "SIMULATION_CONFIG_INVALID",
+  if (!config.ok) {
+    const diagnostics =
+      config.fields.length > 0
+        ? config.fields.map((issue) => ({
+            code: "SIMULATION_CONFIG_INVALID" as const,
             severity: "error" as const,
-            message: config.message,
+            message: issue.field
+              ? `${issue.field}: ${issue.message}`
+              : issue.message,
             path: config.path,
-          },
-        ],
-      },
+          }))
+        : [
+            {
+              code: "SIMULATION_CONFIG_INVALID" as const,
+              severity: "error" as const,
+              message: config.message,
+              path: config.path,
+            },
+          ];
+    const error: Problem = {
+      code: "SIMULATION_COMPILE_REFUSED",
+      message:
+        config.fields.length > 0
+          ? `${config.message}: ${diagnostics[0]!.message}`
+          : config.message,
+      stage: "prepare",
+      recovery: "fix-input",
+      diagnostics,
     };
+    return { ok: false as const, error };
+  }
   const profile = caps.profiles.find(
     (p) => p.id === config.config.environment.profileId,
   );

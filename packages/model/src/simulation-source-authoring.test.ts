@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createSimulationFolder } from "./simulation-source-authoring";
+import {
+  createSimulationFolder,
+  readSimulationExperimentConfig,
+} from "./simulation-source-authoring";
 
 describe("experiment starter instructions", () => {
   it.each(["canvas", "mixed", "text"] as const)(
@@ -107,5 +110,37 @@ describe("experiment starter instructions", () => {
         dut: { name: "DUT", ports: ["In\ncontrol"] },
       }),
     ).toThrow(/identifier/u);
+  });
+
+  it("explains native v2 corner and temperature placement when disallowed keys appear in experiment.json (#2611)", () => {
+    const folder = createSimulationFolder({
+      id: "v2-corner",
+      name: "Corner check",
+      profileId: "ihp-sg13g2-complete-ngspice46-v2",
+    });
+    const configFile = folder.input.files.find(
+      (file) => file.path === folder.input.configPath,
+    )!;
+    configFile.text = JSON.stringify({
+      version: 2,
+      environment: {
+        profileId: "ihp-sg13g2-complete-ngspice46-v2",
+        corner: "nominal",
+        temperatureC: 27,
+      },
+    });
+    const parsed = readSimulationExperimentConfig(folder);
+    expect(parsed.ok).toBe(false);
+    if (parsed.ok) return;
+    expect(parsed.fields).toEqual([
+      {
+        field: "environment.corner",
+        message: expect.stringContaining(".lib"),
+      },
+      {
+        field: "environment.temperatureC",
+        message: expect.stringContaining(".temp"),
+      },
+    ]);
   });
 });

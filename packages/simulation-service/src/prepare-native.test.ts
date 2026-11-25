@@ -167,4 +167,30 @@ describe("native model preparation", () => {
     });
     expect(folder.input.files[1]!.text).toBe(entry);
   });
+
+  it("surfaces field-level diagnostics when native v2 experiment.json includes corner (#2611)", async () => {
+    const { project, folder, caps } = fixture();
+    const configFile = folder.input.files.find(
+      (file) => file.path === folder.input.configPath,
+    )!;
+    configFile.text = JSON.stringify({
+      version: 2,
+      environment: {
+        profileId: "sky130-vacask-v1",
+        corner: "tt",
+      },
+    });
+    const result = await prepareSourceExecutionInput(project, folder, caps);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("SIMULATION_COMPILE_REFUSED");
+    expect(result.error.message).toContain("environment.corner");
+    expect(result.error.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "SIMULATION_CONFIG_INVALID",
+        path: folder.input.configPath,
+        message: expect.stringContaining("environment.corner"),
+      }),
+    ]);
+  });
 });

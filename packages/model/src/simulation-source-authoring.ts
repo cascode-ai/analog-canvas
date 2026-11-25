@@ -195,6 +195,57 @@ function testbenchFolder(options: {
 }
 
 /** Broken JSON is normal authoring state, not a thrown error or a fallback configuration. */
+function formatExperimentConfigIssues(
+  issues: ReadonlyArray<{
+    readonly code: string;
+    readonly path: readonly PropertyKey[];
+    readonly message: string;
+    readonly keys?: readonly string[];
+  }>,
+  native: boolean,
+): Array<{ field: string; message: string }> {
+  const fields: Array<{ field: string; message: string }> = [];
+  for (const issue of issues) {
+    const basePath = issue.path.map(String).join(".");
+    if (
+      native &&
+      issue.code === "unrecognized_keys" &&
+      Array.isArray(issue.keys) &&
+      issue.keys.length > 0
+    ) {
+      for (const key of issue.keys) {
+        const field = basePath ? `${basePath}.${key}` : key;
+        if (basePath === "environment" && key === "corner") {
+          fields.push({
+            field,
+            message:
+              'Native v2 experiment.json only accepts environment.profileId; select corners in SPICE/VACASK source (.lib or include section=...) and remove "corner" from experiment.json',
+          });
+        } else if (basePath === "environment" && key === "temperatureC") {
+          fields.push({
+            field,
+            message:
+              'Native v2 experiment.json only accepts environment.profileId; set temperature in SPICE/VACASK source (.temp or options temp=...) and remove "temperatureC" from experiment.json',
+          });
+        } else if (basePath === "environment") {
+          fields.push({
+            field,
+            message: `Native v2 experiment.json only accepts environment.profileId; remove "${key}" from experiment.json`,
+          });
+        } else {
+          fields.push({
+            field,
+            message: `Native v2 experiment.json only accepts version and environment.profileId; define "${key}" in SPICE/VACASK source and remove it from experiment.json`,
+          });
+        }
+      }
+      continue;
+    }
+    fields.push({ field: basePath, message: issue.message });
+  }
+  return fields;
+}
+
 export function readSimulationExperimentConfig(
   folder: ProjectSimulationFolder,
 ):
@@ -246,10 +297,7 @@ export function readSimulationExperimentConfig(
         ok: false,
         message: "Correct the experiment configuration",
         path,
-        fields: parsed.error.issues.map((issue) => ({
-          field: issue.path.join("."),
-          message: issue.message,
-        })),
+        fields: formatExperimentConfigIssues(parsed.error.issues, native),
       };
 }
 
