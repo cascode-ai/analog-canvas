@@ -10,7 +10,7 @@ import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
-  deriveDocumentContactEvidence,
+  collectDocumentContactEvidence,
   type CoincidentContact,
   type DocumentContactEvidence,
 } from "./contact.js";
@@ -141,7 +141,7 @@ export function buildDocumentDerivedContext(
     endpointLookup,
   );
   const spatialIndex = buildDocumentSpatialIndex(document, routingGeometry);
-  const contactEvidence = deriveDocumentContactEvidence(
+  const contactEvidence = collectDocumentContactEvidence(
     document,
     resolver,
     routingGeometry,
@@ -153,6 +153,7 @@ export function buildDocumentDerivedContext(
       endpointConnections,
       endpointLookup,
     },
+    symbols !== undefined,
   );
   const netsById = new Map(document.nets.map((net) => [net.id, net]));
   // A free label attaches to a Route on its primary Net. Electrical bus

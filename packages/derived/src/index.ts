@@ -5,7 +5,13 @@ export * from "./annotation-text.js";
 export * from "./instance-group-display.js";
 export * from "./connectivity.js";
 export * from "./import-reference.js";
-export * from "./contact.js";
+export {
+  contactRequiresJunctionDot,
+  deriveDirectContactDelta,
+  deriveDocumentContactEvidence,
+  groupCoincidentEndpoints,
+} from "./contact.js";
+export type * from "./contact.js";
 export * from "./contact-target.js";
 export * from "./connectivity-index.js";
 export * from "./diagnostics/diagnostic.js";

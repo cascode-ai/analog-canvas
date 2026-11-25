@@ -1,5 +1,5 @@
 import { createRoutePath } from "@icm/model";
-import { createEmptyDocument } from "@icm/model";
+import { createEmptyDocument, freezeSnapshot } from "@icm/model";
 import type { RouteEndpoint, SchematicDocument } from "@icm/model";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
@@ -9,6 +9,8 @@ import {
   deriveDirectContactDelta,
   deriveDocumentContactEvidence,
 } from "./contact.js";
+
+import { buildDocumentDerivedContext } from "./document-derived-context.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
@@ -101,6 +103,175 @@ function dotAt(
   if (!contact) throw new Error(`no contact at ${point.x},${point.y}`);
   return contactRequiresJunctionDot(contact);
 }
+
+describe("contact evidence across committed revisions", () => {
+  it("reuses unchanged Net contacts and recomputes contacts at a moved Junction", () => {
+    const doc = documentWith([
+      { id: "wire", from: { x: 0, y: 0 }, to: { x: 60, y: 0 } },
+    ]);
+    doc.nets.push({ id: "other", terminals: [] });
+    doc.junctions.push({
+      id: "unrelated",
+      netId: "other",
+      position: { x: 100, y: 10 },
+    });
+    const before = buildDocumentDerivedContext(freezeSnapshot(doc), resolver);
+    const revised = freezeSnapshot({
+      ...doc,
+      revision: doc.revision + 1,
+      junctions: doc.junctions.map((j) =>
+        j.id === "unrelated" ? { ...j, position: { x: 120, y: 10 } } : j,
+      ),
+    });
+    const after = buildDocumentDerivedContext(revised, resolver);
+    const fresh = deriveDocumentContactEvidence(
+      structuredClone(revised),
+      resolver,
+    );
+    expect(after.contactEvidence).toEqual(fresh);
+    // A public one-off derivation owns its records, including nested points.
+    const standalone = deriveDocumentContactEvidence(revised, resolver);
+    standalone.contacts[0]!.point.x += 1000;
+    expect(after.contactEvidence).toEqual(fresh);
+    expect(after.contactsByNetId.get("other")?.[0]?.point).toEqual({
+      x: 120,
+      y: 10,
+    });
+    expect(after.contactsByNetId.get("net-1")![0]).toBe(
+      before.contactsByNetId.get("net-1")![0],
+    );
+  });
+
+  it("tracks the effective indexed point when a scalar Junction ID also spells a bus member", () => {
+    const doc = createEmptyDocument("alias", "Alias");
+    doc.nets.push(
+      ...["scalar", "lane-x", "lane-y"].map((id) => ({ id, terminals: [] })),
+    );
+    doc.junctions.push(
+      { id: "J:member:x", netId: "scalar", position: { x: 0, y: 0 } },
+      {
+        id: "J",
+        netId: "lane-x",
+        position: { x: 20, y: 0 },
+        members: [
+          { id: "x", netId: "lane-x" },
+          { id: "y", netId: "lane-y" },
+        ],
+      },
+    );
+    const before = buildDocumentDerivedContext(freezeSnapshot(doc), resolver);
+    expect(before.contactsByNetId.get("scalar")?.[0]?.point).toEqual({
+      x: 20,
+      y: 0,
+    });
+    const moved = freezeSnapshot({
+      ...doc,
+      revision: doc.revision + 1,
+      junctions: doc.junctions.map((j) =>
+        j.id === "J" ? { ...j, position: { x: 40, y: 0 } } : j,
+      ),
+    });
+    const after = buildDocumentDerivedContext(moved, resolver);
+    const fresh = buildDocumentDerivedContext(structuredClone(moved), resolver);
+    expect(after.contactsByNetId.get("scalar")?.[0]?.point).toEqual({
+      x: 40,
+      y: 0,
+    });
+    expect(after.contactEvidence).toEqual(fresh.contactEvidence);
+  });
+
+  it("updates a terminal-only Net when a symbol with the same ID changes pin position, direction or visibility", () => {
+    const document = freezeSnapshot(
+      documentWith(
+        [],
+        [
+          {
+            id: "R1",
+            symbolId: "resistor",
+            position: { x: 0, y: 20 },
+            pins: ["1"],
+          },
+        ],
+      ),
+    );
+    const symbol = builtInSymbols.find((s) => s.id === "resistor")!;
+    const pin = symbol.pins.find((p) => p.name === "1")!;
+    const changedResolver = (change: Partial<typeof pin>) =>
+      new InMemorySymbolResolver([
+        {
+          ...symbol,
+          pins: symbol.pins.map((p) =>
+            p.name === pin.name ? { ...p, ...change } : p,
+          ),
+        },
+      ]);
+    for (const current of [
+      resolver,
+      changedResolver({ at: { x: 30, y: 0 } }),
+      changedResolver({ direction: "west" }),
+      changedResolver({
+        presentation: { ...pin.presentation, visibility: "implicit" },
+      }),
+      resolver,
+    ]) {
+      const actual = buildDocumentDerivedContext(
+        document,
+        current,
+      ).contactEvidence;
+      expect(actual).toEqual(
+        deriveDocumentContactEvidence(structuredClone(document), current),
+      );
+    }
+  });
+
+  it("updates route incidents when a remote attached pin moves on the same Route and Net", () => {
+    const document = freezeSnapshot(
+      documentWith(
+        [
+          {
+            id: "wire",
+            from: { x: 0, y: 0 },
+            to: { instanceId: "R1", pinName: "1" },
+          },
+        ],
+        [
+          {
+            id: "R1",
+            symbolId: "resistor",
+            position: { x: 60, y: 20 },
+            pins: ["1"],
+          },
+        ],
+      ),
+    );
+    const before = buildDocumentDerivedContext(
+      document,
+      resolver,
+    ).contactEvidence;
+    const moved = freezeSnapshot({
+      ...document,
+      revision: document.revision + 1,
+      instances: document.instances.map((instance) => ({
+        ...instance,
+        placement: {
+          ...instance.placement!,
+          position: { x: 0, y: 80 },
+        },
+      })),
+    });
+    const after = buildDocumentDerivedContext(moved, resolver).contactEvidence;
+    expect(after).toEqual(
+      deriveDocumentContactEvidence(structuredClone(moved), resolver),
+    );
+    expect(after.contacts).not.toEqual(before.contacts);
+    expect(
+      before.byEndpointKey.get("junction:anchor-1")?.branchDirections,
+    ).toEqual([{ x: 1, y: 0 }]);
+    expect(
+      after.byEndpointKey.get("junction:anchor-1")?.branchDirections,
+    ).toEqual([{ x: 0, y: 1 }]);
+  });
+});
 
 describe("contactRequiresJunctionDot", () => {
   it("keeps a straight two-arm join dotless", () => {
