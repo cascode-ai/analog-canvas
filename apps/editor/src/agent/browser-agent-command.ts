@@ -2080,6 +2080,8 @@ function labelsLeftInPlaceNote(
     rotated: "turned",
     custom: "custom-styled",
     moved: "moved by hand",
+    clear: "moved by hand and clear",
+    crowded: "moved by hand, no clear place nearby",
   } as const;
   const listed = left.map((label) => {
     const part =
@@ -2088,7 +2090,7 @@ function labelsLeftInPlaceNote(
     return `${part}'s ${label.labelId} (${why[label.reason]})`;
   });
   const hint = left.some((label) => label.reason === "moved")
-    ? "; includeManual:true re-places labels moved by hand"
+    ? "; includeManual:true repairs hand-moved labels the label findings report"
     : "";
   return {
     code: "LABELS_LEFT_IN_PLACE",

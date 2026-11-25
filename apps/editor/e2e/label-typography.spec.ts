@@ -273,7 +273,12 @@ test("keeps an overbar from widening a narrow glyph", async ({ page }) => {
   const overbarGlyph = textObjects.nth(1).locator('[data-text-run="base"]');
   await expect(overbarGlyph).not.toHaveAttribute("textLength", /.+/u);
   await expect(overbarGlyph).not.toHaveAttribute("lengthAdjust", /.+/u);
-  await expect(page.locator('[data-text-decoration="overbar"]')).toHaveCount(1);
+  // The canvas's: the Shapes palette's flip-flop chips draw Q̄ bars too.
+  await expect(
+    page
+      .getByTestId("schematic-canvas")
+      .locator('[data-text-decoration="overbar"]'),
+  ).toHaveCount(1);
 });
 
 // The exported formula's positions, its one overbar line and the saved runs
@@ -341,7 +346,12 @@ test("stacks complementary scripts under one uninterrupted overbar while editing
   await expect(editableOverbar).toHaveCSS("border-top-style", "solid");
 
   await page.getByRole("button", { name: "Apply text changes" }).click();
-  await expect(page.locator('[data-text-decoration="overbar"]')).toHaveCount(1);
+  // The canvas's: the Shapes palette's flip-flop chips draw Q̄ bars too.
+  await expect(
+    page
+      .getByTestId("schematic-canvas")
+      .locator('[data-text-decoration="overbar"]'),
+  ).toHaveCount(1);
 });
 
 // A Net Label drawn under an overbar names the complement Net (text-editing's

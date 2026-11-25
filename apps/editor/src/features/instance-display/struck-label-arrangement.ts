@@ -20,8 +20,9 @@ function ownerOf(
 }
 
 /**
- * The labels a wire or a part is drawn over, as VISUAL_LABEL_CLEARANCE
- * reports them, with the parts they belong to. A part counts as well as a
+ * The labels a wire or a part is drawn over, or crowds, as
+ * VISUAL_LABEL_CLEARANCE and VISUAL_LABEL_CROWDED report them, with the
+ * parts they belong to. A part counts as well as a
  * wire: a Cell whose Pins moved can draw its block taller, over the name
  * that stood under it.
  */
@@ -33,9 +34,11 @@ function struckLabels(
   const struck = new Map<string, string>();
   for (const label of context.visible) {
     const owner = ownerOf(label, context.visible);
+    const ink = context.measure(label).inkBounds;
     if (
       owner &&
-      context.struckAt(context.measure(label).inkBounds, label.id).length
+      (context.struckAt(ink, label.id).length ||
+        context.crowdingAt(ink, label.id).ids.length)
     )
       struck.set(label.id, owner);
   }

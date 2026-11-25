@@ -45,6 +45,14 @@ import { partName, type VisualDiagnostic } from "./visual.js";
 const LABEL_WORD_SPACE = 4;
 /** Least gap between two labels one above the other. */
 const LABEL_LINE_SPACE = 1;
+/**
+ * Least white space between a part's name or value and the stroke edge of a
+ * wire, rail, junction dot or part drawing (#2619). The default rule keeps
+ * its ink 4 units from its own part's points, about 2.8 visible past a
+ * 2.4-wide stroke, so it never warns. In the Gallery, labels under 2 units
+ * read as written on the wire or the transistor's arrow at a card's size.
+ */
+export const LABEL_MINIMUM_CLEARANCE = 2;
 /** One figure: two parts' labels closer than its width on a row run on. */
 const RUN_ON_FIGURE: RichTextDocument = {
   runs: [{ kind: "text", value: "0" }],
@@ -334,6 +342,81 @@ export function createLabelClearanceContext(
     [...new Set([...conflictsAt(box, annotationId), ...dotsAt(box)])]
       .filter((id) => obstacles.has(id))
       .sort();
+  // Stroke half-widths: what a label's clearance is measured past. A part's
+  // drawing is measured from its points, so its widest stroke counts.
+  const wireHalf = style.strokes.wire / 2;
+  const railHalf = style.strokes.powerRail / 2;
+  const symbolHalf = Math.max(style.strokes.symbol, style.strokes.emphasis) / 2;
+  const reachPast = LABEL_MINIMUM_CLEARANCE + Math.max(railHalf, symbolHalf);
+  const byId = new Map(document.annotations.map((a) => [a.id, a]));
+  /** Whether a label keeps the minimum clearance: a part's name or value. */
+  const keepsClearance = (annotationId: string) => {
+    const annotation = byId.get(annotationId);
+    return (
+      (annotation?.kind === "instance-label" ||
+        annotation?.kind === "instance-value") &&
+      annotation.anchor.kind === "object" &&
+      owners.has(annotation.anchor.objectId)
+    );
+  };
+  /**
+   * The wires, parts and junction dots' wires a part's name or value at
+   * `box` comes within LABEL_MINIMUM_CLEARANCE of, measured from its ink to
+   * their stroke edge, with the least such clearance. Those drawn over it
+   * are struckAt's, not these. Other labels and free text are none.
+   */
+  const crowdingAt = (
+    box: Rect,
+    annotationId: string,
+  ): { ids: string[]; clearance: number } => {
+    if (!keepsClearance(annotationId)) return { ids: [], clearance: Infinity };
+    const struck = new Set(struckAt(box, annotationId));
+    const grown = {
+      x: box.x - reachPast,
+      y: box.y - reachPast,
+      width: box.width + 2 * reachPast,
+      height: box.height + 2 * reachPast,
+    };
+    const ids = new Set<string>();
+    let clearance = Infinity;
+    const near = (id: string, gap: number) => {
+      if (
+        !obstacles.has(id) ||
+        struck.has(id) ||
+        gap >= LABEL_MINIMUM_CLEARANCE
+      )
+        return;
+      ids.add(id);
+      clearance = Math.min(clearance, Math.max(0, gap));
+    };
+    for (const segment of segments.queryBounds(grown))
+      near(
+        segment.routeId,
+        segmentRectangleGap(segment.from, segment.to, box) -
+          (railIds.has(segment.routeId) ? railHalf : wireHalf),
+      );
+    for (const symbol of symbolIndex.queryBounds(grown)) {
+      const b = symbol.bounds;
+      near(
+        symbol.id,
+        rectangleGap(box, {
+          x: b.x + 1,
+          y: b.y + 1,
+          width: Math.max(0, b.width - 2),
+          height: Math.max(0, b.height - 2),
+        }) - symbolHalf,
+      );
+    }
+    for (const dot of dots) {
+      const gap =
+        Math.hypot(
+          Math.max(0, box.x - dot.point.x, dot.point.x - box.x - box.width),
+          Math.max(0, box.y - dot.point.y, dot.point.y - box.y - box.height),
+        ) - style.nodes.junctionRadius;
+      for (const id of dot.ids) near(id, gap);
+    }
+    return { ids: [...ids].sort(), clearance };
+  };
   /** VISUAL_LABEL_OWNER_DISTANCE's gap for an attached label at `box`. */
   const ownerGapAt = (annotation: Annotation, box: Rect) => {
     const owner =
@@ -391,7 +474,8 @@ export function createLabelClearanceContext(
    * What the label diagnostics would report of `annotation` drawn with its
    * ink at `box`: VISUAL_LABEL_CLEARANCE's parts and wires, the labels
    * VISUAL_LABEL_OVERLAP would cluster it with, VISUAL_LABEL_OWNER_DISTANCE's
-   * gap and VISUAL_LABEL_RUN_ON's labels. Labels in `ignore` count as not
+   * gap, VISUAL_LABEL_RUN_ON's labels and VISUAL_LABEL_CROWDED's wires
+   * and parts. Labels in `ignore` count as not
    * drawn: a planner moving a group tests each member without the stale
    * places of the others. A spot a planner chooses where a clear one exists
    * raises none of these (#1836).
@@ -404,6 +488,7 @@ export function createLabelClearanceContext(
     const ownerGap = ownerGapAt(annotation, box);
     return {
       struck: struckAt(box, annotation.id),
+      crowded: crowdingAt(box, annotation.id).ids,
       overlapped: labelsAt(box, annotation.id)
         .filter((id) => !ignore.has(id))
         .sort(),
@@ -418,6 +503,7 @@ export function createLabelClearanceContext(
     symbols,
     measure,
     struckAt,
+    crowdingAt,
     ownerGapAt,
     runsOnAt,
     findingsAt,
@@ -504,6 +590,25 @@ export function diagnoseLabelClearance(
       const conflicts = context.struckAt(bounds, annotation.id);
       const gap = context.ownerGapAt(annotation, bounds);
       const diagnostics: VisualDiagnostic[] = [];
+      const crowding = conflicts.length
+        ? undefined
+        : context.crowdingAt(bounds, annotation.id);
+      if (crowding?.ids.length)
+        diagnostics.push({
+          code: "VISUAL_LABEL_CROWDED",
+          severity: "warning",
+          category: "observation",
+          confidence: "low",
+          gateEligible: false,
+          message: `Label text is ${formatUnits(crowding.clearance)} from a wire or a part's drawing, under the ${LABEL_MINIMUM_CLEARANCE}-unit clearance; arrange or move the label`,
+          objectIds: [annotation.id, ...crowding.ids],
+          bounds,
+          parameters: {
+            clearance: Math.round(crowding.clearance * 100) / 100,
+            minimumClearance: LABEL_MINIMUM_CLEARANCE,
+            conflictingObjectCount: crowding.ids.length,
+          },
+        });
       if (conflicts.length)
         diagnostics.push({
           code: "VISUAL_LABEL_CLEARANCE",
@@ -539,6 +644,8 @@ export function diagnoseLabelClearance(
 export interface LabelSpotFindings {
   /** Parts and wires drawn over it, a junction dot's wires among them. */
   readonly struck: readonly string[];
+  /** Parts and wires, not drawn over it, closer than the minimum clearance. */
+  readonly crowded: readonly string[];
   /** Other labels and free text its ink meets. */
   readonly overlapped: readonly string[];
   /** Its gap from its part, where that is past the review threshold. */
@@ -551,6 +658,7 @@ export interface LabelSpotFindings {
 function isClearSpot(findings: LabelSpotFindings): boolean {
   return (
     !findings.struck.length &&
+    !findings.crowded.length &&
     !findings.overlapped.length &&
     findings.ownerGap === undefined &&
     !findings.runsOn.length
@@ -686,6 +794,52 @@ function runOnLabels(
       });
     }
   return findings;
+}
+
+function formatUnits(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return `${rounded} unit${rounded === 1 ? "" : "s"}`;
+}
+
+/** Distance between a straight segment and a box; 0 when it meets the box. */
+function segmentRectangleGap(from: Point, to: Point, box: Rect): number {
+  const inside = (p: Point) =>
+    p.x >= box.x &&
+    p.x <= box.x + box.width &&
+    p.y >= box.y &&
+    p.y <= box.y + box.height;
+  if (inside(from) || inside(to) || segmentCrossesBox(from, to, box)) return 0;
+  const corners: Point[] = [
+    { x: box.x, y: box.y },
+    { x: box.x + box.width, y: box.y },
+    { x: box.x + box.width, y: box.y + box.height },
+    { x: box.x, y: box.y + box.height },
+  ];
+  const edges = corners.map((corner, i) => [corner, corners[(i + 1) % 4]!]);
+  // A segment along an edge crosses no open box; one through a corner meets it.
+  return Math.min(
+    ...corners.map((corner) => pointSegmentGap(corner, from, to)),
+    ...edges.flatMap(([a, b]) => [
+      pointSegmentGap(from, a!, b!),
+      pointSegmentGap(to, a!, b!),
+    ]),
+  );
+}
+
+function pointSegmentGap(point: Point, from: Point, to: Point): number {
+  const dx = to.x - from.x,
+    dy = to.y - from.y;
+  const length = dx * dx + dy * dy;
+  const t = length
+    ? Math.max(
+        0,
+        Math.min(
+          1,
+          ((point.x - from.x) * dx + (point.y - from.y) * dy) / length,
+        ),
+      )
+    : 0;
+  return Math.hypot(point.x - from.x - t * dx, point.y - from.y - t * dy);
 }
 
 function overlap(a: Rect, b: Rect): boolean {

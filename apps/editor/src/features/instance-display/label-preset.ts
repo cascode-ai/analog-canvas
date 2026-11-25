@@ -20,7 +20,9 @@ import { instanceParameterVisibilityEdits } from "@icm/edit-engine";
  * The labels are arranged on a private copy with the W/L already hidden, so
  * the rows they leave free count. Labels the arrangement leaves alone, moved
  * by hand or by an earlier pass, locked or restyled, keep their place and
- * look.
+ * look; one moved by hand that the label findings report, drawn on its
+ * transistor or crowding a wire, is repaired to a clear place, or stays
+ * where there is none (#2619).
  */
 export function textbookLabelEdits(
   document: SchematicDocument,
@@ -94,6 +96,7 @@ export function textbookLabelEdits(
     ...multiplied,
     ...arrangeInstanceLabels(draft, resolver, instanceIds, {
       referenceStyle: "first-letter-subscript",
+      repairManual: true,
     }),
   ];
 }

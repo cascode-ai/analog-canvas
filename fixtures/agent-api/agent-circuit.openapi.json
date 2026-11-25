@@ -11220,7 +11220,7 @@
             ]
           },
           "__schema412": {
-            "description": "Also re-place labels moved by hand.",
+            "description": "Also repair labels moved by hand that the label findings report (struck, crowded, overlapping, far from their part), only to a clear place.",
             "$ref": "#/components/schemas/agentCircuitRequest/$defs/__schema413"
           },
           "__schema413": {

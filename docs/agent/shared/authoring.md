@@ -667,14 +667,17 @@ means deleting the Cell.
   `referenceStyle:"first-letter-subscript"` draws `RBIAS` as R_BIAS (and an
   unstyled Port name in its placed look, `vrfp` as V_rfp) without renaming.
   Manual, locked, hidden and restyled labels stay and are named
-  (`LABELS_LEFT_IN_PLACE`); `includeManual:true` re-places hand-moved ones.
+  (`LABELS_LEFT_IN_PLACE`); `includeManual:true` repairs hand-moved ones the
+  label findings report (struck, `VISUAL_LABEL_CROWDED`, overlapping, far),
+  only to a clear place; clear ones stay (`clear`), unrepairable ones too
+  (`crowded`).
   Clearance observations never gate editing.
 - `{kind:"apply-label-preset",preset:"textbook"}` (`circuit_text`) for the Cell
   or `targets` (`[{kind:"instance",reference:"M1"}]` or `id`; native
   `instanceIds`), one undo: hides every MOS W/L, shows ×m where `m` ≠ 1, leaves
   other values as they are, then arranges with `first-letter-subscript` (R_L,
-  I_SS, M_1), counting the W/L space as free. Labels arrange-labels leaves alone
-  keep place and look.
+  I_SS, M_1), counting the W/L space as free, repairing hand-moved labels as
+  `includeManual` does. Labels arrange-labels leaves alone keep place and look.
 - A full or `pins` Snapshot with `instanceLabels:true` (MCP object `inspect`)
   lists each instance's `annotations` (ids, text, `position`).
   `move-annotation` sets that position, `alignment` (`start|middle|end`)
