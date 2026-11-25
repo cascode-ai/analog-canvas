@@ -280,8 +280,10 @@ resetsAt, exempt}`. Updates spend nothing.
 enforces no ERC veto. Failures carry `message`, `count` and ≤5 example labels.
 
 - `erc-errors`: any ERC error.
+- `erc-warnings`: any ERC warning outside `floating-endpoints`
+  ([ERC table](connectivity-and-routing.md#shared-read-and-diagnostic-boundary)).
 - `floating-endpoints`: `ERC_UNCONNECTED_PIN`, `ERC_BULK_UNRESOLVED`,
-  `ERC_FLOATING_GATE` (not `ERC_UNDRIVEN_GATE_NET`).
+  `ERC_FLOATING_GATE`.
 - `empty-project`: fewer than 2 instances and fewer than 3 drafting objects
   including a text.
 

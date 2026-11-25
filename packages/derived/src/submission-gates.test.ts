@@ -67,12 +67,12 @@ function project(): CircuitProject {
   return createEmptyProject("gates", "Gates", "doc");
 }
 
-function dualInstance(id: string, reference?: string) {
+function dualInstance(id: string, reference?: string, x = 0) {
   return {
     id,
     symbolId: "dual",
     placement: {
-      position: { x: 0, y: 0 },
+      position: { x, y: 0 },
       rotation: 0 as const,
       mirror: "none" as const,
     },
@@ -153,8 +153,8 @@ describe("evaluateSubmissionGates", () => {
     const target = project();
     const document = target.documents[0]!;
     document.instances = [
-      { ...dualInstance("M1", "M1"), symbolId: "mos" },
-      { ...dualInstance("M2", "M2"), symbolId: "mos" },
+      { ...dualInstance("M1", "M1", 0), symbolId: "mos" },
+      { ...dualInstance("M2", "M2", 100), symbolId: "mos" },
     ];
     document.nets = [
       {
@@ -216,6 +216,63 @@ describe("evaluateSubmissionGates", () => {
     ]);
     expect(report.failures[0]?.examples[0]).toContain(
       "ERC_DUPLICATE_INSTANCE_REFERENCE",
+    );
+  });
+
+  it("reports non-floating ERC warnings in Publish advice without duplicating floating endpoints", () => {
+    const target = project();
+    const document = target.documents[0]!;
+    document.instances = [
+      { ...dualInstance("M1", "M1", 0), symbolId: "mos" },
+      { ...dualInstance("M2", "M2", 100), symbolId: "mos" },
+    ];
+    document.nets = [
+      {
+        id: "channel",
+        terminals: [
+          { instanceId: "M1", pinName: "D" },
+          { instanceId: "M1", pinName: "S" },
+          { instanceId: "M2", pinName: "D" },
+          { instanceId: "M2", pinName: "S" },
+        ],
+      },
+      {
+        id: "undriven-gates",
+        terminals: [
+          { instanceId: "M1", pinName: "G" },
+          { instanceId: "M2", pinName: "G" },
+        ],
+      },
+    ];
+    document.connectivityEvidence.push(
+      {
+        id: "claim-x0",
+        kind: "name-claim",
+        netId: "channel",
+        name: "X0",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "label-x0" },
+      },
+      {
+        id: "claim-xo",
+        kind: "name-claim",
+        netId: "undriven-gates",
+        name: "XO",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "label-xo" },
+      },
+    );
+    const report = gates(target);
+    expect(report.ok).toBe(false);
+    expect(report.failures.map((failure) => failure.code)).toEqual([
+      "erc-warnings",
+    ]);
+    expect(report.failures[0]!.count).toBe(2);
+    expect(report.failures[0]!.examples).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("ERC_UNDRIVEN_GATE_NET"),
+        expect.stringContaining("ERC_LOOKALIKE_NET_NAMES"),
+      ]),
     );
   });
 

@@ -23,8 +23,15 @@ import {
 import { resolveEndpointPoint } from "../endpoint.js";
 import { resolveDocumentRoutingGeometry } from "../resolved-route-geometry.js";
 import { findRouteSegmentsAtPoint } from "../route-query.js";
-import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
+import { directObjectLocator } from "../object-locator.js";
 import type { Diagnostic } from "./diagnostic.js";
+import {
+  VOLTAGE_SOURCE_CLASSES,
+  buildTerminalLogicalNetMap,
+  isSubcircuitBound,
+  terminalLocator,
+} from "./erc-shared.js";
+import { reportOpAmpPositiveFeedback } from "./opamp-positive-feedback.js";
 import {
   findExternalMasterCollisions,
   libraryPartRetarget,
@@ -69,17 +76,6 @@ function notAQuantity(forms: QuantityForms): string {
   return named.length > 1
     ? `neither ${named.slice(0, -1).join(", ")} nor ${named.at(-1)}`
     : `not ${named[0]}`;
-}
-
-function terminalLocator(
-  documentId: string,
-  instanceId: string,
-  pinName: string,
-): ObjectLocator {
-  return {
-    ...directObjectLocator(documentId, "terminal", `${instanceId}:${pinName}`),
-    endpoint: { kind: "terminal", instanceId, pinName },
-  };
 }
 
 /**
@@ -806,6 +802,7 @@ export function runErcChecks(
       logicalNets,
       diagnostics,
     );
+    reportOpAmpPositiveFeedback(project, document, logicalNets, diagnostics);
     reportDanglingWires(document, docIndex, diagnostics);
     reportNetLabelsNamingNothing(document, diagnostics);
     reportOverbarNameMismatches(document, diagnostics);
@@ -1228,9 +1225,6 @@ function reportLookAlikeNetNames(
   }
 }
 
-/** Device classes that force the voltage across their two pins. */
-const VOLTAGE_SOURCE_CLASSES = new Set(["voltage-source", "vcvs", "ccvs"]);
-
 /**
  * Two voltage-forcing outputs that set the same voltage: two ideal voltage
  * sources across one pair of Nets, or ideal sources and behavioural block
@@ -1246,13 +1240,7 @@ function reportConflictingVoltageOutputs(
   logicalNets: ReturnType<typeof resolveDocumentLogicalNets>,
   diagnostics: ErcDiagnostic[],
 ): void {
-  const netOfTerminal = new Map<string, string>();
-  for (const net of document.nets)
-    for (const terminal of net.terminals)
-      netOfTerminal.set(
-        `${terminal.instanceId}\u0000${terminal.pinName}`,
-        logicalNets.byBaseNetId.get(net.id)?.id ?? net.id,
-      );
+  const netOfTerminal = buildTerminalLogicalNetMap(document, logicalNets);
   const GROUND = "\u0000ground";
   const side = (netId: string): string =>
     logicalNets.byId.get(netId)?.powerDomain === "ground" ? GROUND : netId;
@@ -1270,13 +1258,7 @@ function reportConflictingVoltageOutputs(
     byPair.set(key, entry);
   };
   for (const instance of document.instances) {
-    const binding = instance.netlist?.binding?.kind;
-    if (
-      binding === "subcircuit" ||
-      binding === "external-subcircuit" ||
-      binding === "unresolved-subcircuit"
-    )
-      continue;
+    if (isSubcircuitBound(instance)) continue;
     const label = instance.reference ?? instance.id;
     const netOf = (pinName: string) =>
       netOfTerminal.get(`${instance.id}\u0000${pinName}`);
