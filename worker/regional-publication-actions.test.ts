@@ -891,3 +891,52 @@ it("keeps a legacy China Dataset writer when overseas has not copied it", async 
     ).status,
   ).toBe(400);
 });
+
+it("commits a foreign Gallery PUT without cloudProjectId even while private project-sync is unavailable (#2609)", async () => {
+  const { cn, overseas, publish } = await pair({ projects: true });
+  const id = await publish(cn);
+  const transport = globalThis.fetch;
+  let projectSyncCalls = 0;
+  vi.stubGlobal(
+    "fetch",
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = new Request(input, init);
+      if (new URL(request.url).pathname.startsWith("/api/project-sync/")) {
+        projectSyncCalls += 1;
+        return Response.json(
+          { error: "project-sync-unavailable" },
+          { status: 503 },
+        );
+      }
+      return transport(request);
+    },
+  );
+  const updated = await overseas.call("/api/gallery/" + id, "PUT", "bare-put", {
+    name: "Bare foreign update",
+    description: "",
+    tags: [],
+    projectText: wiredProjectText("Bare update", 310),
+  });
+  expect(updated.status, await updated.clone().text()).toBe(200);
+  expect(projectSyncCalls).toBe(0);
+  expect((await (await overseas.call("/api/gallery/" + id)).json()).entry.name).toBe(
+    "Bare foreign update",
+  );
+  // A PUT that explicitly binds a cloudProjectId still requires project-sync catch-up.
+  const bound = await overseas.call(
+    "/api/gallery/" + id,
+    "PUT",
+    "bound-put",
+    {
+      name: "Bound foreign update",
+      description: "",
+      tags: [],
+      projectText: wiredProjectText("Bound update", 320),
+      cloudProjectId: "cloud-1",
+      expectedGalleryEntryId: null,
+    },
+  );
+  expect(bound.status).toBe(503);
+  expect(await bound.json()).toEqual({ error: "project-propagation-pending" });
+  expect(projectSyncCalls).toBeGreaterThan(0);
+});

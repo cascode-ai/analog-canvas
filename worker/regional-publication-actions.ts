@@ -393,7 +393,9 @@ export async function routeRegionalPublicationActions(
       const bindingMutation =
         !source &&
         command.method === "PUT" &&
-        !command.path.includes("/reference");
+        !command.path.includes("/reference") &&
+        (command.body as { cloudProjectId?: unknown } | null)
+          ?.cloudProjectId !== undefined;
       if (
         incoming &&
         bindingMutation &&
@@ -488,20 +490,19 @@ export async function routeRegionalPublicationActions(
         .state !== result.state
     )
       return fail("action-superseded", 409);
-    if (
-      result.projectHead &&
-      !(await catchUpPublicationProjects(env, result.projectHead))
-    )
-      return fail("project-propagation-pending", 503);
-    const bindings = await (
-      await call("publication-state", {
-        id: command.entryId,
-        projectId: (command.body as { cloudProjectId?: unknown } | null)
-          ?.cloudProjectId,
-      })
-    ).json();
-    if (bindings.projectState !== result.projectState)
-      return fail("publication-link-conflict", 409);
+    if (result.projectHead) {
+      if (!(await catchUpPublicationProjects(env, result.projectHead)))
+        return fail("project-propagation-pending", 503);
+      const bindings = await (
+        await call("publication-state", {
+          id: command.entryId,
+          projectId: (command.body as { cloudProjectId?: unknown } | null)
+            ?.cloudProjectId,
+        })
+      ).json();
+      if (bindings.projectState !== result.projectState)
+        return fail("publication-link-conflict", 409);
+    }
     return answer(result.result, result.status);
   } catch (error) {
     if (!incoming && error instanceof RangeError) return fail("too-large", 413);

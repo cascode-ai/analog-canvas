@@ -1,11 +1,13 @@
 import { REGIONAL_ACTION_TIMEOUT_MS } from "./regional-action-budget";
-import { sessionUserOf, type SessionUser } from "./auth";
+import { hasBearer, sessionUserOf, type SessionUser } from "./auth";
 import { digest, sessionIdentity } from "./regional-auth-contract";
 import { sameOrigin } from "./same-origin";
 import { readSyncJson } from "./project-sync-http";
 import { catchUpResource, type ResourceCall } from "./resource-action-catchup";
 import type { ResourceActionEnv } from "./regional-resource-actions";
 import { sha256Hex } from "@icm/derived";
+import { ownerToolRefusal } from "./gallery-datasets";
+import { recordLocalSimulationCheckPayload } from "./gallery-simulation-checks";
 import {
   projectFormatDigests,
   projectFormatRefusal,
@@ -16,16 +18,31 @@ import {
 const PATH = "/api/resource-actions/maintenance";
 const DUPLICATES = "/api/gallery/duplicates/recycle",
   CHECKS = "/api/gallery/simulation-checks",
+  LOCAL_INPUTS = "/api/gallery/simulation-checks/inputs",
   FORMAT = "/api/gallery/maintenance/project-format";
+const LOCAL_INPUT_RE =
+  /^\/api\/gallery\/([A-Za-z0-9_-]{3,64})\/simulation-check\/input$/;
+const LOCAL_RECORD_RE =
+  /^\/api\/gallery\/([A-Za-z0-9_-]{3,64})\/simulation-check$/;
+const LOCAL_INPUT_MAX = 4 * 1024 * 1024;
 type Reference = { id: string; previewRevision: string };
 type Input =
   | { keep: Reference; remove: Reference[] }
   | { ids: string[] }
   | { all: true }
+  | { id: string }
+  | { id: string; payload: Record<string, unknown> }
   | ProjectFormatDigests
   | Record<string, never>;
 type Command = {
-  kind: "duplicates" | "checks" | "progress" | "format";
+  kind:
+    | "duplicates"
+    | "checks"
+    | "progress"
+    | "format"
+    | "local-inputs"
+    | "local-input"
+    | "local-record";
   target: string;
   commandId: string;
   body: Input;
@@ -36,6 +53,8 @@ const answer = (value: unknown, status = 200) =>
 const fail = (error: string, status: number) => answer({ error }, status);
 const key = (value: unknown): value is string =>
   typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value);
+const entryKey = (value: unknown): value is string =>
+  typeof value === "string" && value.length > 0 && value.length <= 64;
 const ref = (value: any): value is Reference =>
   value &&
   typeof value.id === "string" &&
@@ -45,7 +64,18 @@ const ref = (value: any): value is Reference =>
   value.previewRevision.length <= 100;
 function valid(kind: string, body: any): body is Input {
   if (!body || typeof body !== "object") return false;
-  if (kind === "progress") return Object.keys(body).length === 0;
+  if (kind === "progress" || kind === "local-inputs")
+    return Object.keys(body).length === 0;
+  if (kind === "local-input")
+    return entryKey(body.id) && Object.keys(body).length === 1;
+  if (kind === "local-record")
+    return (
+      entryKey(body.id) &&
+      body.payload !== null &&
+      typeof body.payload === "object" &&
+      !Array.isArray(body.payload) &&
+      Object.keys(body).length === 2
+    );
   if (kind === "format") return projectFormatDigests(body) !== null;
   if (kind === "checks")
     return (
@@ -84,10 +114,17 @@ export async function routeRegionalMaintenance(
 ): Promise<Response | null> {
   const url = new URL(request.url),
     incoming = url.pathname === PATH,
-    format = url.pathname === FORMAT && request.method === "POST";
+    format = url.pathname === FORMAT && request.method === "POST",
+    localInputs = url.pathname === LOCAL_INPUTS && request.method === "GET",
+    localInput =
+      request.method === "GET" ? LOCAL_INPUT_RE.exec(url.pathname) : null,
+    localRecord =
+      request.method === "POST" ? LOCAL_RECORD_RE.exec(url.pathname) : null,
+    isLocalSimCheck = Boolean(localInputs || localInput || localRecord);
   if (
     !incoming &&
     !format &&
+    !isLocalSimCheck &&
     !(url.pathname === DUPLICATES && request.method === "POST") &&
     !(url.pathname === CHECKS && ["GET", "POST"].includes(request.method))
   )
@@ -98,6 +135,7 @@ export async function routeRegionalMaintenance(
     return fail("method-not-allowed", 405);
   const authBinding = env.AUTH;
   if (!authBinding) return fail("authorization-unavailable", 503);
+  const byToken = isLocalSimCheck && hasBearer(request);
   const store = env.GALLERY.getByName("gallery");
   const call: ResourceCall = (operation, body) =>
     store.fetch("https://gallery/" + operation, {
@@ -109,7 +147,12 @@ export async function routeRegionalMaintenance(
       .getByName("auth")
       .fetch("https://auth/internal/resource-action-" + operation, {
         method: "POST",
-        headers: { cookie: request.headers.get("cookie") ?? "" },
+        headers: {
+          cookie: request.headers.get("cookie") ?? "",
+          ...(byToken
+            ? { authorization: request.headers.get("authorization")! }
+            : {}),
+        },
         body: JSON.stringify(body),
       });
   try {
@@ -122,14 +165,15 @@ export async function routeRegionalMaintenance(
     )
       return fail("action-not-configured", 503);
     const peerRegion = env.RESOURCE_REGION === "cn" ? "overseas" : "cn";
-    const location = async (id: string) => {
+    const locationInfo = async (id: string) => {
       const response = await call("resource-sync/location", {
         stream: "gallery",
         id,
       });
       if (!response.ok) throw new Error("Unknown writer");
-      return String((await response.json()).origin);
+      return (await response.json()) as { known: boolean; origin: string };
     };
+    const location = async (id: string) => String((await locationInfo(id)).origin);
     // Versions replicate under their entry's id, so they share its writer.
     const writerKey = async (body: { table: string; id: string }) =>
       (await (await call("gallery-project-format-key", body)).json()).key as
@@ -168,6 +212,19 @@ export async function routeRegionalMaintenance(
         return fail("forbidden", 403);
       if (command.kind === "progress")
         return call("simulation-checks-progress", { ownedOnly: true });
+      if (command.kind === "local-inputs")
+        return call("simulation-check-inputs", {});
+      if (command.kind === "local-input")
+        return call("simulation-check-input", {
+          id: (command.body as { id: string }).id,
+        });
+      if (command.kind === "local-record") {
+        const { id, payload } = command.body as {
+          id: string;
+          payload: Record<string, unknown>;
+        };
+        return recordLocalSimulationCheckPayload(env, id, payload);
+      }
       // Format is idempotent by content, so it keeps no command receipt.
       if (command.kind === "format") {
         const key = await writerKey(command.body as ProjectFormatDigests);
@@ -231,6 +288,111 @@ export async function routeRegionalMaintenance(
         ).json(),
         witness: result.headers.get("x-canvas-maintenance-state"),
       });
+    }
+    if (isLocalSimCheck) {
+      const owner = await ownerToolRefusal(request, env);
+      if (owner instanceof Response) return owner;
+      const forwardPeer = async (command: Command, maxBytes = 65536) => {
+        const authorized = await auth("authorize", {
+          binding: await digest(JSON.stringify(command)),
+        });
+        if (!authorized.ok)
+          return {
+            ok: false as const,
+            status: 503,
+            payload: { error: "authorization-unavailable" },
+          };
+        const token = (await authorized.json()).token;
+        const response = await fetch(peer.origin + PATH, {
+          method: "POST",
+          redirect: "manual",
+          signal: AbortSignal.timeout(REGIONAL_ACTION_TIMEOUT_MS),
+          headers: {
+            authorization: "Bearer " + token,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify(command),
+        });
+        const received = (await readSyncJson(response, maxBytes)) as any;
+        return response.ok
+          ? { ok: true as const, status: response.status, received }
+          : { ok: false as const, status: response.status, payload: received };
+      };
+      if (localInputs) {
+        const localResponse = await call("simulation-check-inputs", {});
+        const remote = await forwardPeer(
+          {
+            kind: "local-inputs",
+            target: peerRegion,
+            commandId: crypto.randomUUID(),
+            body: {},
+          },
+          LOCAL_INPUT_MAX,
+        ).catch(() => null);
+        if (!localResponse.ok || !remote?.ok)
+          return fail("inputs-unavailable", 503);
+        const localData = (await localResponse.json()) as {
+          entries: { id: string; name: string }[];
+        };
+        const remoteData = remote.received.payload as {
+          entries: { id: string; name: string }[];
+        };
+        const seen = new Set<string>();
+        const entries = [...localData.entries, ...remoteData.entries].filter(
+          (item) => {
+            if (seen.has(item.id)) return false;
+            seen.add(item.id);
+            return true;
+          },
+        );
+        return answer({ entries });
+      }
+      const entryId = (localInput ?? localRecord)![1]!;
+      const loc = await locationInfo(entryId);
+      if (localInput) {
+        if (!loc.known || loc.origin === env.RESOURCE_REGION) {
+          const response = await call("simulation-check-input", { id: entryId });
+          return answer(await response.json(), response.status);
+        }
+        if (loc.origin !== peerRegion) return fail("wrong-writer", 409);
+        const remote = await forwardPeer(
+          {
+            kind: "local-input",
+            target: peerRegion,
+            commandId: crypto.randomUUID(),
+            body: { id: entryId },
+          },
+          LOCAL_INPUT_MAX,
+        );
+        if (!remote.ok) return answer(remote.payload, remote.status);
+        return answer(remote.received.payload);
+      }
+      const payload = (await readSyncJson(request, 65536)) as Record<
+        string,
+        unknown
+      > | null;
+      if (!payload || typeof payload !== "object" || Array.isArray(payload))
+        return fail("invalid-fields", 400);
+      if (!loc.known || loc.origin === env.RESOURCE_REGION)
+        return recordLocalSimulationCheckPayload(env, entryId, payload);
+      if (loc.origin !== peerRegion) return fail("wrong-writer", 409);
+      const command: Command = {
+        kind: "local-record",
+        target: peerRegion,
+        commandId: await digest(JSON.stringify({ id: entryId, payload })),
+        body: { id: entryId, payload },
+      };
+      const remote = await forwardPeer(command);
+      if (!remote.ok) return answer(remote.payload, remote.status);
+      const caughtUp = await catchUpResource(
+        call,
+        "gallery",
+        peer.origin,
+        env.RESOURCE_SYNC_PEER_TOKEN,
+        remote.received.head,
+      ).catch(() => false);
+      if (!caughtUp) return fail("action-propagation-pending", 503);
+      return answer(remote.received.payload);
     }
     if (request.method === "POST" && !sameOrigin(request))
       return fail("forbidden", 403);

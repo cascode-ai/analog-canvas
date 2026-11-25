@@ -215,51 +215,22 @@ function localVerdict(
 }
 
 /**
- * The Owner's local check (#1545), by Owner token or the Owner's session:
- * `GET /api/gallery/simulation-checks/inputs` lists the entries to check,
- * `GET /api/gallery/<id>/simulation-check/input` gives one entry's Project
- * Code with its testbench and their digests, and `POST
- * /api/gallery/<id>/simulation-check` records the verdict for those digests.
+ * Validate and persist a local simulation check verdict against the entry's
+ * current writer-owned digests. Shared by direct single-region routes and
+ * writer-routed cross-region maintenance commands (#2610).
  */
-async function routeLocalSimulationChecks(
-  request: Request,
+export async function recordLocalSimulationCheckPayload(
   env: GalleryEnv,
-  segments: readonly string[],
-): Promise<Response | null> {
-  const inputs =
-    segments.length === 2 &&
-    segments[0] === "simulation-checks" &&
-    segments[1] === "inputs";
-  const input =
-    segments.length === 3 &&
-    segments[1] === "simulation-check" &&
-    segments[2] === "input";
-  const record =
-    segments.length === 2 &&
-    segments[1] === "simulation-check" &&
-    request.method === "POST";
-  if (!inputs && !input && !record) return null;
-  if ((inputs || input) && request.method !== "GET")
-    return noStore({ error: "method-not-allowed" }, 405);
-  const owner = await ownerToolRefusal(request, env);
-  if (owner instanceof Response) return owner;
-  if (inputs) {
-    const { payload } = await callGallery(env, "simulation-check-inputs", {});
-    return noStore(payload);
-  }
-  const id = segments[0]!;
+  id: string,
+  body: Record<string, unknown> | null,
+): Promise<Response> {
   const current = await callGallery<{
     error?: string;
     projectText?: string;
     projectDigest?: string;
     testbenchDigest?: string | null;
   }>(env, "simulation-check-input", { id });
-  if (input || current.status !== 200)
-    return noStore(current.payload, current.status);
-  const body = (await request.json().catch(() => null)) as Record<
-    string,
-    unknown
-  > | null;
+  if (current.status !== 200) return noStore(current.payload, current.status);
   if (
     !body ||
     !text(body.projectDigest, 64) ||
@@ -300,6 +271,51 @@ async function routeLocalSimulationChecks(
   return status === 200
     ? noStore({ recorded: true, check })
     : noStore(payload, status);
+}
+
+/**
+ * The Owner's local check (#1545), by Owner token or the Owner's session:
+ * `GET /api/gallery/simulation-checks/inputs` lists the entries to check,
+ * `GET /api/gallery/<id>/simulation-check/input` gives one entry's Project
+ * Code with its testbench and their digests, and `POST
+ * /api/gallery/<id>/simulation-check` records the verdict for those digests.
+ */
+async function routeLocalSimulationChecks(
+  request: Request,
+  env: GalleryEnv,
+  segments: readonly string[],
+): Promise<Response | null> {
+  const inputs =
+    segments.length === 2 &&
+    segments[0] === "simulation-checks" &&
+    segments[1] === "inputs";
+  const input =
+    segments.length === 3 &&
+    segments[1] === "simulation-check" &&
+    segments[2] === "input";
+  const record =
+    segments.length === 2 &&
+    segments[1] === "simulation-check" &&
+    request.method === "POST";
+  if (!inputs && !input && !record) return null;
+  if ((inputs || input) && request.method !== "GET")
+    return noStore({ error: "method-not-allowed" }, 405);
+  const owner = await ownerToolRefusal(request, env);
+  if (owner instanceof Response) return owner;
+  if (inputs) {
+    const { payload } = await callGallery(env, "simulation-check-inputs", {});
+    return noStore(payload);
+  }
+  const id = segments[0]!;
+  if (input) {
+    const current = await callGallery(env, "simulation-check-input", { id });
+    return noStore(current.payload, current.status);
+  }
+  const body = (await request.json().catch(() => null)) as Record<
+    string,
+    unknown
+  > | null;
+  return recordLocalSimulationCheckPayload(env, id, body);
 }
 
 /**
