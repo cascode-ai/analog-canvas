@@ -11,6 +11,7 @@ import {
   hostedSky130LargePnpRequest,
   hostedSky130NpnRequest,
   hostedSky130Mos5vRequest,
+  hostedSky130ResXhighPoRequest,
   RC_TRAN_REQUEST,
   REQUEST_ERRORS,
   RESISTOR_NOISE_REQUEST,
@@ -32,6 +33,7 @@ import {
   validateHostedSky130NpnResult,
   validateHostedSky130Mos5vResult,
   validateHostedSky130NoiseResult,
+  validateHostedSky130ResXhighPoResult,
   validateHostedSky130Result,
   validateHostedSky130TransientResult,
 } from "./preview-simulation-sky130-validation.mjs";
@@ -210,6 +212,29 @@ export async function runHostedSky130DiodeAcceptance({
       `[infrastructure:http-${response.status}] ${target} ${corner} diode qualification failed.`,
     );
   return validateHostedSky130DiodeResult(payload, target, corner);
+}
+
+export async function runHostedSky130ResXhighPoAcceptance({
+  baseUrl,
+  target,
+  corner,
+  fetchImpl = fetch,
+}) {
+  const response = await fetchImpl(new URL("/api/simulate", baseUrl), {
+    method: "POST",
+    headers: simulationSmokeHeaders(),
+    body: JSON.stringify({
+      ...hostedSky130ResXhighPoRequest(corner),
+      executorTarget: target,
+    }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  const payload = await response.json();
+  if (!response.ok)
+    throw new Error(
+      `[infrastructure:http-${response.status}] ${target} ${corner} res_xhigh_po qualification failed.`,
+    );
+  return validateHostedSky130ResXhighPoResult(payload, target, corner);
 }
 
 export async function runHostedSky130ExtendedDeviceAcceptance({

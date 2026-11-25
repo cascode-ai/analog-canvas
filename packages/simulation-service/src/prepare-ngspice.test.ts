@@ -231,6 +231,7 @@ describe("ngspice authored input identity", () => {
     ["sky130_fd_pr__nfet_03v3_nvt", false],
     ["sky130_fd_pr__npn_05v5_W1p00L1p00", true],
     ["sky130_fd_pr__npn_11v0_W1p00L1p00", false],
+    ["sky130_fd_pr__res_xhigh_po", true],
   ])(
     "checks a Gallery model source's %s against the hosted SKY130 Profile",
     async (master, qualified) => {
@@ -255,7 +256,9 @@ describe("ngspice authored input identity", () => {
                   text: `.subckt pair\n${
                     master.includes("__npn_")
                       ? `X1 c b e s ${master}`
-                      : `X1 d g s b ${master} w=3 l=0.5`
+                      : master.includes("__res_")
+                        ? `X1 a b 0 ${master} w=1 l=10 mult=1`
+                        : `X1 d g s b ${master} w=3 l=0.5`
                   }\n.ends pair\n`,
                 },
               ],

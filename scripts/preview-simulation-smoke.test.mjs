@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";
 import { validateQualifiedModelSelection } from "./lib/preview-simulation-sky130-validation.mjs";
-import { diodeQualification } from "./lib/preview-simulation-qualification.mjs";
+import {
+  diodeQualification,
+  resXhighPoQualification,
+} from "./lib/preview-simulation-qualification.mjs";
 
 import {
   compileHostedSky130Project,
@@ -14,6 +17,7 @@ import {
   hostedSky130LargePnpRequest,
   hostedSky130NpnRequest,
   hostedSky130Mos5vRequest,
+  hostedSky130ResXhighPoRequest,
   runHostedSky130Acceptance,
   runHostedSky130CornerAcceptance,
   runHostedSky130DiodeAcceptance,
@@ -23,6 +27,7 @@ import {
   runHostedSky130NpnAcceptance,
   runHostedSky130Mos5vAcceptance,
   runHostedSky130NoiseAcceptance,
+  runHostedSky130ResXhighPoAcceptance,
   runHostedSky130TransientAcceptance,
   runPreviewSimulationSmoke,
   validateHostedSky130TransientResult,
@@ -37,6 +42,7 @@ import {
   validateHostedSky130LargePnpResult,
   validateHostedSky130NpnResult,
   validateHostedSky130Mos5vResult,
+  validateHostedSky130ResXhighPoResult,
   validatePreviewSimulationResult,
 } from "./preview-simulation-smoke.mjs";
 
@@ -429,6 +435,51 @@ function diodeResult(target, corner = "ff", expected = DIODES_FF) {
               name: "i(vpr)",
               real: [expected.pd2nwAcReal],
               imag: [expected.pd2nwAcImag],
+            },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+const RES_XHIGH_FF = resXhighPoQualification.expectedCorners.ff;
+
+function resXhighPoResult(target, corner = "ff", expected = RES_XHIGH_FF) {
+  const base = result(target);
+  return {
+    ...base,
+    metadata: {
+      ...base.metadata,
+      input: { inputRevision: `preview-sky130-res-xhigh-po-${corner}` },
+      configuration: { modelLibrary: { directive: "lib", section: corner } },
+      environment: {
+        ...base.metadata.environment,
+        fingerprint: CORNER_ENVIRONMENT_SHA,
+      },
+    },
+    data: {
+      analyses: [
+        {
+          analysis: "op",
+          probes: [
+            { name: "i(vrin)", value: expected.resCurrentInA },
+            { name: "i(vrout)", value: expected.resCurrentOutA },
+            { name: "i(vnrin)", value: expected.narrowCurrentInA },
+          ],
+        },
+        {
+          analysis: "ac",
+          probes: [
+            {
+              name: "i(vrin)",
+              real: [expected.resAcInReal],
+              imag: [expected.resAcInImag],
+            },
+            {
+              name: "i(vrout)",
+              real: [expected.resAcOutReal],
+              imag: [expected.resAcOutImag],
             },
           ],
         },
@@ -972,6 +1023,51 @@ describe("the hosted SKY130 qualification", () => {
       expect(() =>
         validateHostedSky130DiodeResult(
           diodeResult("operator-host", "ff", { ...DIODES_FF, [key]: value }),
+          "operator-host",
+          "ff",
+        ),
+      ).toThrow(new RegExp(`${key} at ff`, "u"));
+  });
+
+  it("qualifies SKY130 res_xhigh_po across nominal and narrow widths", async () => {
+    const request = hostedSky130ResXhighPoRequest("ff");
+    expect(request.netlist).toContain(
+      "XR1 rin rout sub sky130_fd_pr__res_xhigh_po w=1 l=10 mult=1",
+    );
+    expect(request.netlist).toContain(
+      "XR2 nrin nrout sub sky130_fd_pr__res_xhigh_po w=0.35 l=10 mult=1",
+    );
+    expect(
+      validateHostedSky130ResXhighPoResult(
+        resXhighPoResult("operator-host"),
+        "operator-host",
+        "ff",
+      ),
+    ).toEqual({ corner: "ff", ...RES_XHIGH_FF });
+    let submitted;
+    await runHostedSky130ResXhighPoAcceptance({
+      baseUrl: "https://preview.example",
+      target: "operator-host",
+      corner: "ff",
+      fetchImpl: async (_url, init) => {
+        submitted = JSON.parse(init.body);
+        return Response.json(resXhighPoResult("operator-host"));
+      },
+    });
+    expect(submitted.environment).toEqual({
+      profileId: PROFILE_ID,
+      corner: "ff",
+    });
+    for (const [key, value] of [
+      ["resCurrentInA", RES_XHIGH_FF.resCurrentInA - 1e-9],
+      ["resAcInImag", RES_XHIGH_FF.resAcInImag - 1e-10],
+    ])
+      expect(() =>
+        validateHostedSky130ResXhighPoResult(
+          resXhighPoResult("operator-host", "ff", {
+            ...RES_XHIGH_FF,
+            [key]: value,
+          }),
           "operator-host",
           "ff",
         ),
