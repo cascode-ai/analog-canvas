@@ -1,8 +1,11 @@
-import type { CircuitProject } from "@icm/model";
+import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
+import { resolveAnnotationName } from "./annotation-text.js";
 import { buildCommittedProjectConnectivityIndex } from "./connectivity-index.js";
 import { runErcChecks } from "./diagnostics/erc.js";
+import { diagnoseLabelClearance } from "./label-clearance.js";
+import { diagnoseVisualQuality, type VisualDiagnostic } from "./visual.js";
 
 /**
  * Gallery submission quality advice (informational only; publishing stays
@@ -18,6 +21,9 @@ import { runErcChecks } from "./diagnostics/erc.js";
  * - stale simulation folders — any folder whose circuit binding references a
  *   missing Cell, or spec-less scratch folders left alongside folders that
  *   declare `@spec` checks (#2617).
+ * - labels drawn over wires, parts or other labels: every label visual
+ *   finding above info (`isLabelClearanceAdvice`), so a new label code
+ *   joins by its severity.
  */
 
 export type SubmissionGateCode =
@@ -25,7 +31,19 @@ export type SubmissionGateCode =
   | "erc-warnings"
   | "floating-endpoints"
   | "empty-project"
-  | "stale-simulation-folders";
+  | "stale-simulation-folders"
+  | "label-clearance";
+
+/** One finding behind a failure, where the drawing has it. */
+export interface SubmissionGateFinding {
+  code: string;
+  message: string;
+  documentId: string;
+  /** For a label finding, the labels first, then what they are drawn over. */
+  objectIds: readonly string[];
+  /** For a label finding, the part its first label names ("M1"). */
+  subject?: string;
+}
 
 export interface SubmissionGateFailure {
   code: SubmissionGateCode;
@@ -33,6 +51,8 @@ export interface SubmissionGateFailure {
   count: number;
   /** Up to five human-readable example labels ("M1.g", "ERC_…"). */
   examples: readonly string[];
+  /** ERC warnings and label findings, up to FINDING_LIMIT of them. */
+  findings?: readonly SubmissionGateFinding[];
 }
 
 export interface SubmissionGateReport {
@@ -47,6 +67,24 @@ const FLOATING_CODES = new Set([
 ]);
 
 const EXAMPLE_LIMIT = 5;
+const FINDING_LIMIT = 50;
+
+/**
+ * A label finding Publish advises on: any `VISUAL_LABEL_*` code above info
+ * (VISUAL_LABEL_CLEARANCE, VISUAL_LABEL_CROWDED, VISUAL_LABEL_OVERLAP), so
+ * a new label code is
+ * advised by its severity alone. Info notes (a label far from its owner, two
+ * names reading as one) stay out.
+ */
+export function isLabelClearanceAdvice(diagnostic: {
+  code: string;
+  severity: string;
+}): boolean {
+  return (
+    diagnostic.code.startsWith("VISUAL_LABEL_") &&
+    diagnostic.severity !== "info"
+  );
+}
 
 function terminalLabel(parameters: Record<string, unknown>): string {
   const instanceId = parameters.instanceId;
@@ -103,6 +141,83 @@ function staleSimulationFolderExamples(project: CircuitProject): string[] {
   return issues;
 }
 
+function ercFindings(
+  diagnostics: readonly {
+    code: string;
+    message: string;
+    primary: { documentId: string; objectId: string };
+    related: readonly { objectId: string }[];
+  }[],
+): SubmissionGateFinding[] {
+  return diagnostics.slice(0, FINDING_LIMIT).map((diagnostic) => ({
+    code: diagnostic.code,
+    message: diagnostic.message,
+    documentId: diagnostic.primary.documentId,
+    objectIds: [
+      ...new Set([
+        diagnostic.primary.objectId,
+        ...diagnostic.related.map((locator) => locator.objectId),
+      ]),
+    ],
+  }));
+}
+
+/** The part a label names, else what the label reads (a Net's name). */
+function labelExample(document: SchematicDocument, labelId: string): string {
+  const label = document.annotations.find((item) => item.id === labelId);
+  if (!label) return labelId;
+  const anchor = label.anchor;
+  const owner =
+    anchor.kind === "object"
+      ? document.instances.find((item) => item.id === anchor.objectId)
+      : undefined;
+  return (
+    owner?.reference ??
+    owner?.id ??
+    (resolveAnnotationName(document, label) || labelId)
+  );
+}
+
+function labelFindings(
+  project: CircuitProject,
+  resolver: SymbolResolver,
+): { findings: SubmissionGateFinding[]; examples: string[] } {
+  const findings: SubmissionGateFinding[] = [];
+  const examples = new Set<string>();
+  for (const document of project.documents) {
+    const seen = new Set<string>();
+    let diagnostics: readonly VisualDiagnostic[];
+    try {
+      diagnostics = [
+        ...diagnoseVisualQuality(document, resolver),
+        ...diagnoseLabelClearance(document, resolver),
+      ];
+    } catch {
+      // Advice never stands in Publish's way: a drawing the label checks
+      // cannot read is published without their word.
+      continue;
+    }
+    for (const diagnostic of diagnostics) {
+      if (!isLabelClearanceAdvice(diagnostic)) continue;
+      const key = `${diagnostic.code}:${diagnostic.objectIds.join(",")}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const first = diagnostic.objectIds[0];
+      const subject =
+        first === undefined ? undefined : labelExample(document, first);
+      findings.push({
+        code: diagnostic.code,
+        message: diagnostic.message,
+        documentId: document.id,
+        objectIds: [...diagnostic.objectIds],
+        ...(subject === undefined ? {} : { subject }),
+      });
+      if (subject !== undefined) examples.add(subject);
+    }
+  }
+  return { findings, examples: [...examples].slice(0, EXAMPLE_LIMIT) };
+}
+
 export function evaluateSubmissionGates(
   project: CircuitProject,
   resolver: SymbolResolver,
@@ -136,6 +251,7 @@ export function evaluateSubmissionGates(
       message: "The schematic has electrical rule warnings",
       count: warnings.length,
       examples: formatDiagnosticExamples(warnings),
+      findings: ercFindings(warnings),
     });
   }
 
@@ -182,6 +298,17 @@ export function evaluateSubmissionGates(
         "Remove or update stale simulation folders that lack @spec checks or bind missing Cells",
       count: staleFolders.length,
       examples: staleFolders.slice(0, EXAMPLE_LIMIT),
+    });
+  }
+
+  const labels = labelFindings(project, resolver);
+  if (labels.findings.length > 0) {
+    failures.push({
+      code: "label-clearance",
+      message: "Labels are drawn over wires, parts or other labels",
+      count: labels.findings.length,
+      examples: labels.examples,
+      findings: labels.findings.slice(0, FINDING_LIMIT),
     });
   }
 

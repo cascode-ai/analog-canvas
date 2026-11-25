@@ -235,6 +235,7 @@ export function useGalleryPublishing({
     publicationLinkRetry,
     setPublicationLinkRetry,
     publishGates,
+    setPublishGates,
     publishQuota,
   };
 }

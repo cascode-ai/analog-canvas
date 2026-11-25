@@ -271,6 +271,76 @@ describe("PublishGalleryDialog", () => {
     expect(markup).not.toMatch(/disabled=""[^>]*>Publish</u);
   });
 
+  it("lists label and ERC findings with a count and offers Arrange labels (#2619)", () => {
+    const findings = Array.from({ length: 10 }, (_, index) => ({
+      code: "VISUAL_LABEL_CLEARANCE",
+      message:
+        "Label text is drawn over a wire or a part's drawing; move the label or the wire",
+      documentId: "doc",
+      objectIds: [`label-${index}`, "w"],
+      subject: `M${index + 1}`,
+    }));
+    const props: PublishGalleryDialogProps = {
+      defaultName: "Telescopic",
+      session: { displayName: "Visitor", isAdmin: false, role: "user" },
+      gateReport: {
+        ok: false,
+        failures: [
+          {
+            code: "erc-warnings",
+            message: "The schematic has electrical rule warnings",
+            count: 1,
+            examples: ["ERC_UNCONNECTED_CELL_PIN: port-out"],
+            findings: [
+              {
+                code: "ERC_UNCONNECTED_CELL_PIN",
+                message: "Cell Pin OUT reaches no other pin",
+                documentId: "doc",
+                objectIds: ["port-out"],
+              },
+            ],
+          },
+          {
+            code: "label-clearance",
+            message: "Labels are drawn over wires, parts or other labels",
+            count: findings.length,
+            examples: ["M1", "M2", "M3", "M4", "M5"],
+            findings,
+          },
+        ],
+      },
+      onArrangeLabels: () => null,
+      publish: () => Promise.resolve({ status: "unauthorized" as const }),
+      onPublished: () => undefined,
+      onClose: () => undefined,
+    };
+    const markup = renderToStaticMarkup(
+      createElement(PublishGalleryDialog, props),
+    );
+    expect(markup).toContain(
+      "Labels are drawn over wires, parts or other labels (10)",
+    );
+    expect(markup).toContain("M1: Label text is drawn over a wire");
+    // Eight listed, the rest counted.
+    expect(markup).toContain("M8: Label text");
+    expect(markup).not.toContain("M9: Label text");
+    expect(markup).toContain("… and 2 more");
+    expect(markup).toContain("Cell Pin OUT reaches no other pin");
+    expect(markup).toContain('data-testid="publish-arrange-labels"');
+    expect(markup).toContain(">Arrange labels</button>");
+    // Advice only: Publish stays open.
+    expect(markup).not.toMatch(/disabled=""[^>]*>Publish</u);
+    // No arrange action without a way to apply it.
+    expect(
+      renderToStaticMarkup(
+        createElement(PublishGalleryDialog, {
+          ...props,
+          onArrangeLabels: undefined,
+        }),
+      ),
+    ).not.toContain("publish-arrange-labels");
+  });
+
   it("offers the reader's own reference image, unticked, except on a fix", () => {
     const props: PublishGalleryDialogProps = {
       defaultName: "Ring Oscillator",

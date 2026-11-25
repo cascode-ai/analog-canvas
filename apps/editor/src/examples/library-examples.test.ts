@@ -595,10 +595,12 @@ describe("the bundled five-transistor Sky130 OTA", () => {
 
   it("passes the Check-and-Save gates with no electrical rule issue", () => {
     const resolver = projectResolver(project);
-    expect(evaluateSubmissionGates(project, resolver)).toEqual({
-      ok: true,
-      failures: [],
-    });
+    // Label placement is a drawing note (#2619), not an electrical rule.
+    expect(
+      evaluateSubmissionGates(project, resolver).failures.filter(
+        (failure) => failure.code !== "label-clearance",
+      ),
+    ).toEqual([]);
     expect(
       runErcChecks(
         project,

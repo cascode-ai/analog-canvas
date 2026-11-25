@@ -1,12 +1,16 @@
 import {
   createEmptyProject,
+  createRoutePath,
   createSimulationFolder,
   type CircuitProject,
 } from "@icm/model";
-import { InMemorySymbolResolver } from "@icm/symbols";
+import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
-import { evaluateSubmissionGates } from "./submission-gates.js";
+import {
+  evaluateSubmissionGates,
+  isLabelClearanceAdvice,
+} from "./submission-gates.js";
 
 const dual = {
   schemaVersion: 1 as const,
@@ -370,5 +374,123 @@ describe("evaluateSubmissionGates", () => {
     });
     target.simulationFolders = [demoA, demoB];
     expect(gates(target)).toEqual({ ok: true, failures: [] });
+  });
+
+  it("advises on labels drawn over a wire with the part each names (#2619)", () => {
+    const builtIn = new InMemorySymbolResolver(builtInSymbols);
+    const target = project();
+    const document = target.documents[0]!;
+    const at = (x: number) => ({
+      position: { x, y: 100 },
+      rotation: 0 as const,
+      mirror: "none" as const,
+    });
+    document.instances = [
+      { ...dualInstance("r", "R7"), symbolId: "resistor", placement: at(100) },
+      { ...dualInstance("r2", "R8"), symbolId: "resistor", placement: at(600) },
+    ];
+    document.nets = [{ id: "n", terminals: [] }];
+    document.junctions = [
+      { id: "a", netId: "n", position: { x: 300, y: 190 } },
+      { id: "b", netId: "n", position: { x: 500, y: 190 } },
+    ];
+    document.routes = [
+      createRoutePath({
+        id: "w",
+        netId: "n",
+        start: { kind: "junction", junctionId: "a" },
+        end: { kind: "junction", junctionId: "b" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    ];
+    document.annotations = [
+      {
+        id: "on-wire",
+        kind: "instance-label",
+        content: { runs: [{ kind: "text", value: "R7" }] },
+        anchor: {
+          kind: "object",
+          objectId: "r",
+          localOffset: { x: 300, y: 100 },
+          fallbackPosition: { x: 400, y: 200 },
+        },
+        alignment: "middle",
+        rotation: 0,
+        locked: false,
+      },
+    ];
+    const labels = evaluateSubmissionGates(target, builtIn).failures.find(
+      (failure) => failure.code === "label-clearance",
+    );
+    expect(labels).toMatchObject({
+      count: 1,
+      examples: ["R7"],
+      findings: [
+        {
+          code: "VISUAL_LABEL_CLEARANCE",
+          documentId: document.id,
+          objectIds: ["on-wire", "w"],
+          subject: "R7",
+        },
+      ],
+    });
+    // Advice: the far-from-its-part note is information and stays out.
+    expect(
+      labels!.findings!.some(
+        (finding) => finding.code === "VISUAL_LABEL_OWNER_DISTANCE",
+      ),
+    ).toBe(false);
+  });
+
+  it("lists ERC warnings with their messages and objects", () => {
+    const target = project();
+    const document = target.documents[0]!;
+    document.instances = [
+      { ...dualInstance("M1", "M1", 0), symbolId: "mos" },
+      { ...dualInstance("M2", "M2", 100), symbolId: "mos" },
+    ];
+    document.nets = [
+      {
+        id: "channel",
+        terminals: [
+          { instanceId: "M1", pinName: "D" },
+          { instanceId: "M1", pinName: "S" },
+          { instanceId: "M2", pinName: "D" },
+          { instanceId: "M2", pinName: "S" },
+        ],
+      },
+      {
+        id: "gates",
+        terminals: [
+          { instanceId: "M1", pinName: "G" },
+          { instanceId: "M2", pinName: "G" },
+        ],
+      },
+    ];
+    const warnings = gates(target).failures.find(
+      (failure) => failure.code === "erc-warnings",
+    );
+    expect(warnings!.findings).toEqual([
+      expect.objectContaining({
+        code: "ERC_UNDRIVEN_GATE_NET",
+        documentId: document.id,
+        message: expect.any(String),
+      }),
+    ]);
+    expect(warnings!.findings).toHaveLength(warnings!.count);
+  });
+
+  it("advises on every label code above info, a new one included", () => {
+    expect(
+      [
+        { code: "VISUAL_LABEL_CLEARANCE", severity: "warning" },
+        { code: "VISUAL_LABEL_OVERLAP", severity: "warning" },
+        { code: "VISUAL_LABEL_CROWDED", severity: "warning" },
+        { code: "VISUAL_LABEL_OWNER_DISTANCE", severity: "info" },
+        { code: "VISUAL_LABEL_RUN_ON", severity: "info" },
+        { code: "VISUAL_SYMBOL_OVERLAP", severity: "warning" },
+      ].map(isLabelClearanceAdvice),
+    ).toEqual([true, true, true, false, false, false]);
   });
 });

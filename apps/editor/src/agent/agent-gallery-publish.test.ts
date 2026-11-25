@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import type { GalleryPublicationRecord } from "../features/editor-shell/gallery-publish";
-import { createAgentGalleryPublisher } from "./agent-gallery-publish";
+import { evaluateSubmissionGates } from "@icm/derived";
+import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
+
+import {
+  adapterReadsPublishAdvice,
+  createAgentGalleryPublisher,
+  publishAdviceOf,
+  type AgentGalleryPublisherOptions,
+  type AgentGalleryPublication,
+} from "./agent-gallery-publish";
 import {
   emptyAgentProject,
   liveAgentEditor,
@@ -46,7 +55,11 @@ function galleryServer(status = 201) {
   return { sent, fetch: answer };
 }
 
-function editorWith(server: ReturnType<typeof galleryServer>, shown = true) {
+function editorWith(
+  server: ReturnType<typeof galleryServer>,
+  shown = true,
+  advice?: AgentGalleryPublisherOptions<AgentGalleryPublication>["advice"],
+) {
   const recorded: GalleryPublicationRecord[] = [];
   const editor = liveAgentEditor({
     project: emptyAgentProject("Folded cascode"),
@@ -61,6 +74,7 @@ function editorWith(server: ReturnType<typeof galleryServer>, shown = true) {
               }
             : null,
         published: (outcome) => recorded.push(outcome),
+        ...(advice ? { advice } : {}),
         fetch: server.fetch,
       }),
     },
@@ -254,5 +268,55 @@ describe("an Agent publishes to the Gallery (#1415)", () => {
         body: { name: "Sensor core", description: "Stored description" },
       },
     ]);
+  });
+});
+
+describe("an Agent's publish answers the Publish dialog's advice (#2619)", () => {
+  const resolver = new InMemorySymbolResolver(builtInSymbols);
+
+  it("adds the advice for an adapter that reads it, and publishes all the same", async () => {
+    const server = galleryServer();
+    const { client } = editorWith(server, true, (state) =>
+      publishAdviceOf(evaluateSubmissionGates(state.project, resolver)),
+    );
+    await client.connect("session-1.code");
+    const result = await client.projectResource({
+      ...envelope,
+      operation: "publish-gallery-entry",
+    });
+    // An empty drawing: Publish advises, never refuses.
+    expect(result).toMatchObject({
+      ok: true,
+      galleryEntryId: "entry-new",
+      advice: [expect.objectContaining({ code: "empty-project", count: 1 })],
+    });
+    expect(server.sent).toHaveLength(1);
+  });
+
+  it("leaves advice out for an older adapter", async () => {
+    const server = galleryServer();
+    const { client } = editorWith(server, true, () => null);
+    await client.connect("session-1.code");
+    const result = await client.projectResource({
+      ...envelope,
+      operation: "publish-gallery-entry",
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(result).not.toHaveProperty("advice");
+  });
+
+  it("sends advice only to MCP 0.17.128 and later", () => {
+    expect(
+      [
+        null,
+        "",
+        "0.17.127",
+        "0.16.999",
+        "0.17.128",
+        "0.17.130",
+        "0.18.0",
+        "1.0.0",
+      ].map(adapterReadsPublishAdvice),
+    ).toEqual([false, false, false, false, true, true, true, true]);
   });
 });
