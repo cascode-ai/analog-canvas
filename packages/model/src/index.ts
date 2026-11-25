@@ -1,3 +1,4 @@
+export * from "./document-change-journal.js";
 export * from "./drafting-geometry-schema.js";
 export * from "./coordinate-domain.js";
 export * from "./cell-interface-projection.js";

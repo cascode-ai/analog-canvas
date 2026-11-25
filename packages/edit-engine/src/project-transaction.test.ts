@@ -1,3 +1,4 @@
+import { readTransactionDraftWork } from "./local-transaction-draft.js";
 import {
   createRoutePath,
   createSimulationFolder,
@@ -40,6 +41,71 @@ import {
 } from "./project-transaction.js";
 
 describe("default project entry", () => {
+  it("keeps earlier Cell writes when a compound placement also sets its SPICE fields", () => {
+    const project = createEmptyProject("compound", "Compound");
+    const source = structuredClone(project),
+      documentId = project.documents[0]!.id;
+    const edits: ProjectStructureEdit[] = [
+      {
+        kind: "transact_document",
+        documentId,
+        expectedRevision: 0,
+        edits: [
+          {
+            kind: "add_instance",
+            instance: { id: "kept", symbolId: "resistor", placement: null },
+          },
+        ],
+      },
+      {
+        kind: "transact_document",
+        documentId,
+        expectedRevision: 1,
+        edits: [
+          {
+            kind: "add_instance",
+            instance: {
+              id: "fresh",
+              reference: "R2",
+              symbolId: "resistor",
+              placement: null,
+            },
+          },
+          {
+            kind: "set_instance_netlist",
+            instanceId: "fresh",
+            netlist: { parameters: { value: "2k" } },
+          },
+        ],
+      },
+    ];
+    const request = {
+      transactionId: "two-cells-edits",
+      projectId: project.id,
+      expectedStructureRevision: 0,
+      actor: { kind: "human", id: "editor" },
+      edits,
+    };
+    for (const dryRun of [true, false]) {
+      const result = executeProjectTransaction(project, { ...request, dryRun });
+      if (!result.ok) throw Error(result.error.message);
+      const last = result.documentResults.at(-1)!;
+      expect(last.document.instances.map((instance) => instance.id)).toEqual([
+        "kept",
+        "fresh",
+      ]);
+      expect(last.document.instances[1]!.netlist?.parameters).toEqual({
+        value: "2k",
+      });
+      expect(readTransactionDraftWork(last.document)).toEqual({
+        mode: "full",
+        reason: "mutable-source",
+      });
+      last.document.instances[0]!.id = "detached";
+      expect(project).toEqual(source);
+    }
+  });
+
   it("returns a detached mutable Project after rejecting a stale transaction", () => {
     const project = createEmptyProject("stale-result", "Original");
     const result = executeProjectTransaction(project, {

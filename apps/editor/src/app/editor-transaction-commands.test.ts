@@ -1,3 +1,4 @@
+import { readDocumentChangeJournal } from "@icm/model";
 import * as engine from "@icm/edit-engine";
 import { EditorDocumentController } from "../document/document-controller";
 import { createDefaultNetlistExportPreferences } from "../features/netlist-export/netlist-export-preferences";
@@ -116,6 +117,26 @@ describe("editor transaction commands", () => {
         },
         parameters: { w: "7u" },
       });
+      const compound = execute.mock.results[0]!
+        .value as engine.ProjectTransactionResult;
+      expect(
+        compound.ok &&
+          compound.documentResults.map((result) =>
+            engine.readTransactionDraftWork(result.document),
+          ),
+      ).toEqual([{ mode: "local", rowsCopied: 0 }]);
+      const receipt = readDocumentChangeJournal(controller.document)!;
+      expect(receipt.before).toBe(document);
+      expect(receipt.rows).toContainEqual({
+        collection: "instances",
+        id: "M1",
+        change: "added",
+      });
+      expect(
+        readDocumentChangeJournal(
+          controller.project.documents.find((item) => item.id === child.id)!,
+        ),
+      ).toBeUndefined();
       expect(
         controller.project.documents.find((item) => item.id === child.id)
           ?.instances,

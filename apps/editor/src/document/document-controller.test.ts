@@ -5,6 +5,7 @@ import {
   createEmptyDocument,
   createEmptyProject,
   semanticTextDocument,
+  readDocumentChangeJournal,
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import {
@@ -43,6 +44,131 @@ function hierarchicalProject() {
 }
 
 describe("EditorDocumentController", () => {
+  it("records the actual split and merged conductors on the installed snapshot only", () => {
+    const input = createEmptyProject("journal", "Journal");
+    const doc = input.documents[0]!;
+    for (const [id, x, y] of [
+      ["a", 0, 0],
+      ["b", 50, 100],
+    ] as const) {
+      doc.nets.push({ id, terminals: [] });
+      doc.junctions.push(
+        { id: id + "0", netId: id, position: { x, y } },
+        { id: id + "1", netId: id, position: { x: x + 100, y } },
+      );
+      doc.routes.push(
+        createRoutePath({
+          id: id + "-wire",
+          netId: id,
+          start: { kind: "junction", junctionId: id + "0" },
+          end: { kind: "junction", junctionId: id + "1" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      );
+    }
+    const controller = new EditorDocumentController(input),
+      before = controller.document;
+    const edits = [
+      {
+        kind: "add_junction" as const,
+        junctionId: "middle",
+        netId: "a",
+        position: { x: 50, y: 0 },
+        split: {
+          routeId: "a-wire",
+          legId: doc.routes[0]!.legs[0]!.id,
+          firstRouteId: "a-left",
+          secondRouteId: "a-right",
+        },
+      },
+      { kind: "merge_nets" as const, targetNetId: "a", sourceNetId: "b" },
+      {
+        kind: "set_route_path" as const,
+        route: createRoutePath({
+          id: "join",
+          netId: "a",
+          start: { kind: "junction", junctionId: "middle" },
+          end: { kind: "junction", junctionId: "b0" },
+          bends: [],
+          modes: ["manual"],
+        }),
+      },
+    ];
+    const preparation = prepareTransaction(
+      before,
+      {
+        transactionId: "preview",
+        documentId: before.id,
+        expectedRevision: 0,
+        actor: { kind: "human", id: "editor" },
+        edits,
+        dryRun: true,
+      },
+      { symbolResolver: controller.resolver },
+    );
+    expect(preparation.result.ok).toBe(true);
+    expect(
+      readDocumentChangeJournal(preparation.result.document),
+    ).toBeUndefined();
+    const result = controller.commitPreparedCanvasTransaction(
+      edits,
+      preparation.prepared!,
+    );
+    expect(result.ok).toBe(true);
+    const after = controller.document,
+      journal = readDocumentChangeJournal(after)!;
+    expect(journal.before).toBe(before);
+    const expected: string[] = [];
+    for (const key of [
+      "instances",
+      "routes",
+      "nets",
+      "junctions",
+      "annotations",
+      "connectivityEvidence",
+    ] as const) {
+      const old = new Map(
+        before[key].map((row) => [row.id, JSON.stringify(row)]),
+      );
+      const next = new Map(
+        after[key].map((row) => [row.id, JSON.stringify(row)]),
+      );
+      for (const id of new Set([...old.keys(), ...next.keys()]))
+        if (old.get(id) !== next.get(id))
+          expected.push(
+            [
+              key,
+              id,
+              !old.has(id) ? "added" : !next.has(id) ? "removed" : "updated",
+            ].join("/"),
+          );
+    }
+    expect(
+      journal.rows
+        .map((row) => [row.collection, row.id, row.change].join("/"))
+        .sort(),
+    ).toEqual(expected.sort());
+    expect(journal.rows).toEqual(
+      expect.arrayContaining([
+        { collection: "nets", id: "b", change: "removed" },
+        { collection: "routes", id: "a-wire", change: "removed" },
+        { collection: "routes", id: "a-right", change: "added" },
+        { collection: "junctions", id: "middle", change: "added" },
+      ]),
+    );
+    expect(journal.beforeNetIds).toEqual(["a", "b"]);
+    expect(journal.afterNetIds).toEqual(["a"]);
+    expect(journal.geometryObjectIds).toEqual(
+      expect.arrayContaining(["b0", "b1", "middle", "a-right", "a-wire"]),
+    );
+    expect(
+      controller.commitPreparedCanvasTransaction(edits, preparation.prepared!)
+        .ok,
+    ).toBe(false);
+    expect(controller.document).toBe(after);
+    expect(readDocumentChangeJournal(structuredClone(after))).toBeUndefined();
+  });
   it("commits a prepared Canvas edit without copying the result Document into either handoff", () => {
     const controller = new EditorDocumentController(hierarchicalProject());
     const before = controller.document;
@@ -129,6 +255,7 @@ describe("EditorDocumentController", () => {
     });
     expect(controller.project).toBe(before);
     expect(controller.canUndo).toBe(false);
+    expect(readDocumentChangeJournal(controller.document)).toBeUndefined();
   });
   it("restores every rotated and mirrored caller of an asymmetric layout in one Undo, with atomic stale/no-op/refused edits", () => {
     const project = hierarchicalProject();

@@ -24,6 +24,7 @@ import type {
   SchematicEdit,
 } from "@icm/edit-engine";
 import {
+  recordCommittedDocumentChanges,
   isFrozenSnapshot,
   ComponentDefinitionSchema,
   freezeSnapshot,
@@ -295,6 +296,7 @@ export class EditorDocumentController {
     documentId: string,
     structural: boolean,
   ): void {
+    recordCommittedDocumentChanges(project, this.projectValue);
     this.undoStack.push({ project, documentId, structural });
     this.groupEntries?.push({ project, documentId, structural });
     if (this.undoStack.length > DEFAULT_DOCUMENT_HISTORY_LIMIT)

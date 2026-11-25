@@ -1,3 +1,4 @@
+import { writableDraftRow } from "./local-transaction-draft.js";
 import { deriveStableId, foldNetName } from "@icm/model";
 import type { Point, RouteEndpoint, SchematicDocument } from "@icm/model";
 import {
@@ -18,7 +19,7 @@ function retargetConnectivityEvidence(
   targetNetId: string,
   changedObjectIds: Set<string>,
 ): void {
-  for (const evidence of draft.connectivityEvidence) {
+  for (const [index, evidence] of draft.connectivityEvidence.entries()) {
     if (evidence.kind === "name-claim")
       for (const member of evidence.signal?.members ?? []) {
         if (member.netId === sourceNetId) {
@@ -27,7 +28,12 @@ function retargetConnectivityEvidence(
         }
       }
     if (evidence.netId === sourceNetId) {
-      evidence.netId = targetNetId;
+      writableDraftRow(
+        draft,
+        draft.connectivityEvidence,
+        evidence,
+        index,
+      ).netId = targetNetId;
       changedObjectIds.add(evidence.id);
     }
   }
@@ -132,23 +138,26 @@ export function mergeBaseNets(
   for (const terminal of source.terminals) {
     const key = terminalKey(terminal);
     if (!present.has(key)) {
-      target.terminals.push(structuredClone(terminal));
+      writableDraftRow(draft, draft.nets, target).terminals.push(
+        structuredClone(terminal),
+      );
       present.add(key);
     }
   }
-  for (const route of draft.routes) {
+  for (const [index, route] of draft.routes.entries()) {
     for (const member of route.members ?? [])
       if (member.netId === source.id) member.netId = target.id;
     if (route.netId === source.id) {
-      route.netId = target.id;
+      writableDraftRow(draft, draft.routes, route, index).netId = target.id;
       changedObjectIds.add(route.id);
     }
   }
-  for (const junction of draft.junctions) {
+  for (const [index, junction] of draft.junctions.entries()) {
     for (const member of junction.members ?? [])
       if (member.netId === source.id) member.netId = target.id;
     if (junction.netId === source.id) {
-      junction.netId = target.id;
+      writableDraftRow(draft, draft.junctions, junction, index).netId =
+        target.id;
       changedObjectIds.add(junction.id);
     }
   }

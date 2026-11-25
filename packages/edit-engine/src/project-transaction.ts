@@ -1370,8 +1370,28 @@ function applyProjectTransaction(
     const resolver = plannedModelWrites.size
       ? modelSourceMigrationResolver(candidate, project)
       : createProjectSymbolResolver(candidate, builtInSymbols);
+    // A MOS placement can install a model definition before adding and
+    // binding the Instance. That definition may update existing caller
+    // symbols; only the original, still-untouched Cell can seed a local draft.
+    const originalPlacement =
+      !changedDocumentIds.has(document.id) &&
+      edit.edits.some((operation) => operation.kind === "add_instance") &&
+      edit.edits.some(
+        (operation) =>
+          operation.kind === "set_instance_netlist" ||
+          operation.kind === "bulk_patch_instance_netlist",
+      ) &&
+      transaction.edits
+        .slice(0, editIndex)
+        .every(
+          (prior) =>
+            prior.kind === "upsert_external_subcircuit_definition" ||
+            prior.kind === "upsert_model_source",
+        )
+        ? project.documents.find((item) => item.id === document.id)
+        : undefined;
     const result = executeTransaction(
-      document,
+      originalPlacement ?? document,
       {
         transactionId: `${transaction.transactionId}-document-${editIndex}`,
         documentId: edit.documentId,
