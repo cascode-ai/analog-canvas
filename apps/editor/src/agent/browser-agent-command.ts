@@ -2081,13 +2081,16 @@ function labelsLeftInPlaceNote(
     custom: "custom-styled",
     moved: "moved by hand",
     clear: "moved by hand and clear",
-    crowded: "moved by hand, no clear place nearby",
+    crowded: "no clear place nearby",
+    unarranged: "reported, not moved by a repair",
   } as const;
   const listed = left.map((label) => {
     const part =
-      document.instances.find((item) => item.id === label.instanceId)
-        ?.reference ?? label.instanceId;
-    return `${part}'s ${label.labelId} (${why[label.reason]})`;
+      label.instanceId === null
+        ? null
+        : (document.instances.find((item) => item.id === label.instanceId)
+            ?.reference ?? label.instanceId);
+    return `${part === null ? "" : `${part}'s `}${label.labelId} (${why[label.reason]})`;
   });
   const hint = left.some((label) => label.reason === "moved")
     ? "; includeManual:true repairs hand-moved labels the label findings report"

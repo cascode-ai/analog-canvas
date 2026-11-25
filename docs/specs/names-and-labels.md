@@ -123,17 +123,30 @@ redraws seen drawings), whether the name was typed, connected or generated:
 - Agent **arrange-labels** moves only eligible labels of requested Instances
   (visible, unrotated, unlocked, at default style, in their default rows, an
   earlier value-over-name stack or another side's rows; hand-moved ones only
-  with `includeManual`, and then only those the label findings report, moved
-  only to a place they leave clear, else left with reason `crowded`; clear
-  ones are left with reason `clear`) to bounded nearby positions; it never
-  resets all labels. A group an earlier arrangement left clear in another side's rows
+  with `includeManual`) to bounded nearby positions; it never resets all
+  labels. `includeManual` is a repair (#2619): only parts with a label the
+  label findings report (struck, crowded, overlapping, far, run on) are
+  arranged, hand-moved labels included, and every other label stays and is
+  in the way. A repaired part's labels move as one group, nearest where they
+  stand first (then its default rows, then each side, each shifted up to a
+  grid step), only to a place none of them is reported or meets another
+  label, within two grid steps of their own part and nearer it than any
+  other part, the name no further from its value than a row or than it was;
+  failing that the group stays (`crowded`). A block's name stays where it is
+  (a name inside its own block's box is not reported); a Pin's name only
+  turns to a clear side of its end and a VDD name only goes over its bar or
+  beside it, neither turned. Every label still reported is named in
+  `LABELS_LEFT_IN_PLACE`: hand-moved clear ones `clear`, unrepairable ones
+  `crowded`, Net labels, free text and names a repair does not move
+  `unarranged`. A group an earlier arrangement left clear in another side's rows
   stays unless a side is asked for.
   Reference and value move together (default side, other sides, then slid
   along a side while half the group stays beside the part), name first with
   the value under it (above the part: value nearest, name a row over). A place
   is clear of wires, parts, labels and free text with word/line spacing and,
   for a part's name or value, 2 units from the stroke edge of any wire, rail,
-  junction dot or part drawing (`VISUAL_LABEL_CROWDED`), ~10
+  junction dot or part drawing (`VISUAL_LABEL_CROWDED`; a label inside its
+  own block's box is not over or crowding that block), ~10
   units from a neighbour's label on the row, a line's space from junction
   dots, no foreign wire between label and part or name and value, and no
   reading as another part's label. Failing that, a place the label findings

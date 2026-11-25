@@ -69,7 +69,7 @@ const RUN_ON_FIGURE: RichTextDocument = {
 function labelObstacleBounds(
   document: SchematicDocument,
   resolver: SymbolResolver,
-): Array<{ id: string; bounds: Rect }> {
+): Array<{ id: string; bounds: Rect; block: boolean }> {
   const padding = 1;
   return document.instances.flatMap((instance) => {
     if (!instance.placement) return [];
@@ -97,6 +97,7 @@ function labelObstacleBounds(
           width: Math.max(...xs) - x,
           height: Math.max(...ys) - y,
         },
+        block: resolved.definition.hierarchicalBlock === true,
       },
     ];
   });
@@ -337,18 +338,39 @@ export function createLabelClearanceContext(
     ...owners.keys(),
     ...document.routes.map((route) => route.id),
   ]);
+  const blocks = new Set(
+    symbols.filter((symbol) => symbol.block).map((symbol) => symbol.id),
+  );
+  const byId = new Map(document.annotations.map((a) => [a.id, a]));
+  /**
+   * The block a label is written inside, as a block's name is centred in
+   * its own box: that box is the label's place, not drawn over it. A
+   * switched-capacitor DAC's "Bottem plate Ctrl", centred in its block, was
+   * reported over the block and repaired out of it (#2619).
+   */
+  const ownBlockAround = (box: Rect, annotationId: string) => {
+    const annotation = byId.get(annotationId);
+    const owner =
+      annotation?.anchor.kind === "object" &&
+      blocks.has(annotation.anchor.objectId)
+        ? annotation.anchor.objectId
+        : undefined;
+    const body = owner && owners.get(owner);
+    return body && inside(box, body) ? owner : undefined;
+  };
   /** VISUAL_LABEL_CLEARANCE's objects for text at `box`, a dot's wires too. */
-  const struckAt = (box: Rect, annotationId: string) =>
-    [...new Set([...conflictsAt(box, annotationId), ...dotsAt(box)])]
-      .filter((id) => obstacles.has(id))
+  const struckAt = (box: Rect, annotationId: string) => {
+    const block = ownBlockAround(box, annotationId);
+    return [...new Set([...conflictsAt(box, annotationId), ...dotsAt(box)])]
+      .filter((id) => obstacles.has(id) && id !== block)
       .sort();
+  };
   // Stroke half-widths: what a label's clearance is measured past. A part's
   // drawing is measured from its points, so its widest stroke counts.
   const wireHalf = style.strokes.wire / 2;
   const railHalf = style.strokes.powerRail / 2;
   const symbolHalf = Math.max(style.strokes.symbol, style.strokes.emphasis) / 2;
   const reachPast = LABEL_MINIMUM_CLEARANCE + Math.max(railHalf, symbolHalf);
-  const byId = new Map(document.annotations.map((a) => [a.id, a]));
   /** Whether a label keeps the minimum clearance: a part's name or value. */
   const keepsClearance = (annotationId: string) => {
     const annotation = byId.get(annotationId);
@@ -371,6 +393,7 @@ export function createLabelClearanceContext(
   ): { ids: string[]; clearance: number } => {
     if (!keepsClearance(annotationId)) return { ids: [], clearance: Infinity };
     const struck = new Set(struckAt(box, annotationId));
+    const block = ownBlockAround(box, annotationId);
     const grown = {
       x: box.x - reachPast,
       y: box.y - reachPast,
@@ -383,6 +406,7 @@ export function createLabelClearanceContext(
       if (
         !obstacles.has(id) ||
         struck.has(id) ||
+        id === block ||
         gap >= LABEL_MINIMUM_CLEARANCE
       )
         return;
@@ -504,6 +528,8 @@ export function createLabelClearanceContext(
     measure,
     struckAt,
     crowdingAt,
+    /** The block whose box a label is written inside, or undefined. */
+    ownBlockAround,
     ownerGapAt,
     runsOnAt,
     findingsAt,
@@ -840,6 +866,16 @@ function pointSegmentGap(point: Point, from: Point, to: Point): number {
       )
     : 0;
   return Math.hypot(point.x - from.x - t * dx, point.y - from.y - t * dy);
+}
+
+/** Whether `a` lies wholly within `b`. */
+function inside(a: Rect, b: Rect): boolean {
+  return (
+    a.x >= b.x &&
+    a.y >= b.y &&
+    a.x + a.width <= b.x + b.width &&
+    a.y + a.height <= b.y + b.height
+  );
 }
 
 function overlap(a: Rect, b: Rect): boolean {

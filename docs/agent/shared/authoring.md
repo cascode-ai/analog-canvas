@@ -667,10 +667,14 @@ means deleting the Cell.
   `referenceStyle:"first-letter-subscript"` draws `RBIAS` as R_BIAS (and an
   unstyled Port name in its placed look, `vrfp` as V_rfp) without renaming.
   Manual, locked, hidden and restyled labels stay and are named
-  (`LABELS_LEFT_IN_PLACE`); `includeManual:true` repairs hand-moved ones the
-  label findings report (struck, `VISUAL_LABEL_CROWDED`, overlapping, far),
-  only to a clear place; clear ones stay (`clear`), unrepairable ones too
-  (`crowded`).
+  (`LABELS_LEFT_IN_PLACE`); `includeManual:true` is a repair: only parts with
+  a label the label findings report (struck, `VISUAL_LABEL_CROWDED`,
+  overlapping, far, run on) move, hand-moved labels included, as one group
+  to the nearest place where none is reported or meets another label, within
+  two grid steps of its own part and nearer it than any other, name by
+  value; else they stay (`crowded`). Other labels stay; a block's name stays;
+  a Pin's or VDD name only turns about its end. Reported labels left,
+  including Net labels and free text, are named (`unarranged`).
   Clearance observations never gate editing.
 - `{kind:"apply-label-preset",preset:"textbook"}` (`circuit_text`) for the Cell
   or `targets` (`[{kind:"instance",reference:"M1"}]` or `id`; native
