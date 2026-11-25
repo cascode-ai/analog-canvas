@@ -88,9 +88,16 @@ their IDs, never resolved to the first.
   A block's value goes by its textbook name where the number alone says
   nothing: a Shockley diode shows `V_BO = 10V`, a UJT `R_BB = 7kΩ`.
   A separate multiplier label shows only while that summary is hidden.
-- A placed Cell shows its Cell name and hides `X1`; `set-instance-display`
-  `showReference:true` shows `X1` above it (to tell which block is `x1` in
-  `v(xdut.x1.net0)`).
+- A placed Cell shows its Cell name and hides `X1`. On a placed Cell,
+  `set-instance-display` `showReference` controls its reference (`X1`, or its
+  `set-display-alias` such as `A1`, shown above the Cell name so you can tell
+  which block is `x1` in `v(xdut.x1.net0)`) and `showValue` controls its Cell
+  name (`showValue:false` hides the Cell name). Explicit `showReference:true`
+  and `set-display-alias` work even when custom artwork sets
+  `labelVisibility:"hidden"`.
+- Repeated same-name supply markers (`vdd-port`, `named-ground`) inside a Cell
+  each keep their own `document.netlist.terminals` entry while folding into one
+  formal supply port on the Cell's symbol and netlist.
 - Several `place-cell` actions share one call and Undo; each may omit
   `instanceId`, `rotation` and `mirror` (the helper makes the ID and turns the
   Cell upright) and creates its owned Port, Net and terminal-name display.

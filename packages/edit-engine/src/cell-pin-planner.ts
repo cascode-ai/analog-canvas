@@ -56,6 +56,7 @@ function supplyEdgePlacement(
   project: CircuitProject,
   document: SchematicDocument,
   terminals: readonly SupplyEdgeTerminal[],
+  precedingEdits: readonly DocumentEdits[number][] = [],
 ): DocumentEdits {
   const placed = project.documents.some((parent) =>
     parent.instances.some((instance) => {
@@ -67,9 +68,29 @@ function supplyEdgePlacement(
     }),
   );
   if (placed) return [];
-  const current = document.presentation.cellSymbol;
+  let current = document.presentation.cellSymbol;
+  const existingTerminals = new Map(
+    (document.netlist?.terminals ?? []).map((terminal) => [
+      terminal.id,
+      terminal.name,
+    ]),
+  );
+  for (const edit of precedingEdits) {
+    if (edit.kind === "add_cell_terminal") {
+      existingTerminals.set(edit.terminal.id, edit.terminal.name);
+    } else if (edit.kind === "remove_cell_terminal") {
+      existingTerminals.delete(edit.terminalId);
+    } else if (edit.kind === "set_cell_symbol_presentation") {
+      current = edit.presentation ?? undefined;
+    }
+  }
+  const existingKeys = new Set(
+    [...existingTerminals.values()].map((name) => foldNetName(name)),
+  );
   const placements = [...(current?.pinPlacements ?? [])];
   for (const terminal of terminals) {
+    const key = foldNetName(terminal.name);
+    if (existingKeys.has(key)) continue;
     const side = supplyEdge(
       terminal.name,
       terminal.vddPower,
@@ -85,6 +106,7 @@ function supplyEdgePlacement(
     for (let step = 1; taken.has(offset); step += 1)
       offset = (step % 2 ? 1 : -1) * Math.ceil(step / 2) * 20;
     placements.push({ terminalId: terminal.id, side, offset });
+    existingKeys.add(key);
   }
   if (placements.length === (current?.pinPlacements?.length ?? 0)) return [];
   return [
@@ -122,6 +144,7 @@ export function planCreateCellPin(
   input: {
     instance: SchematicDocument["instances"][number];
     connectionEdits: DocumentEdits;
+    precedingEdits?: readonly DocumentEdits[number][] | undefined;
     terminal: NonNullable<SchematicDocument["netlist"]>["terminals"][number];
     annotation?: Annotation;
     signalExpression?: string | undefined;
@@ -205,13 +228,18 @@ export function planCreateCellPin(
       { kind: "add_instance", instance: input.instance },
       ...input.connectionEdits,
       { kind: "add_cell_terminal", terminal: input.terminal },
-      ...supplyEdgePlacement(project, document, [
-        {
-          ...input.terminal,
-          vddPower: input.instance.symbolId === "vdd-port",
-          groundPower: input.instance.symbolId === "named-ground",
-        },
-      ]),
+      ...supplyEdgePlacement(
+        project,
+        document,
+        [
+          {
+            ...input.terminal,
+            vddPower: input.instance.symbolId === "vdd-port",
+            groundPower: input.instance.symbolId === "named-ground",
+          },
+        ],
+        input.precedingEdits,
+      ),
       ...(input.annotation
         ? [
             {

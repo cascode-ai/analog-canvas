@@ -1148,23 +1148,51 @@ export function planBrowserAgentCommand(
         throw new Error(
           "set-display-alias takes exactly one of instanceId or annotationId",
         );
+      const existingLabel = instanceLabelAnnotationFor(document, instanceId);
+      const showReferenceEdits =
+        !existingLabel || existingLabel.visible === false
+          ? instanceDisplayEdits(document, resolver, [instanceId], {
+              showReference: true,
+            })
+          : [];
+      const shownLabel = showReferenceEdits.flatMap((edit) =>
+        edit.kind === "upsert_schematic_annotation" &&
+        edit.annotation.kind === "instance-label"
+          ? [edit.annotation]
+          : [],
+      )[0];
       const plan = planDisplayAlias({
         document,
         instanceId,
         alias: command.text,
-        labelFor: instanceLabelAnnotationFor,
-        newLabelFor: (current, instanceId) =>
-          instanceDisplayEdits(current, resolver, [instanceId], {
-            showReference: true,
-          }).flatMap((edit) =>
-            edit.kind === "upsert_schematic_annotation" &&
-            edit.annotation.kind === "instance-label"
-              ? [edit.annotation]
-              : [],
-          )[0],
+        labelFor: (current, id) => {
+          const currentLabel = instanceLabelAnnotationFor(current, id);
+          if (
+            id === instanceId &&
+            currentLabel &&
+            currentLabel.visible === false &&
+            shownLabel
+          ) {
+            return { ...shownLabel, visible: false };
+          }
+          return currentLabel;
+        },
+        newLabelFor: () => shownLabel,
       });
       if (!plan.ok) throw new Error(plan.message);
-      return { edits: plan.edits };
+      const plannedIds = new Set(
+        plan.edits.flatMap((edit) =>
+          edit.kind === "upsert_schematic_annotation"
+            ? [edit.annotation.id]
+            : [],
+        ),
+      );
+      const regroupEdits = showReferenceEdits.filter(
+        (edit) =>
+          edit.kind !== "upsert_schematic_annotation" ||
+          !plannedIds.has(edit.annotation.id),
+      );
+      return { edits: [...plan.edits, ...regroupEdits] };
     }
     case "set-instance-display": {
       const edits = instanceDisplayEdits(
