@@ -26,8 +26,10 @@ export * from "./endpoint-connectivity.js";
 export * from "./electrical-topology-projection.js";
 export {
   schematicTextAdvanceEm,
+  schematicTextInkEm,
   type SchematicTextFace,
 } from "./fraction-text-metrics.js";
+export * from "./overbar.js";
 export * from "./hierarchy-navigation.js";
 export {
   buildProjectHierarchy,

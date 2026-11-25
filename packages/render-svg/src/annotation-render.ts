@@ -24,7 +24,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 
-import { renderRichTextDocument } from "./rich-text.js";
+import { renderRichTextWithOverbars } from "./rich-text.js";
 import { schematicTextFontSize } from "./schematic-text.js";
 
 /** One render-call projection shared by formal bounds and SVG painting. */
@@ -34,15 +34,30 @@ export interface ResolvedSvgAnnotation {
   presentation: AnnotationPresentation;
 }
 
+/**
+ * An annotation's text for a <text> at `at`, and its bars, to draw after
+ * that <text> under the same transform.
+ */
 export function renderAnnotationText(
   content: RichTextDocument,
   annotation: Annotation,
   profile: SchematicStyleProfile,
-): string {
+  at: {
+    x: number;
+    y: number;
+    alignment: "start" | "middle" | "end";
+    color?: string;
+  },
+): { tspans: string; decorations: string } {
   const fontSize =
     schematicTextFontSize(annotation.kind, profile) *
     (annotation.sizeScale ?? 1);
-  return renderRichTextDocument(content, profile, { fontSize });
+  return renderRichTextWithOverbars(content, profile, {
+    ...at,
+    fontSize,
+    // Line breaks return to x 0, as they always have here.
+    lineOriginX: 0,
+  });
 }
 
 /**
@@ -89,7 +104,19 @@ function renderStackedFractionAnnotation(
     ? ` fill="${options.color}" color="${options.color}"`
     : "";
   const attributes = options.attributes ? ` ${options.attributes}` : "";
-  return `<g${attributes}><text data-role="fraction-numerator" x="${centerX}" y="${numeratorY}" text-anchor="middle" font-size="${partFont}"${textColor} style="${partStyle}">${renderRichTextDocument(fraction.numerator, profile, { defaultBold: true, fontSize: partFont })}</text><line data-role="fraction-bar" x1="${centerX - halfWidth}" y1="${barY}" x2="${centerX + halfWidth}" y2="${barY}" stroke="${options.color ?? profile.foreground}" stroke-width="${profile.strokes.annotation}"/><text data-role="fraction-denominator" x="${centerX}" y="${denominatorY}" text-anchor="middle" font-size="${partFont}"${textColor} style="${partStyle}">${renderRichTextDocument(fraction.denominator, profile, { defaultBold: true, fontSize: partFont })}</text></g>`;
+  const part = (document: RichTextDocument, y: number) =>
+    renderRichTextWithOverbars(document, profile, {
+      x: centerX,
+      y,
+      fontSize: partFont,
+      alignment: "middle",
+      defaultBold: true,
+      lineOriginX: 0,
+      ...(options.color ? { color: options.color } : {}),
+    });
+  const numerator = part(fraction.numerator, numeratorY);
+  const denominator = part(fraction.denominator, denominatorY);
+  return `<g${attributes}><text data-role="fraction-numerator" x="${centerX}" y="${numeratorY}" text-anchor="middle" font-size="${partFont}"${textColor} style="${partStyle}">${numerator.tspans}</text><line data-role="fraction-bar" x1="${centerX - halfWidth}" y1="${barY}" x2="${centerX + halfWidth}" y2="${barY}" stroke="${options.color ?? profile.foreground}" stroke-width="${profile.strokes.annotation}"/><text data-role="fraction-denominator" x="${centerX}" y="${denominatorY}" text-anchor="middle" font-size="${partFont}"${textColor} style="${partStyle}">${denominator.tspans}</text>${numerator.decorations}${denominator.decorations}</g>`;
 }
 
 function isPositionableFractionCompanion(run: RichTextRun): boolean {
@@ -156,10 +183,17 @@ export function renderPositionedFractionAnnotation(
   const textColor = options.color
     ? ` fill="${options.color}" color="${options.color}"`
     : "";
-  const renderCompanion = (document: RichTextDocument, x: number): string =>
-    document.runs.length === 0
-      ? ""
-      : `<text x="${x}" y="${options.position.y}" text-anchor="start" font-size="${options.fontSize}" xml:space="preserve"${textColor}>${renderRichTextDocument(document, options.profile, { lineOriginX: x, fontSize: options.fontSize })}</text>`;
+  const renderCompanion = (document: RichTextDocument, x: number): string => {
+    if (document.runs.length === 0) return "";
+    const text = renderRichTextWithOverbars(document, options.profile, {
+      x,
+      y: options.position.y,
+      fontSize: options.fontSize,
+      alignment: "start",
+      ...(options.color ? { color: options.color } : {}),
+    });
+    return `<text x="${x}" y="${options.position.y}" text-anchor="start" font-size="${options.fontSize}" xml:space="preserve"${textColor}>${text.tspans}</text>${text.decorations}`;
+  };
   const fractionX = startX + prefixWidth;
   const fractionMarkup = renderStackedFractionAnnotation(fraction, {
     position: { x: fractionX, y: options.position.y },

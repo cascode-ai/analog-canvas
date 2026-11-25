@@ -50,9 +50,10 @@ describe("a PNG carries the schematic faces (#1413)", () => {
     const svg = await drawn[0]!.text();
     // Pin both families on every system; text remains visible while decoding.
     const rules = svg.match(/@font-face\{[^}]*\}/gu) ?? [];
+    // Four styles of Metropolis's Latin and four of its Greek (#2619).
     expect(
       rules.filter((rule) => rule.includes('font-family:"Metropolis"')),
-    ).toHaveLength(4);
+    ).toHaveLength(8);
     expect(
       rules.filter((rule) => rule.includes('font-family:"DejaVu Sans"')),
     ).toHaveLength(4);

@@ -39,9 +39,14 @@ describe("the Document's Arial and LaTeX faces (#1725)", () => {
   });
 
   it("measures lowercase Greek, which Latin Modern Roman lacks, in DejaVu", () => {
+    // DejaVu Sans's own advances, 1351 and 1306 of 2048 units: Metropolis's
+    // Greek is ICM Greek, DejaVu's drawn smaller to Metropolis's (#2619).
     expect(
       schematicTextAdvanceEm("αβ", "plain", false, "latin-modern"),
-    ).toBeCloseTo(schematicTextAdvanceEm("αβ", "plain"), 9);
+    ).toBeCloseTo((1351 + 1306) / 2048, 9);
+    expect(schematicTextAdvanceEm("αβ", "plain")).toBeLessThan(
+      (1351 + 1306) / 2048,
+    );
   });
 
   it.each(["sans", "latin-modern"] as const)(

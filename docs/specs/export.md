@@ -20,13 +20,16 @@ and diagnostics never enter a formal artifact.
 - The SVG viewBox is the page bound. All formats share one normalized base
   filename.
 - Browser PDF converts the same SVG with `svg2pdf.js` into paths and text,
-  working on a temporary clone (text decorations become strokes; legacy
-  relative text constructs are expanded); it never embeds the PNG page cover
+  working on a temporary clone (a CSS overline left in the SVG becomes a
+  stroke in the shared bar geometry; legacy relative text constructs are
+  expanded); it never embeds the PNG page cover
   or rewrites the downloaded SVG. Conversion failure fails visibly; no silent
   bitmap downgrade (SVG is the vector fallback). Node/headless keeps a
   raster-PDF fallback for release tooling only.
-- Fonts: pinned Metropolis (approximating the references' Proxima Nova) plus
-  DejaVu Sans for Greek/math, subset to WOFF2 in `packages/exporters/fonts/`
+- Fonts: pinned Metropolis (approximating the references' Proxima Nova), its
+  Greek **ICM Greek** (DejaVu Sans's Greek drawn to Metropolis's cap height,
+  x height, depth and stem weight; served as Metropolis for U+0370–03FF) and
+  DejaVu Sans for math, subset to WOFF2 in `packages/exporters/fonts/`
   with advance/ink tables from `scripts/generate-schematic-fonts.mjs`; the
   round-period face stays first for full stops. Canvas, browser PNG and Node
   raster use these glyphs (Node via composite faces that keep weight and
@@ -60,8 +63,8 @@ and diagnostics never enter a formal artifact.
   the face lacks (lowercase Greek) draws whole in a fallback face. No round
   period. One face per Document; Metropolis stays the default.
 
-- PDF selects the Document's face, DejaVu or (Metropolis only) the period
-  face per glyph and embeds each used weight/slant as a subset (PDF has no
+- PDF selects the Document's face, DejaVu or (Metropolis only) ICM Greek or
+  the period face per glyph and embeds each used weight/slant as a subset (PDF has no
   CSS fallback); faces are loaded for measurement and removed after. CJK characters, which the canvas draws in
   a system face, take the ICM CJK faces (Noto Sans SC Regular cut by code
   point, `packages/exporters/fonts/cjk/`), fetched only for an export that

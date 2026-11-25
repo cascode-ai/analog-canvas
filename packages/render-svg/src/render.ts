@@ -105,6 +105,11 @@ export interface SvgScene {
   drawingScene: ResolvedDrawingScene;
 }
 
+/** Bars drawn beside a turned <text>, turned with it. */
+function decoratedWith(decorations: string, transform: string): string {
+  return decorations ? `<g transform="${transform}">${decorations}</g>` : "";
+}
+
 function profileMiterAttribute(profile: SchematicStyleProfile): string {
   return ` stroke-miterlimit="${profile.miterLimit}"`;
 }
@@ -723,9 +728,17 @@ export function buildSvgScene(
         alignment: textAnchor,
         ...(colorOverride ? { color: colorOverride } : {}),
       });
-      const text = formula
-        ? formula
-        : `<text x="${markerTextX}" y="${markerTextY}" text-anchor="${textAnchor}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("route-marker", annotationProfile, annotation.sizeScale)}>${renderAnnotationText(content, annotation, annotationProfile)}</text>`;
+      const markerText = formula
+        ? undefined
+        : renderAnnotationText(content, annotation, annotationProfile, {
+            x: markerTextX,
+            y: markerTextY,
+            alignment: textAnchor,
+            ...(colorOverride ? { color: colorOverride } : {}),
+          });
+      const text = markerText
+        ? `<text x="${markerTextX}" y="${markerTextY}" text-anchor="${textAnchor}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("route-marker", annotationProfile, annotation.sizeScale)}>${markerText.tspans}</text>${markerText.decorations}`
+        : formula;
       return `<g ${attributes}><g transform="${transform}"><polygon data-role="current-arrow-head" points="${tipX},${y} ${baseX},${y - halfHeadWidth} ${baseX},${y + halfHeadWidth}" fill="${annotationProfile.foreground}"/></g>${text}</g>`;
     }
     if (annotation.kind === "power-label") {
@@ -739,9 +752,17 @@ export function buildSvgScene(
         alignment: annotation.alignment,
         ...(colorOverride ? { color: colorOverride } : {}),
       });
-      const text = formula
-        ? `<g transform="${transform}">${formula}</g>`
-        : `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("power-label", annotationProfile, annotation.sizeScale)}>${renderAnnotationText(content, annotation, annotationProfile)}</text>`;
+      const powerText = formula
+        ? undefined
+        : renderAnnotationText(content, annotation, annotationProfile, {
+            x: position.x,
+            y: position.y,
+            alignment: annotation.alignment,
+            ...(colorOverride ? { color: colorOverride } : {}),
+          });
+      const text = powerText
+        ? `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("power-label", annotationProfile, annotation.sizeScale)}>${powerText.tspans}</text>${decoratedWith(powerText.decorations, transform)}`
+        : `<g transform="${transform}">${formula}</g>`;
       return `<g ${attributes}>${text}</g>`;
     }
     if (
@@ -765,9 +786,17 @@ export function buildSvgScene(
         alignment: annotation.alignment,
         ...(colorOverride ? { color: colorOverride } : {}),
       });
-      const text = formula
-        ? formula
-        : `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("route-marker", annotationProfile, annotation.sizeScale)}>${renderAnnotationText(content, annotation, annotationProfile)}</text>`;
+      const voltageText = formula
+        ? undefined
+        : renderAnnotationText(content, annotation, annotationProfile, {
+            x: position.x,
+            y: position.y,
+            alignment: annotation.alignment,
+            ...(colorOverride ? { color: colorOverride } : {}),
+          });
+      const text = voltageText
+        ? `<text x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}"${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute("route-marker", annotationProfile, annotation.sizeScale)}>${voltageText.tspans}</text>${voltageText.decorations}`
+        : formula;
       return `<g ${attributes}><text data-role="polarity-positive" x="${position.x + positiveOffset.x}" y="${position.y + positiveOffset.y + 4}" text-anchor="middle" font-size="${annotationProfile.typography.polarityFontSize}" style="${polarityStyle}">+</text><text data-role="polarity-negative" x="${position.x + negativeOffset.x}" y="${position.y + negativeOffset.y + 4}" text-anchor="middle" font-size="${annotationProfile.typography.polarityFontSize}" style="${polarityStyle}">−</text>${text}</g>`;
     }
     const emphasis = "";
@@ -818,7 +847,13 @@ export function buildSvgScene(
     if (positioned) {
       return `<g transform="${transform}"><text ${attributes} x="${position.x}" y="${position.y}" text-anchor="start"${emphasis}${colorOverride ? ` fill="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, annotationProfile, annotation.sizeScale)}>${positioned.tspans}</text>${positioned.decorations}</g>${globalBadge}`;
     }
-    return `<text ${attributes} x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${emphasis}${colorOverride ? ` fill="${colorOverride}" color="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, annotationProfile, annotation.sizeScale)}>${renderAnnotationText(content, annotation, annotationProfile)}</text>${globalBadge}`;
+    const plain = renderAnnotationText(content, annotation, annotationProfile, {
+      x: position.x,
+      y: position.y,
+      alignment: annotation.alignment,
+      ...(colorOverride ? { color: colorOverride } : {}),
+    });
+    return `<text ${attributes} x="${position.x}" y="${position.y}" text-anchor="${annotation.alignment}" transform="${transform}"${emphasis}${colorOverride ? ` fill="${colorOverride}" color="${colorOverride}"` : ""}${schematicTextSizeAttribute(annotation.kind, annotationProfile, annotation.sizeScale)}>${plain.tspans}</text>${decoratedWith(plain.decorations, transform)}${globalBadge}`;
   }
   const drafting = new Map(
     (document.drafting?.objects ?? [])

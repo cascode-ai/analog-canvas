@@ -8,7 +8,7 @@ import {
 } from "@icm/derived";
 import type { SchematicStyleProfile } from "@icm/derived";
 import type { RichTextDocument, RichTextRun } from "@icm/model";
-import { renderRichTextDocument } from "./rich-text.js";
+import { renderRichTextWithOverbars } from "./rich-text.js";
 import { renderPositionedOverbarScriptDocument } from "./positioned-rich-text.js";
 
 interface FractionTextOptions {
@@ -105,14 +105,6 @@ export function renderFractionText(
               defaultItalic: at.italic ?? false,
             },
           );
-          const text =
-            positioned?.tspans ??
-            renderRichTextDocument(document, profile, {
-              lineOriginX: x,
-              fontSize: at.fontSize,
-              defaultBold: at.bold ?? false,
-              defaultItalic: at.italic ?? false,
-            });
           // A standalone plain numerator or denominator can use the browser's
           // native glyph advances for alignment. This keeps wide glyphs such
           // as W/M centered without reintroducing textLength glyph scaling.
@@ -120,7 +112,19 @@ export function renderFractionText(
             !positioned && ordinary.length === lineRuns.length && !output;
           const textAnchor = standalonePlain ? at.alignment : "start";
           const textX = standalonePlain ? at.x : x;
-          const markup = `<text x="${number(textX)}" y="${number(baseline)}" text-anchor="${textAnchor}" font-size="${number(at.fontSize)}" font-weight="${at.bold ? "bold" : "normal"}" font-style="${at.italic ? "italic" : "normal"}" fill="${at.color}" color="${at.color}" xml:space="preserve">${text}</text>${positioned?.decorations ?? ""}`;
+          const text = positioned
+            ? { tspans: positioned.tspans, decorations: positioned.decorations }
+            : renderRichTextWithOverbars(document, profile, {
+                x: textX,
+                y: baseline,
+                fontSize: at.fontSize,
+                alignment: textAnchor,
+                color: at.color,
+                lineOriginX: x,
+                defaultBold: at.bold ?? false,
+                defaultItalic: at.italic ?? false,
+              });
+          const markup = `<text x="${number(textX)}" y="${number(baseline)}" text-anchor="${textAnchor}" font-size="${number(at.fontSize)}" font-weight="${at.bold ? "bold" : "normal"}" font-style="${at.italic ? "italic" : "normal"}" fill="${at.color}" color="${at.color}" xml:space="preserve">${text.tspans}</text>${text.decorations}`;
           // A deterministic advance may position the independent bar and
           // scripts, but it must not scale the glyph outlines. In particular,
           // narrow letters such as `f` were visibly widened when this group

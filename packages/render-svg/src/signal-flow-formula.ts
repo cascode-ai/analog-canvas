@@ -3,7 +3,7 @@ import { transformPoint } from "@icm/model";
 import { renderFormulaDocument } from "./formula.js";
 import { renderFractionText } from "./fraction-text.js";
 import { renderPositionedOverbarScriptDocument } from "./positioned-rich-text.js";
-import { renderRichTextDocument } from "./rich-text.js";
+import { renderRichTextWithOverbars } from "./rich-text.js";
 import type { RichTextDocument, SchematicDocument } from "@icm/model";
 import {
   parseSignalFlowInline,
@@ -80,7 +80,11 @@ function renderBodyRichText(
   });
   if (positioned)
     return `<text data-role="formula-text" x="${options.x}" y="${options.y}" text-anchor="start" ${plain}>${positioned.tspans}</text>${positioned.decorations}`;
-  return `<text data-role="formula-text" x="${options.x}" y="${options.y}" text-anchor="middle" ${plain}>${renderRichTextDocument(format, profile, { fontSize: options.fontSize, lineOriginX: options.x })}</text>`;
+  const text = renderRichTextWithOverbars(format, profile, {
+    ...options,
+    alignment: "middle",
+  });
+  return `<text data-role="formula-text" x="${options.x}" y="${options.y}" text-anchor="middle" ${plain}>${text.tspans}</text>${text.decorations}`;
 }
 
 /** Formula bounds consumed by formal export crop and adaptive frame layout. */
@@ -123,14 +127,23 @@ export function renderSignalFlowFormula(
   const word = options.labels
     ? signalFlowBodyWordDocument(layout.formula, options.labels.presentation)
     : undefined;
-  const inline = word
-    ? renderRichTextDocument(word, options.labels!.profile, {
+  const wordText = word
+    ? renderRichTextWithOverbars(word, options.labels!.profile, {
+        x: layout.formulaX,
+        y: layout.inlineBaseline,
         fontSize: layout.fontSize,
+        alignment: "middle",
+        color: options.foreground,
+        lineOriginX: 0,
+        // Set in the formula group's math weight.
+        defaultBold: true,
       })
-    : renderSignalFlowInlineFormula(layout.formula);
+    : undefined;
+  const inline =
+    wordText?.tspans ?? renderSignalFlowInlineFormula(layout.formula);
   const body = layout.fraction
     ? `<g data-role="signal-flow-fraction"><text data-role="formula-numerator" x="${layout.formulaX}" y="${layout.numeratorBaseline}" text-anchor="middle" font-size="${layout.fontSize}">${renderSignalFlowInlineFormula(layout.fraction.numerator)}</text><line data-role="formula-fraction-bar" x1="${layout.formulaX - layout.formulaWidth / 2}" y1="${layout.fractionBarY}" x2="${layout.formulaX + layout.formulaWidth / 2}" y2="${layout.fractionBarY}" stroke="${escapeXml(options.foreground)}" stroke-width="${options.profile.strokes.annotation}"/><text data-role="formula-denominator" x="${layout.formulaX}" y="${layout.denominatorBaseline}" text-anchor="middle" font-size="${layout.fontSize}">${renderSignalFlowInlineFormula(layout.fraction.denominator)}</text></g>`
-    : `<text data-role="formula-text" x="${layout.formulaX}" y="${layout.inlineBaseline}" text-anchor="middle" font-size="${layout.fontSize}">${inline}</text>`;
+    : `<text data-role="formula-text" x="${layout.formulaX}" y="${layout.inlineBaseline}" text-anchor="middle" font-size="${layout.fontSize}">${inline}</text>${wordText?.decorations ?? ""}`;
   return `<g data-role="signal-flow-formula" ${common}>${coefficientText}${body}</g>`;
 }
 

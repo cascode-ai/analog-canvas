@@ -1,4 +1,5 @@
-"""Compose the pinned schematic faces for resvg's single-face text shaping."""
+"""Compose the pinned schematic faces for resvg's single-face text shaping:
+Metropolis, the ICM Greek drawn for it, then DejaVu Sans for the rest."""
 import copy
 import sys
 from pathlib import Path
@@ -9,22 +10,26 @@ from fontTools.subset import Options, Subsetter
 from fontTools.ttLib import TTFont
 from fontTools.ttLib.scaleUpem import scale_upem
 
-primary_dir, fallback_dir, period_path, destination = map(Path, sys.argv[1:])
+primary_dir, fallback_dir, period_path, greek_dir, destination = map(Path, sys.argv[1:])
 period = TTFont(period_path, recalcTimestamp=False)
-for style, fallback_style in [
-    ("Regular", ""), ("RegularItalic", "-Oblique"),
-    ("Bold", "-Bold"), ("BoldItalic", "-BoldOblique"),
+for style, fallback_style, greek_style in [
+    ("Regular", "", "Regular"), ("RegularItalic", "-Oblique", "Italic"),
+    ("Bold", "-Bold", "Bold"), ("BoldItalic", "-BoldOblique", "BoldItalic"),
 ]:
     primary_path = primary_dir / f"Metropolis-{style}.ttf"
     primary = TTFont(primary_path, recalcTimestamp=False)
     fallback = TTFont(fallback_dir / f"DejaVuSans{fallback_style}.ttf", recalcTimestamp=False)
     fallback_notice = fallback["name"].getDebugName(13)
     fallback_copyright = fallback["name"].getDebugName(0)
+    greek_path = greek_dir / f"ICMGreek-{greek_style}.ttf"
+    greek = set(TTFont(greek_path).getBestCmap())
     scale_upem(fallback, primary["head"].unitsPerEm)
     options = Options()
     options.hinting = False
     subset = Subsetter(options=options)
-    subset.populate(unicodes=set(fallback.getBestCmap()) - set(primary.getBestCmap()))
+    subset.populate(
+        unicodes=set(fallback.getBestCmap()) - set(primary.getBestCmap()) - greek
+    )
     subset.subset(fallback)
     # The fallback supplies outlines and advances; preserve the primary's
     # shaping tables. resvg does not use OpenType MATH layout tables.
@@ -34,7 +39,7 @@ for style, fallback_style in [
     with TemporaryDirectory() as scratch:
         fallback_path = Path(scratch) / "fallback.ttf"
         fallback.save(fallback_path)
-        merged = Merger().merge([str(primary_path), str(fallback_path)])
+        merged = Merger().merge([str(primary_path), str(greek_path), str(fallback_path)])
     merged.recalcTimestamp = False
     # Keep the original period outline: composite glyphs such as ellipsis
     # reference it. Only the Unicode period should use our authored dot.

@@ -1,3 +1,5 @@
+import { overbarLine } from "@icm/derived";
+
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
 function renderedTextNode(root: Node): Text | undefined {
@@ -67,6 +69,12 @@ function addRelativePosition(
   carrier.setAttribute(attribute, `${current + delta}px`);
 }
 
+/**
+ * The CSS overlines left in a scene, for svg2pdf, which draws none: the bars
+ * the renderer could not place itself (one inside a fraction or beside a
+ * formula). Every other bar is already a line in the shared geometry; these
+ * take its thickness and gap, over the span's glyph box.
+ */
 function materializeTextDecorations(svg: SVGSVGElement): void {
   for (const span of svg.querySelectorAll<SVGTSpanElement>(
     'tspan[data-text-run="overbar"][style*="text-decoration:overline"]',
@@ -76,14 +84,20 @@ function materializeTextDecorations(svg: SVGSVGElement): void {
     const bounds = span.getBBox();
     const style = getComputedStyle(span);
     const fontSize = Number.parseFloat(style.fontSize) || 16;
+    const bar = overbarLine({
+      left: bounds.x,
+      right: bounds.x + bounds.width,
+      top: bounds.y,
+      fontSize,
+    });
     const line = document.createElementNS(SVG_NAMESPACE, "line");
     line.setAttribute("data-text-decoration", "overbar");
-    line.setAttribute("x1", String(bounds.x));
-    line.setAttribute("x2", String(bounds.x + bounds.width));
-    line.setAttribute("y1", String(bounds.y - fontSize * 0.08));
-    line.setAttribute("y2", String(bounds.y - fontSize * 0.08));
+    line.setAttribute("x1", String(bar.x1));
+    line.setAttribute("x2", String(bar.x2));
+    line.setAttribute("y1", String(bar.y));
+    line.setAttribute("y2", String(bar.y));
     line.setAttribute("stroke", style.fill || "#111111");
-    line.setAttribute("stroke-width", String(Math.max(1, fontSize * 0.06)));
+    line.setAttribute("stroke-width", String(bar.thickness));
     const transform = text.getAttribute("transform");
     if (transform) line.setAttribute("transform", transform);
     text.after(line);
