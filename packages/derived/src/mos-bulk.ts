@@ -354,7 +354,7 @@ export function drawnNegativeSupplyNet(
   logicalNets?: ResolvedDocumentLogicalNets,
 ): Net | undefined {
   const resolved = logicalNets ?? resolveCommittedDocumentLogicalNets(document);
-  const drawn = drawnSupplyNets(document, "vdd", resolved);
+  const drawn = drawnSupplyNets(document, "vdd", resolved, "all-vdd-role");
   const negative = drawn.nets.filter((_net, index) =>
     namesNegativeSupply(
       resolved.byId.get(drawn.logicalNetIds[index]!)?.name ?? "",
@@ -399,19 +399,67 @@ export function pdkSubstrateDefaultNet(
   return document.nets.find((net) => net.id === groundId);
 }
 
+type DrawnSupplyMode = "domain" | "all-vdd-role";
+
 function drawnSupplyNets(
   document: SchematicDocument,
   domain: SupplyDomain,
   logicalNets?: ResolvedDocumentLogicalNets,
+  mode: DrawnSupplyMode = "domain",
 ): { nets: Net[]; logicalNetIds: string[]; contradictory: boolean } {
   const resolved = logicalNets ?? resolveCommittedDocumentLogicalNets(document);
+  const vddMarkersByGroup = new Map<
+    string,
+    { positive: boolean; negative: boolean }
+  >();
+  const markerNetByInstanceId = new Map<string, Net>();
+  for (const instance of supplyMarkerCandidates(document.instances)) {
+    const marker = supplyMarkerForSymbol(instance.symbolId);
+    if (!marker) continue;
+    const net = document.nets.find((candidate) =>
+      candidate.terminals.some(
+        (terminal) =>
+          terminal.instanceId === instance.id &&
+          terminal.pinName === marker.pinName,
+      ),
+    );
+    if (!net) continue;
+    markerNetByInstanceId.set(instance.id, net);
+    if (marker.domain !== "vdd") continue;
+    const groupId = resolved.byBaseNetId.get(net.id)?.id ?? net.id;
+    const flags = vddMarkersByGroup.get(groupId) ?? {
+      positive: false,
+      negative: false,
+    };
+    if (marker.polarity === "negative") flags.negative = true;
+    else flags.positive = true;
+    vddMarkersByGroup.set(groupId, flags);
+  }
+  const isNegativeOrReturnSupply = (netId: string) => {
+    const group = resolved.byBaseNetId.get(netId);
+    if (group?.name && namesNegativeSupply(group.name)) return true;
+    const flags = vddMarkersByGroup.get(group?.id ?? netId);
+    return Boolean(flags?.negative && !flags.positive);
+  };
   const candidates = new Map<string, Net>();
   let contradictory = false;
   const addCandidate = (netId: string) => {
     const group = resolved.byBaseNetId.get(netId);
-    if (group && group.powerDomain !== "none" && group.powerDomain !== domain) {
-      contradictory = true;
+    if (
+      domain === "vdd" &&
+      mode === "domain" &&
+      isNegativeOrReturnSupply(netId)
+    )
       return;
+    if (group && group.powerDomain !== "none" && group.powerDomain !== domain) {
+      if (!(
+        domain === "ground" &&
+        group.powerDomain === "vdd" &&
+        isNegativeOrReturnSupply(netId)
+      )) {
+        contradictory = true;
+        return;
+      }
     }
     const [first] = [...(group?.baseNetIds ?? [netId])].sort((left, right) =>
       left.localeCompare(right, "en"),
@@ -434,13 +482,7 @@ function drawnSupplyNets(
   for (const instance of supplyMarkerCandidates(document.instances)) {
     const marker = supplyMarkerForSymbol(instance.symbolId);
     if (marker?.domain !== domain) continue;
-    const net = document.nets.find((candidate) =>
-      candidate.terminals.some(
-        (terminal) =>
-          terminal.instanceId === instance.id &&
-          terminal.pinName === marker.pinName,
-      ),
-    );
+    const net = markerNetByInstanceId.get(instance.id);
     if (net) addCandidate(net.id);
   }
   return {

@@ -489,6 +489,39 @@ describe("built-in Analog Block subcircuits", () => {
       expect(defaulted.file.text).toMatch(/^X1 VDD VSS \S+ \S+ \S+ opamp$/mu);
       expect(defaulted.file.text).not.toContain("icm_opamp");
     }
+    // A negative rail (VEE) on a supply marker beside VDD is not a competing
+    // positive supply: the op-amp stays powered on VDD without ambiguity.
+    const splitSupply = opampWith((document) => {
+      document.instances.push({
+        id: "VEE",
+        symbolId: "vdd-port",
+        placement: null,
+      });
+      document.nets.push({
+        id: "net-vee",
+        terminals: [{ instanceId: "VEE", pinName: "P" }],
+      });
+      document.connectivityEvidence.push({
+        id: "vee-claim",
+        kind: "name-claim",
+        netId: "net-vee",
+        name: "VEE",
+        scope: "global",
+        powerDomain: "vdd",
+        owner: { kind: "power-marker", objectId: "VEE" },
+      });
+    });
+    expect(splitSupply.status).toBe("ready");
+    expect(
+      splitSupply.diagnostics.filter(
+        (d) => d.code === "IDEAL_OPAMP_SUPPLY_AMBIGUOUS",
+      ),
+    ).toEqual([]);
+    if (splitSupply.status === "ready")
+      expect(splitSupply.file.text).toContain(
+        "X1 VDD VSS plus minus out icm_opamp_vdd_vss\n",
+      );
+
     // Two positive supplies drawn: the limits fall back, and say so.
     const addVdda = (document: SchematicDocument) => {
       document.instances.push({

@@ -31,6 +31,7 @@ import {
   literalSourceAnalyses,
   sourceOutputVolumeWarning,
 } from "./source-analysis.js";
+import { ngspicePreparationWarnings } from "./ngspice-advisories.js";
 
 function librarySectionRange(
   text: string,
@@ -641,11 +642,17 @@ export async function prepareNgspiceExecutionInput(
     ...folder.input,
     files: compiled.files,
   });
+  const preparedGraph = projectedGraph();
   const analyses = literalSourceAnalyses(graph);
   const volume = sourceOutputVolumeWarning(graph, caps.maxOutputBytes);
   const unqualified = [...new Set(analyses.map((a) => a.kind))].filter(
     (kind) => !caps.analyses.includes(kind),
   );
+  const advisories = ngspicePreparationWarnings(preparedGraph, {
+    profileId: profile.id,
+    ...(profile.devices ? { profileDevices: profile.devices } : {}),
+    dependencies,
+  });
   const preparedDeck = files[entryIndex]!.text;
   const signals = simulationSignals(project, folder.input);
   const input: ExecutionInput & { preparedDeck: string } = {
@@ -701,6 +708,7 @@ export async function prepareNgspiceExecutionInput(
             `Native analyses ${unqualified.join(", ")} are outside this Profile's qualified scope; the run remains allowed.`,
           ]
         : []),
+      ...advisories,
     ],
     authoredFiles: compiled.authoredFiles,
     generated: compiled.generated,

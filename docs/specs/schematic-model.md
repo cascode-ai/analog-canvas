@@ -100,8 +100,10 @@ cross-Document edits use one Project transaction guarded by
 
 `nmos`/`pmos` have D/G/S/B; `textbook-3terminal` is presentation only. B
 resolves from explicit membership, then a configured cell-default Net, then
-the one wired supply marker of its domain in the Cell (`ground` for NMOS; a
-`vdd`-role marker, `vdd-port` or `named-ground`, for PMOS) as read-only
+the one drawn supply of its domain in the Cell (`ground` or a formal `VSS`
+Cell Pin for NMOS; a formal `VDD` Cell Pin or a positive `vdd`-role supply —
+`vdd-port` or power rail not named as a negative supply — for PMOS, excluding
+`named-ground` and negative-named supplies) as read-only
 `supply-default`, never written. Placing or pasting a Named Ground, or a
 `vdd-port` or power rail named as a negative supply (`VSS`, `VEE`, `VNEG`,
 with optional `A`/`D`/`P` prefix), sets an absent NMOS cell default, as Ground
