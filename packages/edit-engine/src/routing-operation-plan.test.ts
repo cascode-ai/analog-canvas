@@ -1,4 +1,12 @@
-import { createEmptyDocument, createRoutePath } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  type SchematicDocument,
+  createRoutePath,
+  freezeSnapshot,
+  shareEqualDocumentStructure,
+} from "@icm/model";
+import { buildProjectConnectivityIndex } from "@icm/derived";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it } from "vitest";
 
@@ -6,10 +14,21 @@ import {
   createRoutingOperationPlan,
   evaluateRoutingOperationPlan,
   gateRoutingOperationPlan,
+  gateCanvasRoutingOperation,
+  type RoutingOperationPlan,
 } from "./routing-operation-plan.js";
 import { proposeWireIntent } from "./wire-intent-planner.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
+
+function canvasGate(document: SchematicDocument, plan: RoutingOperationPlan) {
+  const project = createEmptyProject("drawing", "Drawing", document.id);
+  project.documents = [document];
+  buildProjectConnectivityIndex(freezeSnapshot(project), resolver);
+  return gateCanvasRoutingOperation(document, plan, {
+    symbolResolver: resolver,
+  });
+}
 
 function twoNetDocument() {
   const document = createEmptyDocument("main", "Main");
@@ -56,6 +75,433 @@ describe("RoutingOperationPlan", () => {
       ok: true,
       edits: plan.edits,
     });
+  });
+
+  it.each([
+    null,
+    { kind: "add_instance" },
+    { kind: "set_route_path" },
+    { kind: "attach_endpoint_to_route" },
+  ])(
+    "reports invalid Wire edits and prioritizes source and planner refusals (%j)",
+    (edit) => {
+      const document = freezeSnapshot(twoNetDocument());
+      const plan = createRoutingOperationPlan(document, {
+        intent: "connect",
+        diagnostics: [],
+        edits: [],
+        expectedElectricalEffect: { kind: "preserve", endpointKeys: [] },
+      });
+      // The transaction schema owns invalid input. Exercise the runtime boundary.
+      const invalid = {
+        ...plan,
+        edits: [edit] as unknown as typeof plan.edits,
+      };
+      const blocking = [
+        {
+          code: "PLANNER_ERROR",
+          severity: "error" as const,
+          message: "Wire is blocked",
+        },
+      ];
+      for (const [proposal, message] of [
+        [invalid, "Transaction schema validation failed"],
+        [{ ...invalid, diagnostics: blocking }, "Wire is blocked"],
+        [
+          {
+            ...invalid,
+            diagnostics: blocking,
+            source: { ...invalid.source, revision: 1 },
+          },
+          "Routing operation is stale",
+        ],
+        [
+          { ...invalid, source: { ...invalid.source, documentId: "another" } },
+          "Routing operation targets another Cell",
+        ],
+      ] as const) {
+        const outcome = canvasGate(document, proposal);
+        expect(outcome).toMatchObject({ ok: false, message });
+        expect(outcome).toEqual(gateRoutingOperationPlan(document, proposal));
+      }
+    },
+  );
+
+  it("reports the full merge mismatch for a malformed declaration on valid edits", () => {
+    const document = twoNetDocument();
+    const plan = createRoutingOperationPlan(document, {
+      intent: "connect",
+      diagnostics: [],
+      edits: [
+        { kind: "merge_nets", sourceNetId: "net-b", targetNetId: "net-a" },
+      ],
+      expectedElectricalEffect: {
+        kind: "merge",
+        endpointGroups: [[1 as unknown as string]],
+      },
+    });
+    const outcome = canvasGate(document, plan);
+    expect(outcome).toMatchObject({
+      ok: false,
+      message: "Routing merge did not join endpoint group 1",
+    });
+    expect(outcome).toEqual(
+      gateRoutingOperationPlan(structuredClone(document), plan, {
+        symbolResolver: resolver,
+      }),
+    );
+  });
+
+  it("matches full preservation for an explicit declaration containing a non-string key", () => {
+    const document = twoNetDocument();
+    const plan = createRoutingOperationPlan(document, {
+      intent: "connect",
+      diagnostics: [],
+      edits: [
+        {
+          kind: "add_instance",
+          instance: {
+            id: "M1",
+            symbolId: "nmos",
+            reference: "M1",
+            placement: null,
+          },
+        },
+      ],
+      expectedElectricalEffect: {
+        kind: "preserve",
+        endpointKeys: [1 as unknown as string],
+      },
+    });
+    const result = canvasGate(document, plan);
+    const full = gateRoutingOperationPlan(structuredClone(document), plan, {
+      symbolResolver: resolver,
+    });
+    expect(result.ok && full.ok).toBe(true);
+    if (result.ok && full.ok)
+      expect(result.evaluated.finalDocument).toEqual(
+        full.evaluated.finalDocument,
+      );
+  });
+
+  it("commits a scalar Wire with the same final conductors as the complete evaluation", () => {
+    const document = twoNetDocument();
+    const plan = createRoutingOperationPlan(document, {
+      intent: "connect",
+      diagnostics: [],
+      edits: [
+        { kind: "merge_nets", targetNetId: "net-a", sourceNetId: "net-b" },
+        {
+          kind: "connect_endpoints",
+          from: { kind: "junction", junctionId: "J1" },
+          to: { kind: "junction", junctionId: "J2" },
+        },
+      ],
+    });
+    const fast = canvasGate(document, plan);
+    const oracle = evaluateRoutingOperationPlan(
+      structuredClone(document),
+      plan,
+    );
+    expect(fast.ok && oracle.ok).toBe(true);
+    if (!fast.ok || !oracle.ok) return;
+    expect(fast.evaluated.finalDocument).toEqual(oracle.value.finalDocument);
+    expect(fast.evaluated.finalDocument.nets.map((net) => net.id)).toEqual([
+      "net-a",
+    ]);
+  });
+
+  it("refuses a third conductor named by a scalar Wire at the same boundary as the full evaluator", () => {
+    const document = twoNetDocument();
+    document.nets.push({ id: "offscreen", terminals: [] });
+    document.junctions.push({
+      id: "far",
+      netId: "offscreen",
+      position: { x: 4000, y: 0 },
+    });
+    const plan = createRoutingOperationPlan(document, {
+      intent: "connect",
+      diagnostics: [],
+      edits: [
+        { kind: "merge_nets", sourceNetId: "net-b", targetNetId: "net-a" },
+      ],
+      expectedElectricalEffect: {
+        kind: "merge",
+        endpointGroups: [["junction:J1", "junction:J2", "junction:far"]],
+      },
+    });
+    const gate = canvasGate(document, plan);
+    expect(gate).toMatchObject({
+      ok: false,
+      diagnostics: [{ code: "ELECTRICAL_EFFECT_MISMATCH" }],
+    });
+    expect(gate).toEqual(
+      evaluateRoutingOperationPlan(structuredClone(document), plan),
+    );
+  });
+
+  it("keeps an independent crossing separate when the Wire planner joins two local Nets", () => {
+    const document = twoNetDocument();
+    document.junctions[0]!.position = { x: 0, y: -70 };
+    document.junctions[1]!.position = { x: 0, y: 70 };
+    document.nets.push({ id: "crossing", terminals: [] });
+    document.junctions.push(
+      { id: "west", netId: "crossing", position: { x: -40, y: 0 } },
+      { id: "east", netId: "crossing", position: { x: 40, y: 0 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "crossbar",
+        netId: "crossing",
+        start: { kind: "junction", junctionId: "west" },
+        end: { kind: "junction", junctionId: "east" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    const wire = proposeWireIntent(document, resolver, {
+      id: "vertical",
+      from: {
+        kind: "endpoint",
+        endpoint: { kind: "junction", junctionId: "J1" },
+      },
+      to: {
+        kind: "endpoint",
+        endpoint: { kind: "junction", junctionId: "J2" },
+      },
+    });
+    if (typeof wire === "string") throw new Error(wire);
+    const plan = createRoutingOperationPlan(document, {
+      intent: "connect",
+      edits: wire.edits,
+      diagnostics: [],
+    });
+    const result = canvasGate(document, plan);
+    const full = gateRoutingOperationPlan(structuredClone(document), plan, {
+      symbolResolver: resolver,
+    });
+    expect(result.ok && full.ok).toBe(true);
+    if (!result.ok || !full.ok) return;
+    expect(result.evaluated.finalDocument).toEqual(
+      full.evaluated.finalDocument,
+    );
+    expect(
+      result.evaluated.finalDocument.routes.find(
+        (route) => route.id === "crossbar",
+      ),
+    ).toEqual(document.routes[0]);
+    expect(result.evaluated.finalDocument.nets.map((net) => net.id)).toContain(
+      "crossing",
+    );
+    const joined = result.evaluated.finalDocument.junctions
+      .filter((j) => j.id === "J1" || j.id === "J2")
+      .map((j) => j.netId);
+    expect(joined).toHaveLength(2);
+    expect(joined[1]).toBe(joined[0]);
+    expect(joined[0]).not.toBe("crossing");
+  });
+
+  it.each(["global", "bus", "hierarchy"] as const)(
+    "matches the complete evaluator for a %s connection",
+    (kind) => {
+      const document = twoNetDocument();
+      let edits: RoutingOperationPlan["edits"];
+      if (kind === "global") {
+        document.connectivityEvidence.push({
+          id: "vdd",
+          kind: "name-claim",
+          netId: "net-a",
+          name: "VDD",
+          scope: "global",
+          owner: { kind: "power-marker", objectId: "J1" },
+        });
+        edits = [
+          { kind: "merge_nets", targetNetId: "net-a", sourceNetId: "net-b" },
+          {
+            kind: "connect_endpoints",
+            from: { kind: "junction", junctionId: "J1" },
+            to: { kind: "junction", junctionId: "J2" },
+          },
+        ];
+      } else if (kind === "bus") {
+        edits = [
+          {
+            kind: "add_junction",
+            netId: "net-a",
+            junctionId: "bus",
+            position: { x: 40, y: 20 },
+            members: [
+              { id: "a", netId: "net-a" },
+              { id: "b", netId: "net-b" },
+            ],
+          },
+        ];
+      } else {
+        edits = [
+          {
+            kind: "add_instance",
+            instance: {
+              id: "X1",
+              reference: "X1",
+              symbolId: "nmos",
+              placement: {
+                position: { x: 300, y: 300 },
+                rotation: 0,
+                mirror: "none",
+              },
+              netlist: {
+                binding: { kind: "subcircuit", childDocumentId: "child" },
+                parameters: {},
+              },
+            },
+          },
+        ];
+      }
+      const plan = createRoutingOperationPlan(document, {
+        intent: "connect",
+        edits,
+        diagnostics: [],
+      });
+      const outcome = canvasGate(document, plan);
+      const full = gateRoutingOperationPlan(structuredClone(document), plan, {
+        symbolResolver: resolver,
+      });
+      expect(outcome.ok && full.ok).toBe(true);
+      if (!full.ok || !outcome.ok) return;
+      expect(outcome.evaluated.finalDocument).toEqual(
+        full.evaluated.finalDocument,
+      );
+    },
+  );
+
+  it("includes an off-path child terminal's old Net when a reroute gains physical contact", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.nets.push(
+      { id: "a", terminals: [] },
+      { id: "z", terminals: [{ instanceId: "X1", pinName: "G" }] },
+    );
+    document.instances.push({
+      id: "X1",
+      reference: "X1",
+      symbolId: "nmos",
+      placement: null,
+      netlist: {
+        binding: { kind: "subcircuit", childDocumentId: "child" },
+        parameters: {},
+      },
+    });
+    document.junctions.push(
+      { id: "L", netId: "a", position: { x: 0, y: 0 } },
+      { id: "R", netId: "a", position: { x: 100, y: 0 } },
+      { id: "hit", netId: "z", position: { x: 50, y: 0 } },
+    );
+    const route = (bends: { x: number; y: number }[]) =>
+      createRoutePath({
+        id: "wire",
+        netId: "a",
+        start: { kind: "junction", junctionId: "L" },
+        end: { kind: "junction", junctionId: "R" },
+        bends,
+        modes: bends.map(() => "manual" as const).concat("manual"),
+      });
+    document.routes.push(
+      route([
+        { x: 0, y: 30 },
+        { x: 100, y: 30 },
+      ]),
+    );
+    const plan = createRoutingOperationPlan(document, {
+      intent: "connect",
+      diagnostics: [],
+      edits: [{ kind: "set_route_path", route: route([]) }],
+    });
+    const result = canvasGate(document, plan);
+    const oracle = gateRoutingOperationPlan(structuredClone(document), plan, {
+      symbolResolver: resolver,
+    });
+    expect(result.ok && oracle.ok).toBe(true);
+    if (!result.ok || !oracle.ok) return;
+    const after = result.evaluated.finalDocument;
+    expect(after).toEqual(oracle.evaluated.finalDocument);
+    expect(after.nets).toEqual([
+      { id: "a", terminals: [{ instanceId: "X1", pinName: "G" }] },
+    ]);
+    const affected = new Set<string>();
+    shareEqualDocumentStructure(document, after, affected);
+    expect(affected).toEqual(new Set(["a", "z"]));
+  });
+
+  it("includes the implicit global body connection when the placed MOS gate joins a local Net", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.nets.push({ id: "a", terminals: [] }, { id: "z", terminals: [] });
+    document.junctions.push({ id: "L", netId: "a", position: { x: 0, y: 0 } });
+    document.mosBulkDefaults = { nmosNetId: "z" };
+    document.connectivityEvidence.push(
+      { id: "src", kind: "spice-source", netId: "z", sourceNetId: "GND" },
+      {
+        id: "gnd",
+        kind: "name-claim",
+        netId: "z",
+        name: "GND",
+        scope: "global",
+        owner: { kind: "global-declaration", sourceNetId: "GND" },
+      },
+    );
+    const plan = createRoutingOperationPlan(document, {
+      intent: "connect",
+      diagnostics: [],
+      edits: [
+        {
+          kind: "add_instance",
+          instance: {
+            id: "M1",
+            symbolId: "nmos",
+            reference: "M1",
+            placement: null,
+            mosBulkBinding: { origin: "cell-default", netId: "z" },
+          },
+        },
+        {
+          kind: "connect_endpoints",
+          from: { kind: "junction", junctionId: "L" },
+          to: { kind: "terminal", instanceId: "M1", pinName: "G" },
+        },
+      ],
+    });
+    const result = canvasGate(document, plan);
+    const oracle = gateRoutingOperationPlan(structuredClone(document), plan, {
+      symbolResolver: resolver,
+    });
+    expect(result.ok && oracle.ok).toBe(true);
+    if (!result.ok || !oracle.ok) return;
+    const after = result.evaluated.finalDocument;
+    expect(after).toEqual(oracle.evaluated.finalDocument);
+    expect(after.nets).toEqual([
+      { id: "a", terminals: [{ instanceId: "M1", pinName: "G" }] },
+      { id: "z", terminals: [{ instanceId: "M1", pinName: "B" }] },
+    ]);
+    const affected = new Set<string>();
+    shareEqualDocumentStructure(document, after, affected);
+    expect(affected).toEqual(new Set(["a", "z"]));
+  });
+
+  it("checks old memberships when the candidate moves an endpoint despite a preserve declaration", () => {
+    const document = freezeSnapshot(twoNetDocument());
+    const plan = createRoutingOperationPlan(document, {
+      intent: "connect",
+      diagnostics: [],
+      edits: [
+        { kind: "merge_nets", sourceNetId: "net-b", targetNetId: "net-a" },
+      ],
+    });
+    const gate = canvasGate(document, plan);
+    expect(gate).toMatchObject({
+      ok: false,
+      diagnostics: [{ code: "ELECTRICAL_EFFECT_MISMATCH" }],
+    });
+    expect(gate).toEqual(
+      evaluateRoutingOperationPlan(structuredClone(document), plan),
+    );
   });
 
   it("accepts a merge after canonicalization retires its temporary Junction endpoints", () => {
@@ -114,6 +560,10 @@ describe("RoutingOperationPlan", () => {
     if (!gate.ok) return;
     expect(gate.evaluated.finalDocument.nets).toHaveLength(1);
     expect(gate.evaluated.finalDocument.routes).toHaveLength(1);
+    const canvas = canvasGate(document, plan);
+    expect(canvas.ok && canvas.evaluated.finalDocument).toEqual(
+      gate.evaluated.finalDocument,
+    );
     expect(
       gate.evaluated.finalDocument.junctions.map((junction) => junction.id),
     ).toEqual(["left-outer", "right-outer"]);

@@ -11,8 +11,12 @@ function stableId(value: unknown): string | undefined {
   return typeof value.id === "string" ? value.id : undefined;
 }
 
-function shareArray(before: unknown[], after: unknown[]): unknown[] {
-  const beforeById = new Map<string, unknown>();
+function shareArray<T>(
+  before: T[],
+  after: T[],
+  changed?: (row: T) => void,
+): unknown[] {
+  const beforeById = new Map<string, T>();
   for (const value of before) {
     const id = stableId(value);
     if (id !== undefined) beforeById.set(id, value);
@@ -20,10 +24,19 @@ function shareArray(before: unknown[], after: unknown[]): unknown[] {
 
   const shared = after.map((value, index) => {
     const id = stableId(value);
-    const candidate =
-      id === undefined ? before[index] : (beforeById.get(id) ?? before[index]);
-    return shareJsonStructure(candidate, value);
+    const prior = id === undefined ? undefined : beforeById.get(id);
+    const result = shareJsonStructure(prior ?? before[index], value);
+    // Only top-level, schema-validated objects with unique IDs are observed.
+    if (changed && id !== undefined) {
+      beforeById.delete(id);
+      if (result !== prior) {
+        if (prior !== undefined) changed(prior);
+        changed(value);
+      }
+    }
+    return result;
   });
+  if (changed) for (const removed of beforeById.values()) changed(removed);
 
   if (
     shared.length === before.length &&
@@ -36,7 +49,11 @@ function shareArray(before: unknown[], after: unknown[]): unknown[] {
     : shared;
 }
 
-function shareRecord(before: JsonRecord, after: JsonRecord): JsonRecord {
+function shareRecord(
+  before: JsonRecord,
+  after: JsonRecord,
+  shareField?: (key: string) => unknown,
+): JsonRecord {
   const beforeKeys = Object.keys(before);
   const afterKeys = Object.keys(after);
   const shared: JsonRecord = {};
@@ -44,7 +61,9 @@ function shareRecord(before: JsonRecord, after: JsonRecord): JsonRecord {
   let unchangedAfter = true;
 
   for (const key of afterKeys) {
-    const value = shareJsonStructure(before[key], after[key]);
+    const value = shareField
+      ? shareField(key)
+      : shareJsonStructure(before[key], after[key]);
     shared[key] = value;
     if (value !== after[key]) unchangedAfter = false;
     if (!Object.hasOwn(before, key) || value !== before[key]) {
@@ -78,8 +97,32 @@ function shareJsonStructure(before: unknown, after: unknown): unknown {
 export function shareEqualDocumentStructure(
   before: SchematicDocument,
   after: SchematicDocument,
+  changedRoutingNetIds?: Set<string>,
 ): SchematicDocument {
-  return shareJsonStructure(before, after) as SchematicDocument;
+  if (!changedRoutingNetIds || before === after)
+    return shareJsonStructure(before, after) as SchematicDocument;
+  const changed = (
+    row: SchematicDocument["nets" | "junctions" | "routes"][number],
+  ) => {
+    if ("terminals" in row) changedRoutingNetIds.add(row.id);
+    else {
+      changedRoutingNetIds.add(row.netId);
+      for (const member of row.members ?? [])
+        changedRoutingNetIds.add(member.netId);
+    }
+  };
+  return shareRecord(before, after, (key) => {
+    if (key === "nets" || key === "junctions" || key === "routes")
+      return shareArray<SchematicDocument[typeof key][number]>(
+        before[key],
+        after[key],
+        changed,
+      );
+    return shareJsonStructure(
+      before[key as keyof SchematicDocument],
+      after[key as keyof SchematicDocument],
+    );
+  }) as SchematicDocument;
 }
 
 /** Share all unchanged Project facts after model validation, including definitions. */

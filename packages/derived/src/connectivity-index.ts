@@ -7,6 +7,7 @@ import {
   createAnnotationNameClaimReader,
   deriveStableId,
   documentContentSource,
+  isFrozenSnapshot,
   foldNetName,
 } from "@icm/model";
 import type {
@@ -146,6 +147,19 @@ interface CachedDocumentIndex {
 const documentIndexCache = registerDocumentCache(
   new WeakMap<SchematicDocument, CachedDocumentIndex>(),
 );
+
+/** Read the index already built for this exact immutable Cell and symbol context. */
+export function cachedDocumentConnectivityIndex(
+  document: SchematicDocument,
+  resolver?: SymbolResolver,
+): DocumentConnectivityIndex | undefined {
+  const cached = documentIndexCache.get(document);
+  return isFrozenSnapshot(document) &&
+    cached?.revision === document.revision &&
+    cached.resolver === resolver
+    ? cached.index
+    : undefined;
+}
 
 /**
  * Returns routing guidance whose `from`/`to` are ordered by `endpointKey` and

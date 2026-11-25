@@ -153,8 +153,16 @@ function reportGridPoint(
   }
 }
 
-export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
-  (document, context) => {
+type DocumentData = z.output<typeof SchematicDocumentBaseSchema>;
+
+type ScalarNetReader = (
+  endpoint: { instanceId: string; pinName: string } | { junctionId: string },
+) => string | undefined;
+
+function documentChecks(
+  readMembership?: (read: ScalarNetReader) => void,
+): (document: DocumentData, context: z.RefinementCtx) => void {
+  return (document, context) => {
     if (document.drawingOrder) {
       const remaining = new Set(
         drawingOrderEntries(document).map(drawingOrderKey),
@@ -1086,5 +1094,32 @@ export const SchematicDocumentSchema = SchematicDocumentBaseSchema.superRefine(
         }
       }
     }
-  },
-);
+    readMembership?.((endpoint) => {
+      if ("instanceId" in endpoint) {
+        return terminalNetByKey.get(
+          `${endpoint.instanceId}\u0000${endpoint.pinName}\u0000`,
+        );
+      }
+      const junction = junctionById.get(endpoint.junctionId);
+      return junction?.members ? undefined : junction?.netId;
+    });
+  };
+}
+
+export const SchematicDocumentSchema =
+  SchematicDocumentBaseSchema.superRefine(documentChecks());
+
+/** Check a routing candidate and read requested scalar memberships from the same validation pass. */
+export function parseRoutingDocument(
+  input: unknown,
+  readMembership: (read: ScalarNetReader) => void,
+) {
+  let validatedReader: ScalarNetReader | undefined;
+  const result = SchematicDocumentBaseSchema.superRefine(
+    documentChecks((read) => {
+      validatedReader = read;
+    }),
+  ).safeParse(input);
+  if (result.success && validatedReader) readMembership(validatedReader);
+  return result;
+}

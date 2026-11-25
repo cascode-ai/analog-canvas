@@ -3,6 +3,7 @@ import {
   projectCellInterface,
   routeEnd,
   SchematicDocumentSchema,
+  parseRoutingDocument,
   resolveDrawingOrder,
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
@@ -130,6 +131,7 @@ export function executeTransaction(
   document: SchematicDocument,
   input: EditTransaction | unknown,
   context: EditExecutionContext = {},
+  readMembership?: Parameters<typeof parseRoutingDocument>[1],
 ): EditTransactionResult {
   const parsed = EditTransactionSchema.safeParse(input);
   if (!parsed.success) {
@@ -1376,7 +1378,9 @@ export function executeTransaction(
       `${draft.netlist!.name} is drawn with a custom symbol. ${artworkIssue.message}`,
     );
   if (draft.drawingOrder) draft.drawingOrder = resolveDrawingOrder(draft);
-  const candidate = SchematicDocumentSchema.safeParse(draft);
+  const candidate = readMembership
+    ? parseRoutingDocument(draft, readMembership)
+    : SchematicDocumentSchema.safeParse(draft);
   if (!candidate.success) {
     return rejectTransaction(
       document,

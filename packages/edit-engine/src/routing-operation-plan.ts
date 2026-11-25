@@ -1,4 +1,5 @@
 import {
+  isFrozenSnapshot,
   routeEndpoints,
   routeElectricalConnections,
   junctionElectricalEndpoints,
@@ -6,12 +7,15 @@ import {
 } from "@icm/model";
 import {
   deriveElectricalTopologyProjection,
+  cachedDocumentConnectivityIndex,
+  scalarEndpointFromKey,
   endpointKey,
   resolveDocumentLogicalNets,
   type ElectricalTopologyProjection,
   type RoutingAffectedClosure,
 } from "@icm/derived";
 
+import { isLocalScalarConnection } from "./local-scalar-connection.js";
 import type { SchematicEdit } from "./edit-schema.js";
 import {
   prepareTransaction,
@@ -254,6 +258,14 @@ function endpointGroupMergedBaseNet(
   return merged.length === 1 ? merged[0]! : null;
 }
 
+function groupSharesBaseNet(
+  keys: readonly string[],
+  netOf: (key: string) => string | undefined,
+): boolean {
+  const first = keys[0] && netOf(keys[0]);
+  return !!first && keys.every((key) => netOf(key) === first);
+}
+
 function validateExpectedEffect(
   beforeDocument: SchematicDocument,
   afterDocument: SchematicDocument,
@@ -286,20 +298,11 @@ function validateExpectedEffect(
         // transaction's coalesced-endpoint report — onto one Base Net. The
         // witness fallback then covers merges whose members vanished without
         // a report entry.
-        const resolvedNetIds = unique(
-          group.flatMap((key) => {
-            const netId =
-              after.endpointToBaseNet.get(key) ?? coalescedOnto(key);
-            return netId ? [netId] : [];
-          }),
-        );
-        const everyMemberResolved = group.every(
-          (key) =>
-            after.endpointToBaseNet.has(key) ||
-            coalescedOnto(key) !== undefined,
-        );
         if (
-          !(everyMemberResolved && resolvedNetIds.length === 1) &&
+          !groupSharesBaseNet(
+            group,
+            (key) => after.endpointToBaseNet.get(key) ?? coalescedOnto(key),
+          ) &&
           !endpointGroupMergedBaseNet(before, after, group)
         ) {
           return `Routing merge did not join endpoint group ${group.join(", ")}`;
@@ -397,6 +400,9 @@ function disconnectedEndpointKeys(
   );
 }
 
+// Recognize the lazy declaration created here without reading all of its endpoints.
+const deferredPreserveEffects = new WeakSet<ExpectedElectricalEffect>();
+
 /** Preserve everything named, minus whatever the edits deliberately release. */
 function preserveEffect(
   document: SchematicDocument,
@@ -407,11 +413,23 @@ function preserveEffect(
   const keep = (keys: readonly string[]) =>
     keys.filter((key) => !released.has(key));
   const explicit = keep(named);
-  return {
-    kind: "preserve",
-    endpointKeys:
-      explicit.length > 0 ? explicit : keep(existingEndpointKeys(document)),
-  };
+  if (explicit.length > 0) return { kind: "preserve", endpointKeys: explicit };
+  // The source snapshot owns this declaration. A stand-alone placement can
+  // prove every membership unchanged without enumerating its old endpoints.
+  if (!isFrozenSnapshot(document))
+    return {
+      kind: "preserve",
+      endpointKeys: keep(existingEndpointKeys(document)),
+    };
+  let keys: readonly string[] | undefined;
+  const effect = Object.freeze({
+    kind: "preserve" as const,
+    get endpointKeys() {
+      return (keys ??= keep(existingEndpointKeys(document)));
+    },
+  });
+  deferredPreserveEffects.add(effect);
+  return effect;
 }
 
 function existingEndpointKeys(document: SchematicDocument): readonly string[] {
@@ -584,11 +602,10 @@ export function gateRoutingOperationPlan(
       };
 }
 
-export function evaluateRoutingOperationPlan(
+function routingPlanRefusal(
   document: SchematicDocument,
   plan: RoutingOperationPlan,
-  context: EditExecutionContext = {},
-): RoutingOperationEvaluation {
+): Exclude<RoutingOperationEvaluation, { ok: true }> | undefined {
   if (plan.source.documentId !== document.id) {
     return {
       ok: false,
@@ -618,10 +635,15 @@ export function evaluateRoutingOperationPlan(
       diagnostics: plan.diagnostics,
     };
   }
-  const before = deriveElectricalTopologyProjection(
-    document,
-    context.symbolResolver,
-  );
+  return undefined;
+}
+
+function prepareRoutingOperation(
+  document: SchematicDocument,
+  plan: RoutingOperationPlan,
+  context: EditExecutionContext,
+  routing?: Parameters<typeof prepareTransaction>[3],
+) {
   const preparation = prepareTransaction(
     document,
     {
@@ -632,15 +654,36 @@ export function evaluateRoutingOperationPlan(
       edits: [...plan.edits],
     },
     context,
+    routing,
   );
-  const result = preparation.result;
-  if (!result.ok) {
+  if (!preparation.prepared) {
     return {
-      ok: false,
-      message: result.error.message,
-      diagnostics: result.diagnostics,
+      ok: false as const,
+      message: preparation.result.error.message,
+      diagnostics: preparation.result.diagnostics,
     };
   }
+  return {
+    ok: true as const,
+    result: preparation.result,
+    prepared: preparation.prepared,
+    membershipUnchanged: preparation.membershipUnchanged,
+  };
+}
+
+type RoutingPreparation = Extract<
+  ReturnType<typeof prepareRoutingOperation>,
+  { ok: true }
+>;
+
+function finishFullEvaluation(
+  document: SchematicDocument,
+  plan: RoutingOperationPlan,
+  context: EditExecutionContext,
+  preparation: RoutingPreparation,
+  before = deriveElectricalTopologyProjection(document, context.symbolResolver),
+): RoutingOperationEvaluation {
+  const result = preparation.result;
   const after = deriveElectricalTopologyProjection(
     result.document,
     context.symbolResolver,
@@ -669,7 +712,7 @@ export function evaluateRoutingOperationPlan(
   return {
     ok: true,
     value: {
-      preparedTransaction: preparation.prepared!,
+      preparedTransaction: preparation.prepared,
       plan,
       finalDocument: result.document,
       actualElectricalEffect: actualEffect(
@@ -680,6 +723,134 @@ export function evaluateRoutingOperationPlan(
       ),
       diff: result.diff,
       diagnostics: result.diagnostics,
+    },
+  };
+}
+
+export function evaluateRoutingOperationPlan(
+  document: SchematicDocument,
+  plan: RoutingOperationPlan,
+  context: EditExecutionContext = {},
+): RoutingOperationEvaluation {
+  const refusal = routingPlanRefusal(document, plan);
+  if (refusal) return refusal;
+  const before = deriveElectricalTopologyProjection(
+    document,
+    context.symbolResolver,
+  );
+  const preparation = prepareRoutingOperation(document, plan, context);
+  return preparation.ok
+    ? finishFullEvaluation(document, plan, context, preparation, before)
+    : preparation;
+}
+
+type CanvasRoutingGate =
+  | Exclude<RoutingOperationGate, { ok: true }>
+  | {
+      readonly ok: true;
+      readonly edits: readonly SchematicEdit[];
+      readonly evaluated: Pick<
+        EvaluatedRoutingOperation,
+        "preparedTransaction" | "finalDocument"
+      >;
+    };
+
+function isEndpointKeyList(value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  for (const key of value) if (typeof key !== "string") return false;
+  return true;
+}
+
+function supportsScalarDeclaration(
+  expected: ExpectedElectricalEffect,
+): expected is Extract<
+  ExpectedElectricalEffect,
+  { kind: "preserve" | "merge" }
+> {
+  if (expected?.kind === "preserve")
+    return (
+      deferredPreserveEffects.has(expected) ||
+      isEndpointKeyList(
+        Object.getOwnPropertyDescriptor(expected, "endpointKeys")?.value,
+      )
+    );
+  if (expected?.kind !== "merge" || !Array.isArray(expected.endpointGroups))
+    return false;
+  for (const group of expected.endpointGroups)
+    if (!isEndpointKeyList(group)) return false;
+  return true;
+}
+
+/** A Canvas commit consumes the validated document; only full-report callers need an actual-effect diff. */
+export function gateCanvasRoutingOperation(
+  document: SchematicDocument,
+  plan: RoutingOperationPlan,
+  context: EditExecutionContext = {},
+): CanvasRoutingGate {
+  const refusal = routingPlanRefusal(document, plan);
+  if (refusal) return refusal;
+  const expected = plan.expectedElectricalEffect;
+  const index = cachedDocumentConnectivityIndex(
+    document,
+    context.symbolResolver,
+  );
+  if (
+    !index ||
+    (plan.intent !== "connect" && plan.intent !== "attach-to-route") ||
+    !supportsScalarDeclaration(expected)
+  )
+    return gateRoutingOperationPlan(document, plan, context);
+
+  const memberships = new Map<string, string | undefined>();
+  const changedNetIds = new Set<string>();
+  const preparation = prepareRoutingOperation(document, plan, context, {
+    changedNetIds,
+    readMembership:
+      expected.kind !== "merge"
+        ? undefined
+        : (read) => {
+            for (const group of expected.endpointGroups) {
+              for (const key of group) {
+                if (memberships.has(key)) continue;
+                const endpoint = scalarEndpointFromKey(key);
+                if (endpoint) memberships.set(key, read(endpoint));
+              }
+            }
+          },
+  });
+  if (!preparation.ok) return preparation;
+  const { result } = preparation;
+  // A missing or retired endpoint may need the original source-Net witness
+  // search. Only a complete positive proof can skip the full evaluator.
+  const proven =
+    expected.kind === "preserve"
+      ? preparation.membershipUnchanged
+      : expected.endpointGroups.every((group) =>
+          groupSharesBaseNet(group, (key) =>
+            memberships.has(key)
+              ? (memberships.get(key) ?? result.coalescedEndpoints?.get(key))
+              : undefined,
+          ),
+        );
+  if (
+    !proven ||
+    !isLocalScalarConnection(
+      plan.edits,
+      expected,
+      index,
+      memberships,
+      changedNetIds,
+    )
+  ) {
+    const full = finishFullEvaluation(document, plan, context, preparation);
+    if (!full.ok) return full;
+  }
+  return {
+    ok: true,
+    edits: plan.edits,
+    evaluated: {
+      preparedTransaction: preparation.prepared,
+      finalDocument: result.document,
     },
   };
 }
