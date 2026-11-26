@@ -21,7 +21,7 @@ function runErc(project: CircuitProject) {
 }
 
 describe("device integrity ERC checks (#2612)", () => {
-  it("flags MOSFET D == S channel short when bulk is on another Net, while keeping MOSCAP and 4-pin dummy quiet", () => {
+  it("flags MOSFET G == D == S short while keeping MOSCAPs, MOS varactors, gated diodes, dummy switches, and 4-pin dummies quiet", () => {
     const project = createEmptyProject("mos-short", "MOS Short");
     const doc = project.documents[0]!;
     doc.instances.push(
@@ -55,26 +55,59 @@ describe("device integrity ERC checks (#2612)", () => {
           mirror: "none",
         },
       },
+      {
+        id: "MVAR",
+        symbolId: "nmos",
+        reference: "M4",
+        placement: {
+          position: { x: 520, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "MDIODE",
+        symbolId: "pmos",
+        reference: "MD0",
+        placement: {
+          position: { x: 660, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
     );
     doc.nets.push(
       {
         id: "net-sig",
         terminals: [
+          { instanceId: "M1", pinName: "G" },
           { instanceId: "M1", pinName: "D" },
           { instanceId: "M1", pinName: "S" },
+          { instanceId: "MVAR", pinName: "D" },
+          { instanceId: "MVAR", pinName: "S" },
+          { instanceId: "MDIODE", pinName: "D" },
+          { instanceId: "MDIODE", pinName: "S" },
         ],
       },
       {
         id: "net-gate",
         terminals: [
-          { instanceId: "M1", pinName: "G" },
           { instanceId: "MCAP", pinName: "G" },
+          { instanceId: "MVAR", pinName: "G" },
+        ],
+      },
+      {
+        id: "net-vdd",
+        terminals: [
+          { instanceId: "MDIODE", pinName: "G" },
+          { instanceId: "MDIODE", pinName: "B" },
         ],
       },
       {
         id: "net-vss",
         terminals: [
           { instanceId: "M1", pinName: "B" },
+          { instanceId: "MVAR", pinName: "B" },
           { instanceId: "MCAP", pinName: "D" },
           { instanceId: "MCAP", pinName: "S" },
           { instanceId: "MCAP", pinName: "B" },
@@ -96,6 +129,8 @@ describe("device integrity ERC checks (#2612)", () => {
       gateEligible: false,
       primary: { kind: "instance", objectId: "M1" },
     });
+    expect(hits[0]!.message).toContain("on one Net");
+    expect(hits[0]!.message).not.toContain("on Net while");
   });
 
   it("flags BJT collector-emitter short but stays quiet for a diode-connected BJT (B == C)", () => {

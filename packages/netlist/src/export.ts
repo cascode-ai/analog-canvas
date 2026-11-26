@@ -205,8 +205,11 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * extracts.
  * 18 requires at least one extracted device in the top Cell so empty or
  * box-only drawings without devices do not receive the netlist mark (#2644).
+ * 19 also requires every reachable local subcircuit Cell referenced from the
+ * top Cell to contain at least one extracted device so placeholder black-box
+ * subcircuits with empty `.subckt ... .ends` bodies do not receive the mark.
  */
-export const NETLIST_MARK_RULE_VERSION = 18;
+export const NETLIST_MARK_RULE_VERSION = 19;
 
 export function designExtractsNetlist(
   project: CircuitProject,
@@ -219,14 +222,35 @@ export function designExtractsNetlist(
   });
   if (
     result.status !== "ready" ||
-    unfinishedDrawingDiagnostics(result.diagnostics).length > 0
+    unfinishedDrawingDiagnostics(result.diagnostics).length > 0 ||
+    !result.ir
   ) {
     return false;
   }
-  const topCell = result.ir?.cells.find(
-    (cell) => cell.id === result.ir?.topCellId,
+  const cellsById = new Map(result.ir.cells.map((cell) => [cell.id, cell]));
+  const cellsByFoldedName = new Map(
+    result.ir.cells.map((cell) => [cell.name.toLowerCase(), cell]),
   );
-  return (topCell?.instances.length ?? 0) > 0;
+  const topCell = cellsById.get(result.ir.topCellId);
+  if (!topCell) return false;
+  const visited = new Set<string>();
+  const queue = [topCell];
+  while (queue.length > 0) {
+    const cell = queue.pop()!;
+    if (visited.has(cell.id)) continue;
+    visited.add(cell.id);
+    if (cell.origin !== "generated-model" && cell.instances.length === 0) {
+      return false;
+    }
+    for (const instance of cell.instances) {
+      if (instance.invocationKind !== "subcircuit" || !instance.target) {
+        continue;
+      }
+      const child = cellsByFoldedName.get(instance.target.toLowerCase());
+      if (child && !visited.has(child.id)) queue.push(child);
+    }
+  }
+  return true;
 }
 
 /**

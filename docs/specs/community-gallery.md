@@ -130,11 +130,11 @@ entries, keyset cursor, limit ≤60.
   (top-Cell parts, a subcircuit once; not Ports, markers, drafting or undrawn
   Instances), `likes`, `likedByViewer`.
 - `netlistable` is `designExtractsNetlist` at the editor's export standard:
-  missing models leave it; an empty top Cell (no extracted devices), a missing
-  MOS body, unresolved required pin or `DEAD_END_NET`
-  ([netlist export](netlist-export.md#unfinished-drawings)) clears it. It and
-  `componentCount` are recomputed on every write and, by stored rule version,
-  by the scheduled pass.
+  missing models leave it; an empty top Cell or reachable empty local child
+  Cell (no extracted devices), a missing MOS body, unresolved required pin or
+  `DEAD_END_NET` ([netlist export](netlist-export.md#unfinished-drawings))
+  clears it. It and `componentCount` are recomputed on every write and, by
+  stored rule version, by the scheduled pass.
 
 ### Search, tags and authors
 

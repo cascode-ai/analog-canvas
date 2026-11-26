@@ -110,10 +110,12 @@ function unresolvedIdentifiersInExpression(
 }
 
 /**
- * MOSFET channel shorts (`D == S` while `B` is on a different Net, or 3-pin
- * `G == D == S`) and BJT collector-emitter shorts (`C == E`), excluding valid
- * MOSCAPs (`D == S == B`, `G` separate) and 4-pin dummy transistors
- * (`G == D == S == B`).
+ * MOSFET all-terminal shorts (`G == D == S`, excluding explicit 4-pin tied-off
+ * dummy MOSFETs `G == D == S == B`) and BJT collector-emitter shorts (`C == E`).
+ * MOSFETs with `D == S` and a distinct gate (`G != D`) stay quiet because
+ * MOSCAPs, MOS varactors, gated MOS diodes, and charge-injection cancellation
+ * dummy switches intentionally tie drain and source together even when their
+ * bulk sits on a substrate or well supply rail.
  */
 function reportShortedTransistors(
   project: CircuitProject,
@@ -134,15 +136,13 @@ function reportShortedTransistors(
     if (descriptor.deviceClass === "mos") {
       const netD = netOf(instance.id, "D");
       const netS = netOf(instance.id, "S");
-      if (!netD || netD !== netS) continue;
       const netG = netOf(instance.id, "G");
+      if (!netD || netD !== netS || netG !== netD) continue;
       const netB = netOf(instance.id, "B");
-      // Intentional MOSCAP (D == S == B, G distinct) and 4-pin dummy MOSFET
-      // (G == D == S == B) stay quiet.
-      const distinctBulkShort = netB !== undefined && netB !== netD;
-      const threePinAllShorted = netB === undefined && netG === netD;
-      if (!distinctBulkShort && !threePinAllShorted) continue;
+      // Explicit 4-pin tied-off dummy MOSFET (G == D == S == B) stays quiet.
+      if (netB !== undefined && netB === netD) continue;
       const netName = logicalNets.byId.get(netD)?.name;
+      const netPhrase = netName ? `Net ${netName}` : "one Net";
       diagnostics.push({
         id: `erc:shorted-transistor:${document.id}:${instance.id}`,
         domain: "erc",
@@ -150,9 +150,10 @@ function reportShortedTransistors(
         severity: "warning",
         confidence: "high",
         gateEligible: false,
-        message: `${label}'s drain and source are shorted on Net${netName ? ` ${netName}` : ""}${distinctBulkShort ? " while its bulk is on another Net" : " together with its gate"}`,
+        message: `${label}'s gate, drain and source are all shorted on ${netPhrase}${netB !== undefined ? " while its bulk is on another Net" : ""}`,
         primary: directObjectLocator(document.id, "instance", instance.id),
         related: [
+          terminalLocator(document.id, instance.id, "G"),
           terminalLocator(document.id, instance.id, "D"),
           terminalLocator(document.id, instance.id, "S"),
         ],
@@ -170,6 +171,7 @@ function reportShortedTransistors(
       const netE = netOf(instance.id, "E");
       if (!netC || netC !== netE) continue;
       const netName = logicalNets.byId.get(netC)?.name;
+      const netPhrase = netName ? `Net ${netName}` : "one Net";
       diagnostics.push({
         id: `erc:shorted-transistor:${document.id}:${instance.id}`,
         domain: "erc",
@@ -177,7 +179,7 @@ function reportShortedTransistors(
         severity: "warning",
         confidence: "high",
         gateEligible: false,
-        message: `${label}'s collector and emitter are shorted on Net${netName ? ` ${netName}` : ""}`,
+        message: `${label}'s collector and emitter are shorted on ${netPhrase}`,
         primary: directObjectLocator(document.id, "instance", instance.id),
         related: [
           terminalLocator(document.id, instance.id, "C"),
