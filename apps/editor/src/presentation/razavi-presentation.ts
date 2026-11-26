@@ -1,11 +1,8 @@
 import { executeTransaction, type SchematicEdit } from "@icm/edit-engine";
 import {
-  hasExplicitMosBulkRoute,
-  mosBulkKind,
+  mosBulkReconciliationCandidates,
   mosBulkShouldBeVisible,
-  resolveDetachedMosBulkDefault,
   resolveMosBulkConnection,
-  resolveDocumentLogicalNets,
   type ResolvedDocumentLogicalNets,
 } from "@icm/derived";
 import { replaceProjectDocument } from "../document/editor-session";
@@ -45,38 +42,11 @@ export function razaviManualBulkConnectionEdits(
   instances: readonly SchematicDocument["instances"][number][],
   precomputedLogicalNets?: ResolvedDocumentLogicalNets,
 ): SchematicEdit[] {
-  let logicalNets = precomputedLogicalNets;
-  const instanceIds = instances
-    .filter((instance) => {
-      const resolution = resolveMosBulkConnection(
-        document,
-        instance,
-        mosBulkKind(instance)
-          ? (logicalNets ??= resolveDocumentLogicalNets(document))
-          : undefined,
-      );
-      if (hasExplicitMosBulkRoute(document, instance.id)) {
-        return instance.mosBulkBinding !== undefined;
-      }
-      const kind = mosBulkKind(instance);
-      const configuredNetId =
-        kind === "nmos"
-          ? document.mosBulkDefaults?.nmosNetId
-          : kind === "pmos"
-            ? document.mosBulkDefaults?.pmosNetId
-            : undefined;
-      return Boolean(
-        resolution &&
-        ((!resolution.materialized && resolution.status === "cell-default") ||
-          (resolution.materialized &&
-            resolution.status === "explicit" &&
-            configuredNetId &&
-            (configuredNetId === resolution.net.id ||
-              resolveDetachedMosBulkDefault(document, instance)?.id ===
-                configuredNetId))),
-      );
-    })
-    .map((instance) => instance.id);
+  const instanceIds = mosBulkReconciliationCandidates(
+    document,
+    instances,
+    precomputedLogicalNets,
+  );
   return instanceIds.length > 0
     ? [{ kind: "reconcile_mos_bulk", instanceIds }]
     : [];
