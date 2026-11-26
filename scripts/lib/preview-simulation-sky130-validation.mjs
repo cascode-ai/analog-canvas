@@ -50,14 +50,17 @@ export function validateQualifiedModelSelection(
       "../".repeat(sourceInput.entryPath.split("/").length - 1) +
         dependency.mountPath;
     const expectedLoad = `.lib "${relative}" ${qualification.modelLibrary.section}`;
+    const executedEntry = sourceInput.preparedDeck ?? sourceInput.testbench;
     const input = object(metadata.input, "input metadata");
     if (
       dependency &&
       sourceInput.environment?.profileId === profile.id &&
       sourceInput.environment?.corner === qualification.modelLibrary.section &&
-      sourceInput.testbench
+      executedEntry
         .split(/\r?\n/u)
         .some((line) => line.trim() === expectedLoad) &&
+      createHash("sha256").update(executedEntry).digest("hex") ===
+        input.deckSha256 &&
       createHash("sha256").update(sourceInput.testbench).digest("hex") ===
         input.testbenchSha256 &&
       sourceInput.inputRevision === input.inputRevision
