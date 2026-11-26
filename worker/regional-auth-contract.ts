@@ -6,13 +6,14 @@ export const REGIONAL_SESSION_COOKIE = "icm_regional_session";
 export const REGIONAL_SESSION_PEER_PATH = "/api/auth/region/session";
 /**
  * How long a region keeps authorizing an account without reaching the
- * authority. Renewal still runs every REGIONAL_REFRESH_MS, so logout, expiry
+ * authority. Active sessions renew every REGIONAL_REFRESH_MS, so logout, expiry
  * and account changes reach a connected region within one refresh; the lease
  * only bounds a cross-border outage.
  */
 export const REGIONAL_LEASE_MS = 30 * 60_000;
 export const REGIONAL_HANDOFF_MS = 60_000;
 export const REGIONAL_REFRESH_MS = 30_000;
+export const REGIONAL_ACTIVITY_MS = 5 * 60_000;
 export type RegionalSql = SqlStorage;
 export type RegionalConfig = {
   origin: string;

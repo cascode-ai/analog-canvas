@@ -15,6 +15,7 @@ import {
 } from "./gallery.test-support";
 import { routeGalleryRequest } from "./gallery";
 import { routeBoardsRequest } from "./boards";
+import { callGallery } from "./gallery-requests";
 import { routeResourceSync } from "./resource-sync";
 import { routeRegionalResourceActions } from "./regional-resource-actions";
 import type { GalleryNamespaceLike } from "./gallery-store";
@@ -540,6 +541,7 @@ it("reconciles Board creation after the response is lost and the entrance change
 
 it("does not restore a deleted account from delayed bookmarks or Board history", async () => {
   const { cn, overseas, publish, transfer } = await pair();
+  const { user } = await (await cn.call("/api/auth/me")).json();
   const entry = await publish();
   const created = await overseas.call(
     "/api/board/changes",
@@ -591,10 +593,12 @@ it("does not restore a deleted account from delayed bookmarks or Board history",
     { saved: true, expectedVersion: null },
     "private-save",
   );
-  expect(rejected.status).toBe(403);
-  expect((await (await cn.call("/api/gallery/bookmarks")).json()).ids).toEqual(
-    [],
-  );
+  expect(rejected.status).toBe(401);
+  expect((await cn.call("/api/gallery/bookmarks")).status).toBe(401);
+  const kept = await callGallery<{ ids: string[] }>(cn.env, "bookmarks", {
+    userId: user.id,
+  });
+  expect(kept.payload.ids).toEqual([]);
 });
 
 it("catches up a newly published circuit before adding it to a foreign Board", async () => {

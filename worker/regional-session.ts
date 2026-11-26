@@ -1,5 +1,10 @@
 import type { SessionUser } from "./auth-do";
 import {
+  RegionalRenewals,
+  type RenewalResult,
+  type RenewalUse,
+} from "./regional-renewals";
+import {
   applyProfileByline,
   isProfileByline,
   PROFILE_BYLINE_TICK,
@@ -29,6 +34,7 @@ import {
   readBody,
   redirect,
   regionalConfig,
+  REGIONAL_ACTIVITY_MS,
   REGIONAL_LEASE_MS,
   REGIONAL_PREFIX,
   REGIONAL_REFRESH_MS,
@@ -54,6 +60,7 @@ type SessionRow = {
   lease_until: number;
   expires_at: number;
   refresh_at: number;
+  active_until: number;
   generation: number;
   actor_id: string | null;
 };
@@ -65,6 +72,7 @@ export class RegionalSessionDO {
   private readonly config: RegionalConfig | null;
   private readonly sql: RegionalSql;
   private readonly accountOperations = new Map<string, Promise<void>>();
+  private readonly renewals = new RegionalRenewals();
   fetchLike: typeof fetch = (input, init) => fetch(input, init);
   now: () => number = () => Date.now();
 
@@ -122,6 +130,15 @@ export class RegionalSessionDO {
         .some((column) => column.name === "actor_id")
     )
       this.sql.exec("ALTER TABLE regional_sessions ADD COLUMN actor_id TEXT");
+    if (
+      !this.sql
+        .exec<{ name: string }>("PRAGMA table_info(regional_sessions)")
+        .toArray()
+        .some((column) => column.name === "active_until")
+    )
+      this.sql.exec(
+        "ALTER TABLE regional_sessions ADD COLUMN active_until INTEGER NOT NULL DEFAULT 0",
+      );
     // Gallery blocks are retired, and with them the restriction snapshots.
     this.sql.exec("DROP TABLE IF EXISTS regional_restrictions");
   }
@@ -156,15 +173,22 @@ export class RegionalSessionDO {
       if (url.pathname.endsWith("authorize")) {
         const token = cookie(request, REGIONAL_SESSION_COOKIE);
         if (!validNonce(token)) return answer({ error: "unauthorized" }, 401);
+        const tokenHash = await digest(token);
+        const local = await this.localUser(
+          request,
+          url.searchParams.has("poll") ? "passive" : "write",
+        );
+        if (!local.user) return this.refuseLocal(local);
         const row = this.sql
           .exec<SessionRow>(
             "SELECT * FROM regional_sessions WHERE token_hash=? AND expires_at>? AND lease_until>?",
-            await digest(token),
+            tokenHash,
             this.now(),
             this.now(),
           )
           .toArray()[0];
-        if (!row) return answer({ error: "unauthorized" }, 401);
+        if (!row || this.projectedUser(row)?.id !== local.user.id)
+          return answer({ error: "unauthorized" }, 401);
         grant = row.grant;
       }
       const result = await this.authority(
@@ -214,8 +238,21 @@ export class RegionalSessionDO {
       url.origin === "https://auth" &&
       url.pathname === "/internal/session-user" &&
       request.method === "GET"
-    )
-      return answer({ user: (await this.localUser(request)).user });
+    ) {
+      const local = await this.localUser(
+        request,
+        url.searchParams.has("poll")
+          ? "poll"
+          : url.searchParams.has("fresh")
+            ? "fresh"
+            : url.searchParams.has("write")
+              ? "write"
+              : "read",
+      );
+      return local.unavailable
+        ? answer({ error: "session-region-unavailable" }, 503)
+        : answer({ user: local.user });
+    }
     if (
       url.origin === "https://auth" &&
       url.pathname === "/internal/owner-token-user" &&
@@ -249,14 +286,22 @@ export class RegionalSessionDO {
           loginUrl: REGIONAL_PREFIX + "start",
           ...(this.config.accountDeletion === true &&
           result.body?.accountDeletion === true &&
-          this.canCoordinateDeletion((await this.localUser(request)).user)
+          this.canCoordinateDeletion(
+            (await this.localUser(request, "passive")).user,
+          )
             ? { accountDeletion: true }
             : {}),
         });
       }
       if (url.pathname === "/api/auth/me") {
         const local = await this.localUser(request);
-        return answer({ ...local, user: withHostedSimulation(local.user) });
+        return answer(
+          {
+            authorization: local.authorization,
+            user: withHostedSimulation(local.user),
+          },
+          local.unavailable ? 503 : 200,
+        );
       }
     }
     if (request.method === "POST" && url.pathname === "/api/auth/logout") {
@@ -301,25 +346,95 @@ export class RegionalSessionDO {
     return answer({ error: "not-found" }, 404);
   }
 
-  private async localUser(request: Request): Promise<{
+  private async localUser(
+    request: Request,
+    use: "passive" | "poll" | "read" | "write" | "fresh" = "read",
+  ): Promise<{
     user: SessionUser | null;
     authorization: "active" | "expired" | "anonymous";
+    unavailable?: boolean;
   }> {
     const token = cookie(request, REGIONAL_SESSION_COOKIE);
     if (!validNonce(token)) return { user: null, authorization: "anonymous" };
-    const row = this.sql
+    let row = this.sql
       .exec<SessionRow>(
         "SELECT * FROM regional_sessions WHERE token_hash = ?",
         await digest(token),
       )
       .toArray()[0];
     if (!row) return { user: null, authorization: "anonymous" };
-    if (row.expires_at <= this.now() || row.lease_until <= this.now())
+    if (
+      row.expires_at <= this.now() ||
+      (row.lease_until === 0 && this.accountOperations.has(row.token_hash))
+    )
       return { user: null, authorization: "expired" };
+    const idle = row.active_until <= this.now();
+    if (use === "poll" && idle) return { user: null, authorization: "expired" };
+    const fresh = use === "fresh" || use === "poll";
+    if (idle || row.lease_until <= this.now() || fresh) {
+      if (use === "passive") return { user: null, authorization: "expired" };
+      const prior = this.projectedUser(row);
+      const outcome = await this.renew(row, fresh ? "action" : "wake");
+      if (outcome !== "confirmed")
+        return {
+          user: null,
+          authorization: "expired",
+          unavailable: outcome === "unavailable",
+        };
+      row = this.sql
+        .exec<SessionRow>(
+          "SELECT * FROM regional_sessions WHERE token_hash=? AND grant=? AND generation=? AND expires_at>? AND lease_until>?",
+          row.token_hash,
+          row.grant,
+          row.generation,
+          this.now(),
+          this.now(),
+        )
+        .toArray()[0];
+      if (
+        !row ||
+        ((use === "write" || use === "fresh") &&
+          prior?.id !== this.projectedUser(row)?.id)
+      )
+        return { user: null, authorization: "expired" };
+    }
+    if (
+      use !== "passive" &&
+      use !== "poll" &&
+      row.active_until < this.now() + REGIONAL_ACTIVITY_MS
+    ) {
+      const activeUntil = this.now() + REGIONAL_ACTIVITY_MS;
+      this.sql.exec(
+        "UPDATE regional_sessions SET active_until=?, refresh_at=? WHERE token_hash=?",
+        activeUntil,
+        idle ? this.now() + REGIONAL_REFRESH_MS : row.refresh_at,
+        row.token_hash,
+      );
+      // Logout or a switch may run while the persisted alarm is being armed.
+      if (idle || row.refresh_at >= row.active_until) {
+        await this.schedule();
+        row = this.sql
+          .exec<SessionRow>(
+            "SELECT * FROM regional_sessions WHERE token_hash=? AND generation=? AND expires_at>? AND lease_until>?",
+            row.token_hash,
+            row.generation,
+            this.now(),
+            this.now(),
+          )
+          .toArray()[0];
+        if (!row) return { user: null, authorization: "expired" };
+      }
+    }
     return {
       user: this.projectedUser(row),
       authorization: "active",
     };
+  }
+
+  private refuseLocal(local: { unavailable?: boolean }): Response {
+    return local.unavailable
+      ? answer({ error: "session-region-unavailable" }, 503)
+      : answer({ error: "unauthorized" }, 401);
   }
 
   private async start(url: URL): Promise<Response> {
@@ -410,7 +525,7 @@ export class RegionalSessionDO {
       )
         return false;
       this.sql.exec(
-        "INSERT INTO regional_sessions (token_hash, user_json, grant, lease_until, expires_at, refresh_at, login_state_hash, actor_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO regional_sessions (token_hash, user_json, grant, lease_until, expires_at, refresh_at, login_state_hash, actor_id, active_until) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         tokenHash,
         JSON.stringify(lease.user),
         grant,
@@ -419,6 +534,7 @@ export class RegionalSessionDO {
         this.now() + REGIONAL_REFRESH_MS,
         stateHash,
         lease.user.switchedFrom?.id ?? lease.user.id,
+        this.now() + REGIONAL_ACTIVITY_MS,
       );
       return true;
     });
@@ -655,12 +771,24 @@ export class RegionalSessionDO {
       request.headers.get("sec-fetch-site") === "cross-site"
     )
       return answer({ error: "forbidden" }, 403);
+    const token = cookie(request, REGIONAL_SESSION_COOKIE);
+    const tokenHash = validNonce(token) ? await digest(token) : undefined;
+    // A receipt can be checked without a session; bind a deletion to the
+    // identity that submitted it before waiting for the request body.
+    const initial = tokenHash
+      ? this.sql
+          .exec<SessionRow>(
+            "SELECT * FROM regional_sessions WHERE token_hash=?",
+            tokenHash,
+          )
+          .toArray()[0]
+      : undefined;
+    const subject = initial && this.projectedUser(initial)?.id;
     const body = await readBody(request);
     if (config.accountDeletion !== true && body?.statusOnly !== true)
       return answer({ error: "account-deletion-unavailable" }, 503);
     if (!body) return answer({ error: "invalid-request" }, 400);
-    const token = cookie(request, REGIONAL_SESSION_COOKIE);
-    const send = async (tokenHash?: string) => {
+    const send = async (tokenHash?: string, expectedUser?: string) => {
       const row = tokenHash
         ? this.sql
             .exec<SessionRow>(
@@ -671,6 +799,8 @@ export class RegionalSessionDO {
             )
             .toArray()[0]
         : undefined;
+      if (tokenHash && (!row || this.projectedUser(row)?.id !== expectedUser))
+        return answer({ error: "unauthorized" }, 401);
       const result = await this.authority("account", {
         path: ACCOUNT_DELETE_PATH,
         method: "POST",
@@ -697,9 +827,13 @@ export class RegionalSessionDO {
       }
       return response;
     };
-    if (!validNonce(token) || body.statusOnly === true) return send();
-    const tokenHash = await digest(token);
-    return this.orderedAccountOperation(tokenHash, () => send(tokenHash));
+    if (!tokenHash || body.statusOnly === true) return send();
+    const local = await this.localUser(request, "write");
+    if (!local.user || local.user.id !== subject)
+      return this.refuseLocal(local);
+    return this.orderedAccountOperation(tokenHash, () =>
+      send(tokenHash, subject),
+    );
   }
 
   private async accountOperation(
@@ -715,6 +849,8 @@ export class RegionalSessionDO {
     const token = cookie(request, REGIONAL_SESSION_COOKIE);
     if (!validNonce(token)) return answer({ error: "unauthorized" }, 401);
     const tokenHash = await digest(token);
+    const local = await this.localUser(request, "write");
+    if (!local.user) return this.refuseLocal(local);
     const body =
       request.method === "GET" ||
       (!request.body &&
@@ -724,7 +860,13 @@ export class RegionalSessionDO {
         : await readBody(request);
     if (!body) return answer({ error: "invalid-request" }, 400);
     return this.orderedAccountOperation(tokenHash, () =>
-      this.runAccountOperation(request.method, url.pathname, body, tokenHash),
+      this.runAccountOperation(
+        request.method,
+        url.pathname,
+        body,
+        tokenHash,
+        local.user!.id,
+      ),
     );
   }
 
@@ -754,6 +896,7 @@ export class RegionalSessionDO {
     path: string,
     body: Record<string, unknown>,
     tokenHash: string,
+    expectedUser: string,
   ): Promise<Response> {
     const row = this.sql
       .exec<SessionRow>(
@@ -761,7 +904,12 @@ export class RegionalSessionDO {
         tokenHash,
       )
       .toArray()[0];
-    if (!row || row.expires_at <= this.now() || row.lease_until <= this.now())
+    if (
+      !row ||
+      row.expires_at <= this.now() ||
+      row.lease_until <= this.now() ||
+      this.projectedUser(row)?.id !== expectedUser
+    )
       return answer({ error: "unauthorized" }, 401);
     const changingIdentity = [
       "/api/auth/ai-accounts/switch",
@@ -877,7 +1025,8 @@ export class RegionalSessionDO {
   private async schedule(): Promise<void> {
     const row = this.sql
       .exec<{ next: number | null }>(
-        "SELECT MIN(refresh_at) AS next FROM regional_sessions",
+        "SELECT MIN(CASE WHEN active_until > ? AND refresh_at < active_until THEN MIN(refresh_at, expires_at) ELSE expires_at END) AS next FROM regional_sessions",
+        this.now(),
       )
       .one();
     const revoking =
@@ -903,7 +1052,8 @@ export class RegionalSessionDO {
     );
     const due = this.sql
       .exec<SessionRow>(
-        "SELECT * FROM regional_sessions WHERE refresh_at <= ? ORDER BY refresh_at LIMIT 100",
+        "SELECT * FROM regional_sessions WHERE refresh_at <= ? AND active_until > ? ORDER BY refresh_at LIMIT 100",
+        this.now(),
         this.now(),
       )
       .toArray();
@@ -916,36 +1066,46 @@ export class RegionalSessionDO {
     // Persist another alarm before network I/O, including retries after a crash.
     await this.schedule();
     await Promise.all(
-      due.map(async (row) => {
-        const result = await this.authority("renew", { grant: row.grant });
-        if (result.status === 401) {
-          this.sql.exec(
-            "DELETE FROM regional_sessions WHERE token_hash = ? AND grant = ? AND generation = ?",
-            row.token_hash,
-            row.grant,
-            row.generation,
-          );
-          return;
-        }
-        const lease = this.lease(result.body);
-        if (
-          !lease ||
-          (lease.user.switchedFrom?.id ?? lease.user.id) !==
-            (row.actor_id ?? (JSON.parse(row.user_json) as SessionUser).id)
-        )
-          return;
-        this.sql.exec(
-          "UPDATE regional_sessions SET user_json = ?, lease_until = ?, actor_id = ? WHERE token_hash = ? AND grant = ? AND generation = ?",
-          JSON.stringify(lease.user),
-          lease.expiresAt,
-          lease.user.switchedFrom?.id ?? lease.user.id,
-          row.token_hash,
-          row.grant,
-          row.generation,
-        );
-      }),
+      due
+        .filter((row) => !this.accountOperations.has(row.token_hash))
+        .map((row) => this.renew(row, "alarm")),
     );
     await this.schedule();
+  }
+
+  private renew(row: SessionRow, use: RenewalUse) {
+    const key = row.token_hash + ":" + row.generation;
+    return this.renewals.run(key, use, () => this.renewFromAuthority(row));
+  }
+
+  private async renewFromAuthority(row: SessionRow): Promise<RenewalResult> {
+    const result = await this.authority("renew", { grant: row.grant });
+    if (result.status === 401) {
+      this.sql.exec(
+        "DELETE FROM regional_sessions WHERE token_hash = ? AND grant = ? AND generation = ?",
+        row.token_hash,
+        row.grant,
+        row.generation,
+      );
+      return "denied";
+    }
+    const lease = this.lease(result.body);
+    if (
+      !lease ||
+      (lease.user.switchedFrom?.id ?? lease.user.id) !==
+        (row.actor_id ?? (JSON.parse(row.user_json) as SessionUser).id)
+    )
+      return "unavailable";
+    this.sql.exec(
+      "UPDATE regional_sessions SET user_json = ?, lease_until = ?, actor_id = ? WHERE token_hash = ? AND grant = ? AND generation = ?",
+      JSON.stringify(lease.user),
+      lease.expiresAt,
+      lease.user.switchedFrom?.id ?? lease.user.id,
+      row.token_hash,
+      row.grant,
+      row.generation,
+    );
+    return "confirmed";
   }
 }
 

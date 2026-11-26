@@ -56,6 +56,7 @@ import {
 } from "./simulation-operations";
 import {
   AuthDO as AuthStore,
+  SessionRegionUnavailable,
   routeAuthRequest,
   type AuthNamespaceLike,
 } from "./auth";
@@ -134,7 +135,16 @@ type Env = TopologyTaskEnv &
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    return route(withoutClientArenaAccount(request), env);
+    try {
+      return await route(withoutClientArenaAccount(request), env);
+    } catch (error) {
+      if (error instanceof SessionRegionUnavailable)
+        return Response.json(
+          { error: "session-region-unavailable" },
+          { status: 503, headers: { "cache-control": "no-store" } },
+        );
+      throw error;
+    }
   },
   async queue(
     batch: SimulationQueueBatch<SimulationJobMessage>,

@@ -17,6 +17,66 @@ import { RegionalSessionDO } from "./regional-session";
 
 afterEach(() => vi.unstubAllGlobals());
 
+it("binds a slow deletion request to the AI identity that started it", async () => {
+  const enabled = JSON.stringify({
+    ...JSON.parse(config),
+    accountDeletion: true,
+  });
+  const h = accounts(
+    { AUTH_REGIONAL_AUTHORITY: enabled },
+    { AUTH_REGIONAL_CLIENT: enabled },
+  );
+  const cookie = await h.connect(await adminOf(h.source));
+  const human = (await (await h.call("/api/auth/me", cookie)).json()).user.id;
+  const { accounts: seats } = await (
+    await h.call("/api/auth/ai-accounts", cookie)
+  ).json();
+  expect(
+    (
+      await h.call("/api/auth/ai-accounts/switch", cookie, "POST", {
+        userId: seats[0].id,
+      })
+    ).status,
+  ).toBe(200);
+  const reading = Promise.withResolvers<void>();
+  const resume = Promise.withResolvers<void>();
+  const body = new ReadableStream<Uint8Array>(
+    {
+      async pull(controller) {
+        reading.resolve();
+        await resume.promise;
+        controller.enqueue(
+          new TextEncoder().encode(
+            JSON.stringify({
+              confirm: "delete-account",
+              requestId: crypto.randomUUID(),
+            }),
+          ),
+        );
+        controller.close();
+      },
+    },
+    { highWaterMark: 0 },
+  );
+  const deletion = h.region.fetch(
+    new Request(ORIGIN + "/api/auth/account/delete", {
+      method: "POST",
+      headers: { origin: ORIGIN, cookie },
+      body,
+      ...{ duplex: "half" },
+    }),
+  );
+  await reading.promise;
+  expect(
+    (await h.call("/api/auth/ai-accounts/return", cookie, "POST", {})).status,
+  ).toBe(200);
+  resume.resolve();
+  expect((await deletion).status).toBe(401);
+  expect((await (await h.call("/api/auth/me", cookie)).json()).user.id).toBe(
+    human,
+  );
+});
+
 it("revokes access at confirmation and resumes the same deletion after a lost response", async () => {
   const env = environment({
     AUTH_REGIONAL_AUTHORITY: JSON.stringify({

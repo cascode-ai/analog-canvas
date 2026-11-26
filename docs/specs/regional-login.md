@@ -87,10 +87,19 @@ serves local authorization. Resource replication is owned by
   delivery.
 - The authorization lease (30 minutes) and renewal interval (30 seconds) are
   defined in the [protocol module](../../worker/regional-auth-contract.ts).
-  Background alarms renew every interval; a failed renewal never extends a
-  lease. Logout, expiry and account changes therefore reach a connected
-  region within one renewal, and the lease only bounds how long a region keeps
-  serving through a cross-border outage. Expired leases return no user.
+  Login and authenticated use open a five-minute activity window. During that
+  window alarms renew every interval. Idle sessions wait for the next use,
+  including sessions created before the activity window was introduced.
+  Provider discovery and automatic simulation-progress polls never open the
+  window. An idle poll waits for foreground use. Returning requests share one
+  authority renewal per session generation before receiving an identity.
+  Gallery mutations, destructive operations and administrative actions check
+  the authority even within the activity window, with a check initiated after
+  the operation arrives. Ordinary active Cloud Project
+  saves keep their local lease and ownership checks. A transport failure during
+  revalidation returns unavailability and preserves the login for a later
+  request. A revoked grant cannot authorize a write. A failed renewal never
+  extends a lease.
   Production must qualify alarm capacity and clock synchronization before
   enabling this profile.
 - Authority logout, session expiry or account disappearance stops renewal;
