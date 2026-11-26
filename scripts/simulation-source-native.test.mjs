@@ -520,6 +520,9 @@ describe.skipIf(!endpoint)("candidate ngspice46 source qualification", () => {
     const missingInclude = structuredClone(compiled.input);
     missingInclude.files.find((file) => file.path === "sections.spice").text +=
       ".lib absent\n.include missing.spice\n.endl absent\n";
+    missingInclude.testbench = missingInclude.files
+      .map((file) => file.text)
+      .join("\n");
     const missingResult = await run(
       missingInclude,
       "native-unselected-include",

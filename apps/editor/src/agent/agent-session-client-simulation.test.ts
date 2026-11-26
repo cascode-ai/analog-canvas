@@ -92,7 +92,7 @@ async function ngspiceAnswer(
     {
       netlist: run.netlist,
       testbench: run.testbench,
-      deck: run.testbench,
+      deck: run.preparedDeck ?? run.testbench,
       inputRevision: run.inputRevision,
       timeoutMs: run.timeoutMs ?? 120_000,
       modelLibrary: null,

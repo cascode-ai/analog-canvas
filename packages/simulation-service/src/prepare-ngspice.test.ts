@@ -11,7 +11,10 @@ import {
 } from "../../edit-engine/src/index.js";
 import { currentFiveTransistorOtaCircuitSource } from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
 import { locateSimulationText, createDesignNetlistExport } from "@icm/netlist";
-import { createSimulationInputMetadata } from "@icm/spice-run";
+import {
+  createSimulationInputMetadata,
+  isRawMultiFileTestbench,
+} from "@icm/spice-run";
 import { CapabilitiesSchema } from "./contract.js";
 import { ProjectInputIdentity } from "./input-identity.js";
 import { prepareNgspiceExecutionInput } from "./prepare-ngspice.js";
@@ -911,16 +914,17 @@ describe("ngspice authored input identity", () => {
     expect(project).toEqual(before);
   });
 
+  const inputDigests = (prepared: {
+    input: { netlist: string; testbench: string; preparedDeck: string };
+  }) =>
+    createSimulationInputMetadata({
+      netlist: prepared.input.netlist,
+      testbench: prepared.input.testbench,
+      deck: prepared.input.preparedDeck,
+    });
+
   it("names the drawn circuit in the netlist digest, apart from the testbench (#1243)", async () => {
     const { project, folder, caps } = nativeSweepFixture();
-    const digests = async (prepared: {
-      input: { netlist: string; testbench: string; preparedDeck: string };
-    }) =>
-      createSimulationInputMetadata({
-        netlist: prepared.input.netlist,
-        testbench: prepared.input.testbench,
-        deck: prepared.input.preparedDeck,
-      });
     const nominal = await prepareNgspiceExecutionInput(project, folder, caps);
     if (!nominal.ok) throw Error(JSON.stringify(nominal));
     const [generated] = nominal.generated;
@@ -929,7 +933,7 @@ describe("ngspice authored input identity", () => {
     )!;
     // The circuit file as sent, which the run's catalog lists by digest.
     expect(nominal.input.netlist).toBe(circuit.text);
-    const before = await digests(nominal);
+    const before = await inputDigests(nominal);
     // Only the drawing changes: one device width.
     const instance = project.documents
       .flatMap((document) => document.instances)
@@ -937,13 +941,17 @@ describe("ngspice authored input identity", () => {
     instance.netlist!.parameters.w = "33u";
     const edited = await prepareNgspiceExecutionInput(project, folder, caps);
     if (!edited.ok) throw Error(JSON.stringify(edited));
-    const after = await digests(edited);
+    const after = await inputDigests(edited);
     expect(after.netlistSha256).not.toBe(before.netlistSha256);
     expect(after.testbenchSha256).toBe(before.testbenchSha256);
     // A second copy that would take the serialized input past the budget
     // stays unsent: the files alone still run.
     const withoutCopy = new TextEncoder().encode(
-      JSON.stringify({ ...edited.input, netlist: "" }),
+      JSON.stringify({
+        ...edited.input,
+        netlist: "",
+        testbench: edited.input.preparedDeck,
+      }),
     ).length;
     const tight = await prepareNgspiceExecutionInput(project, folder, {
       ...caps,
@@ -951,6 +959,78 @@ describe("ngspice authored input identity", () => {
     });
     if (!tight.ok) throw Error(JSON.stringify(tight));
     expect(tight.input.netlist).toBe("");
+    expect(tight.input.testbench).toBe(tight.input.preparedDeck);
+  });
+
+  it("names all authored testbench files in testbenchSha256 apart from entry deckSha256 (#1407)", async () => {
+    const { project, folder, entry, caps } = nativeSweepFixture();
+    folder.input.files.push({
+      path: "testbench.spice",
+      text: "* included stimuli\nVaux aux 0 dc 0.5\n",
+    });
+    entry.text = entry.text.replace(
+      '.include "circuit.spice"',
+      '.include "testbench.spice"\n.include "circuit.spice"',
+    );
+
+    const first = await prepareNgspiceExecutionInput(project, folder, caps);
+    if (!first.ok) throw Error(JSON.stringify(first));
+    expect(first.input.testbench).not.toBe(first.input.preparedDeck);
+    expect(first.input.testbench).toContain("Vaux aux 0 dc 0.5");
+    expect(first.input.testbench).toContain(first.input.preparedDeck);
+    expect(
+      isRawMultiFileTestbench(
+        first.input.testbench,
+        first.input.preparedDeck,
+        first.input.files,
+        first.input.entryPath,
+      ),
+    ).toBe(true);
+    const before = await inputDigests(first);
+    expect(before.testbenchSha256).not.toBe(before.deckSha256);
+
+    // Editing only the included testbench moves testbenchSha256 while keeping
+    // both netlistSha256 and entry deckSha256 unchanged.
+    const included = folder.input.files.find(
+      (file) => file.path === "testbench.spice",
+    )!;
+    included.text = "* included stimuli\nVaux aux 0 dc 0.75\n";
+    const second = await prepareNgspiceExecutionInput(project, folder, caps);
+    if (!second.ok) throw Error(JSON.stringify(second));
+    const after = await inputDigests(second);
+    expect(after.testbenchSha256).not.toBe(before.testbenchSha256);
+    expect(after.netlistSha256).toBe(before.netlistSha256);
+    expect(after.deckSha256).toBe(before.deckSha256);
+
+    // When the authored-testbench copy alone would exceed the budget, it falls
+    // back to the executed entry deck while netlist keeps fitting.
+    const withoutExtraTestbench = new TextEncoder().encode(
+      JSON.stringify({
+        ...second.input,
+        testbench: second.input.preparedDeck,
+      }),
+    ).length;
+    const tight = await prepareNgspiceExecutionInput(project, folder, {
+      ...caps,
+      maxInputBytes: withoutExtraTestbench,
+    });
+    if (!tight.ok) throw Error(JSON.stringify(tight));
+    expect(tight.input.netlist).toBe(second.input.netlist);
+    expect(tight.input.testbench).toBe(tight.input.preparedDeck);
+
+    // An empty entry file must not pair with a non-empty multi-file testbench.
+    folder.input.circuitBindings = [];
+    folder.input.dependencies = [];
+    entry.text = "";
+    const emptyEntry = await prepareNgspiceExecutionInput(
+      project,
+      folder,
+      caps,
+    );
+    if (emptyEntry.ok) {
+      expect(emptyEntry.input.preparedDeck).toBe("");
+      expect(emptyEntry.input.testbench).toBe("");
+    }
   });
 
   it("selects the requested section when Profile models are inserted automatically", async () => {

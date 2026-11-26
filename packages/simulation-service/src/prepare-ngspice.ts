@@ -667,20 +667,31 @@ export async function prepareNgspiceExecutionInput(
     dependencies,
     collection: config.collection,
   };
-  // The drawn circuit as sent is what the run's netlist digest names (#1243).
-  // A raw run executes the deck and its files alone, so this copy feeds only
-  // the run's digests (input metadata and the prepared digest). It is sent
-  // only while the whole input, serialized, stays within the input budget.
+  // The drawn circuit and authored testbench files as sent are what the run's
+  // netlist and testbench digests name (#1243, #1407). A raw run executes the
+  // entry deck and its files alone, so these copies feed only the run's
+  // digests (input metadata and the prepared digest). Each is sent only while
+  // the whole serialized input stays within the input budget.
+  const encoder = new TextEncoder();
+  const fitsInputBudget = (candidate: ExecutionInput) =>
+    encoder.encode(JSON.stringify(candidate)).length <= caps.maxInputBytes;
   const drawnCircuit = files
     .filter((file) => generatedPaths.has(file.path))
     .map((file) => file.text)
     .join("\n");
-  if (
-    new TextEncoder().encode(
-      JSON.stringify({ ...input, netlist: drawnCircuit }),
-    ).length <= caps.maxInputBytes
-  )
+  if (drawnCircuit && fitsInputBudget({ ...input, netlist: drawnCircuit }))
     input.netlist = drawnCircuit;
+  const authoredTestbench = files
+    .filter((file) => !generatedPaths.has(file.path))
+    .map((file) => file.text)
+    .join("\n");
+  if (
+    preparedDeck &&
+    authoredTestbench &&
+    authoredTestbench !== preparedDeck &&
+    fitsInputBudget({ ...input, testbench: authoredTestbench })
+  )
+    input.testbench = authoredTestbench;
   return {
     ok: true as const,
     input,

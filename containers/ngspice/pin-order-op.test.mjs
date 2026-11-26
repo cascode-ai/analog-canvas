@@ -142,9 +142,11 @@ it.skipIf(simulator.status !== 0)(
           models: null,
           startupSha256: null,
         });
+        const executedDeck = input.preparedDeck ?? input.testbench;
         const response = await ngspiceResultResponse(
           {
-            deck: input.testbench,
+            deck: executedDeck,
+            entryPath: input.entryPath,
             files: input.files,
             collection,
             runToken,
@@ -187,7 +189,8 @@ it.skipIf(simulator.status !== 0)(
             environment,
             input: {
               inputRevision: input.inputRevision,
-              deckSha256: digest(input.testbench),
+              deckSha256: digest(executedDeck),
+              testbenchSha256: digest(input.testbench),
               netlistSha256: digest(input.netlist),
             },
           },

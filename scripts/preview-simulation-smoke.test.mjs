@@ -1141,6 +1141,9 @@ describe("the hosted SKY130 qualification", () => {
     const { request } = await compileHostedSky130Project();
     const candidate = modelResult("operator-host", {}, request.inputRevision);
     candidate.metadata.configuration.modelLibrary = null;
+    candidate.metadata.input.deckSha256 = createHash("sha256")
+      .update(request.preparedDeck ?? request.testbench)
+      .digest("hex");
     candidate.metadata.input.testbenchSha256 = createHash("sha256")
       .update(request.testbench)
       .digest("hex");
