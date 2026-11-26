@@ -15,6 +15,8 @@ import {
   idealComparatorModelTarget,
   idealOpampBodyReads,
   isIdealOpampBody,
+  isOptionalPortBehavioralBody,
+  optionalPortBodySpec,
   subcircuitDescriptor,
 } from "@icm/devices";
 import type { SpiceBuiltInBody } from "@icm/spice";
@@ -292,7 +294,8 @@ function builtInBody(
   const behavioralBody = (name: string) =>
     isIdealOpampBody(name) ||
     isIdealComparatorBody(name) ||
-    ["logic", "signal", "passive"].includes(
+    isOptionalPortBehavioralBody(name) ||
+    ["logic", "signal", "passive", "amplifier"].includes(
       builtInModelContract(name)?.family ?? "",
     );
   // A body that yielded its name to an author's definition is written with
@@ -350,7 +353,7 @@ function builtInBody(
         ? ADDER_TARGET
         : isIdealDifferentialOpampBody(name)
           ? DIFFERENTIAL_OPAMP_TARGET
-          : name;
+          : (optionalPortBodySpec(name)?.target ?? name);
   const descriptor = builtInSubcircuitDescriptors.find(
     (candidate) => candidate.target === target,
   );

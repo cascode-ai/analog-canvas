@@ -948,6 +948,46 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "fully-differential-transconductance",
+    name: "Fully Differential Transconductance (gₘ)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A fully differential transconductor does not appear on the reviewed page; it extends the reviewed differential-transconductance trapezoid with complementary OUT+/OUT- leads and crossed polarity marks matching differential op-amps.",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Ideal fully differential transconductor; prints as a call of the generated linear subcircuit sourcing +gm/2*(IN+ - IN-) into OUT+ and sinking gm/2*(IN+ - IN-) from OUT-.",
+    assetPath: "fully-differential-transconductance.json",
+    assetHash:
+      "457f5fc474885fc13b36f611b7247528e7cc4c3e3500926bc19e9d6128b638cf",
+  },
+  {
+    symbolId: "fully-differential-transconductance-inputs-swapped",
+    name: "Fully Differential Transconductance (gₘ) (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A fully differential transconductor does not appear on the reviewed page; it extends the reviewed differential-transconductance trapezoid with complementary OUT+/OUT- leads and crossed polarity marks matching differential op-amps.",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Ideal fully differential transconductor; prints as a call of the generated linear subcircuit sourcing +gm/2*(IN+ - IN-) into OUT+ and sinking gm/2*(IN+ - IN-) from OUT-.",
+    assetPath: "fully-differential-transconductance-inputs-swapped.json",
+    assetHash:
+      "7a17b9da7d3b72ca8f4c5c52993678fb0483f8d575d2b20773b247f1edecbfaa",
+    generation: {
+      kind: "derived-input-swap",
+      sourceSymbolId: "fully-differential-transconductance",
+      converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
     symbolId: "diode",
     name: "Diode",
     category: "passive",
@@ -1326,6 +1366,23 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     assetPath: "center-tap-inductor.json",
     assetHash:
       "04288eb964236b39a10bd9392e3930ee68bcc208a0aa9be4a24fbbb9c42b357d",
+  },
+  {
+    symbolId: "center-tap-xfmr",
+    name: "Center-Tap Transformer",
+    category: "passive",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A center-tapped transformer does not appear on the reviewed page; drawn in the house stroke weight with opposing four-loop primary and secondary windings, polarity dots on P+ and S+, core bars, a secondary center tap SC, and an optional dual-tap variant exposing PC.",
+    pinOrder: ["P+", "P-", "S+", "SC", "S-", "PC"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no single center-tapped transformer card; it prints as a call of the generated coupled-inductor subcircuit, three windings by default and four when PC is wired.",
+    assetPath: "center-tap-xfmr.json",
+    assetHash:
+      "ccd3d0fc5d2f7da31d0ab753d50bc4f0566287a8370a077ebf09ccd40e0a3efd",
   },
   {
     symbolId: "transmission-line",
@@ -2545,6 +2602,200 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     },
   },
   {
+    symbolId: "opamp-compensated",
+    name: "Compensated Op Amp",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "An op-amp with external frequency-compensation pins (LM108/LM101A style) does not appear on the reviewed page; it extends the reviewed equilateral op-amp with COMP1 and optional COMP2 leads on the upper slanted edge.",
+    pinOrder: ["IN+", "IN-", "OUT", "COMP1", "COMP2", "VDD", "VSS"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Op-amp with external compensation pin(s); prints as a call of the generated rail-limited op-amp body with high-impedance DC reference on COMP1 and optional COMP2.",
+    assetPath: "opamp-compensated.json",
+    assetHash:
+      "330cf72c28f4bec45d662741b55596e4f37cea413cfe9d8eac79b43b0c01a264",
+  },
+  {
+    symbolId: "opamp-compensated-inputs-swapped",
+    name: "Compensated Op Amp (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "An op-amp with external frequency-compensation pins (LM108/LM101A style) does not appear on the reviewed page; it extends the reviewed equilateral op-amp with COMP1 and optional COMP2 leads on the upper slanted edge.",
+    pinOrder: ["IN+", "IN-", "OUT", "COMP1", "COMP2", "VDD", "VSS"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Op-amp with external compensation pin(s); prints as a call of the generated rail-limited op-amp body with high-impedance DC reference on COMP1 and optional COMP2.",
+    assetPath: "opamp-compensated-inputs-swapped.json",
+    assetHash:
+      "afc92ac8889cb9addae7aa5ea54844dd0951f2a8bea2240cb50f45a0a2354792",
+    generation: {
+      kind: "derived-input-swap",
+      sourceSymbolId: "opamp-compensated",
+      converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "opamp-enable",
+    name: "Enable / Mute Op Amp",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "An op-amp with an enable/mute pin (and optional GND pin for power op-amps such as LM3876) does not appear on the reviewed page; it extends the reviewed equilateral op-amp with EN and optional GND leads on the lower slanted edge.",
+    pinOrder: ["IN+", "IN-", "OUT", "EN", "GND", "VDD", "VSS"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Op-amp with enable/mute control; prints as a call of the generated behavioral op-amp body whose output drives the load when V(EN) > vt and mutes to high impedance below vt.",
+    assetPath: "opamp-enable.json",
+    assetHash:
+      "164b55fc5a62eb6ae2cf98ee5104d22909dacf39b812392c362c4301648353ca",
+  },
+  {
+    symbolId: "opamp-enable-inputs-swapped",
+    name: "Enable / Mute Op Amp (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "An op-amp with an enable/mute pin (and optional GND pin for power op-amps such as LM3876) does not appear on the reviewed page; it extends the reviewed equilateral op-amp with EN and optional GND leads on the lower slanted edge.",
+    pinOrder: ["IN+", "IN-", "OUT", "EN", "GND", "VDD", "VSS"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Op-amp with enable/mute control; prints as a call of the generated behavioral op-amp body whose output drives the load when V(EN) > vt and mutes to high impedance below vt.",
+    assetPath: "opamp-enable-inputs-swapped.json",
+    assetHash:
+      "928007306c40507fd87adbb0e5070a6500a0cb0586502fe7d5f1ec10402deaf8",
+    generation: {
+      kind: "derived-input-swap",
+      sourceSymbolId: "opamp-enable",
+      converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "opamp-bias",
+    name: "Biased Op Amp",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "An op-amp exposing a bias voltage pin (and optional enable pin) does not appear on the reviewed page; it extends the reviewed equilateral op-amp with VBIAS on the upper edge and optional EN on the lower edge.",
+    pinOrder: ["IN+", "IN-", "OUT", "VBIAS", "EN", "VDD", "VSS"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Op-amp with a bias output pin (and optional enable); prints as a call of the generated behavioral op-amp body supplying vbias on VBIAS.",
+    assetPath: "opamp-bias.json",
+    assetHash:
+      "e6de44679446ce76b2c87798dd52880205a78664884fc7c202286f80ccaa7a60",
+  },
+  {
+    symbolId: "opamp-bias-inputs-swapped",
+    name: "Biased Op Amp (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "An op-amp exposing a bias voltage pin (and optional enable pin) does not appear on the reviewed page; it extends the reviewed equilateral op-amp with VBIAS on the upper edge and optional EN on the lower edge.",
+    pinOrder: ["IN+", "IN-", "OUT", "VBIAS", "EN", "VDD", "VSS"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Op-amp with a bias output pin (and optional enable); prints as a call of the generated behavioral op-amp body supplying vbias on VBIAS.",
+    assetPath: "opamp-bias-inputs-swapped.json",
+    assetHash:
+      "a927519ae09e00e52ec90e2f863d634fb5b1c9402ad30d0ace802e4b3c72de15",
+    generation: {
+      kind: "derived-input-swap",
+      sourceSymbolId: "opamp-bias",
+      converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "single-to-diff-amplifier",
+    name: "Single-to-Diff Amplifier",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A single-ended-input, differential-output amplifier does not appear on the reviewed page; it combines the reviewed equilateral amplifier triangle, centered IN lead, and differential OUT+/OUT- leads with output polarity marks.",
+    pinOrder: ["IN", "OUT+", "OUT-", "VDD", "VSS"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Ideal single-ended-to-differential voltage amplifier; prints as a call of the generated linear subcircuit driving OUT+ and OUT- symmetrically about vocm.",
+    assetPath: "single-to-diff-amplifier.json",
+    assetHash:
+      "e6225f17a9f2bbc4051745115dec25b6cf1f684f87069a33fa8aead4bcebe6bf",
+  },
+  {
+    symbolId: "differential-video-amplifier",
+    name: "Differential Video Amplifier",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A differential video amplifier with gain-select pins (NE592 style) does not appear on the reviewed page; it extends the reviewed crossed differential amplifier with G1 and G2 leads on the lower slanted edge.",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "G1", "G2", "VDD", "VSS"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Differential video amplifier with G1/G2 gain-select terminals; prints as a call of the generated linear differential amplifier subcircuit with high-impedance DC reference on G1 and G2.",
+    assetPath: "differential-video-amplifier.json",
+    assetHash:
+      "db4140b079c2d9db318a67a79f4ea1959d00b6159a276b2a5b317f80912fab35",
+  },
+  {
+    symbolId: "differential-video-amplifier-inputs-swapped",
+    name: "Differential Video Amplifier (swapped inputs)",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A differential video amplifier with gain-select pins (NE592 style) does not appear on the reviewed page; it extends the reviewed crossed differential amplifier with G1 and G2 leads on the lower slanted edge.",
+    pinOrder: ["IN+", "IN-", "OUT+", "OUT-", "G1", "G2", "VDD", "VSS"],
+    palette: false,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Differential video amplifier with G1/G2 gain-select terminals; prints as a call of the generated linear differential amplifier subcircuit with high-impedance DC reference on G1 and G2.",
+    assetPath: "differential-video-amplifier-inputs-swapped.json",
+    assetHash:
+      "e7d748dfd2ad000b594ab867863f9f510d6a511632fbf6bc254388c72d1fd9e1",
+    generation: {
+      kind: "derived-input-swap",
+      sourceSymbolId: "differential-video-amplifier",
+      converterPath: "scripts/generate-input-swapped-amplifiers.mjs",
+      converterVersion: 1,
+    },
+  },
+  {
+    symbolId: "differential-line-driver",
+    name: "Differential Line Driver",
+    category: "analog-block",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "A differential line driver with complementary outputs, an inverting bubble on OUT-, and an enable pin EN does not appear on the reviewed page; drawn from the reviewed equilateral amplifier triangle and house negation bubble.",
+    pinOrder: ["IN", "OUT+", "OUT-", "EN", "VDD", "VSS"],
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "Tri-state differential line driver; prints as a call of the generated behavioral subcircuit driving complementary OUT+/OUT- when V(EN) > ven and tri-stating below ven.",
+    assetPath: "differential-line-driver.json",
+    assetHash:
+      "70899657ecaf873e28d3354da8a6eb84cc757694122ede756fcbd6ffce93e482",
+  },
+  {
     symbolId: "or-gate",
     name: "OR Gate",
     category: "logic",
@@ -2954,6 +3205,24 @@ export const razaviSymbolCatalogEntries: readonly RazaviSymbolCatalogEntry[] = [
     assetPath: "spdt-switch.json",
     assetHash:
       "619b00cf2fdb0a6b81830a245018425fcabb38641eec39fe2bb21fd4a285e92d",
+  },
+  {
+    symbolId: "relay",
+    name: "Relay (SPDT)",
+    category: "switch",
+    reviewStatus: "reviewed",
+    provenance: "house",
+    houseReason:
+      "An electromagnetic relay does not appear on the reviewed page; drawn in the house stroke weight with a four-loop coil on the left, dashed mechanical linkage, and SPDT NC/COM/NO contacts resting closed on NC on the right.",
+    pinOrder: ["COIL+", "COIL-", "COM", "NO", "NC"],
+    drawnReferencePrefix: "K",
+    palette: true,
+    automaticMappings: [],
+    manualOnlyReason:
+      "SPICE has no relay card; it prints as a call of the generated behavioral body with coil resistance rcoil and smooth SPDT contacts switching COM from NC to NO above |V(COIL+, COIL-)| = von.",
+    assetPath: "relay.json",
+    assetHash:
+      "d63f6668f6417bb8fe6963f5bfd90e03ba0340fcc7571b3a4b709ebd4ef67cdc",
   },
   {
     symbolId: "speaker",
@@ -11295,6 +11564,684 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "fully-differential-transconductance",
+    name: "Fully Differential Transconductance (gₘ)",
+    viewBox: {
+      x: -34,
+      y: -39,
+      width: 68,
+      height: 78,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -30,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -30,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: 0,
+          y: -40,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: 0,
+          y: 40,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-positive-lead",
+        from: {
+          x: -30,
+          y: 10,
+        },
+        to: {
+          x: -20,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-negative-lead",
+        from: {
+          x: -30,
+          y: -10,
+        },
+        to: {
+          x: -20,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        part: "body",
+        data: "M -20 -35 L 20 -17.5 L 20 17.5 L -20 35 Z",
+        fillableBody: true,
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -35,
+          width: 40,
+          height: 70,
+        },
+      },
+      {
+        kind: "line",
+        part: "input-polarity",
+        from: {
+          x: -14,
+          y: 10,
+        },
+        to: {
+          x: -8,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-polarity",
+        from: {
+          x: -11,
+          y: 7,
+        },
+        to: {
+          x: -11,
+          y: 13,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "upright-input-polarity-negative",
+        from: {
+          x: -14,
+          y: -10,
+        },
+        to: {
+          x: -8,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-polarity",
+        from: {
+          x: 10,
+          y: -10,
+        },
+        to: {
+          x: 16,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-polarity",
+        from: {
+          x: 13,
+          y: -13,
+        },
+        to: {
+          x: 13,
+          y: -7,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "upright-output-polarity-negative",
+        from: {
+          x: 10,
+          y: 10,
+        },
+        to: {
+          x: 16,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-positive-lead",
+        from: {
+          x: 20,
+          y: -10,
+        },
+        to: {
+          x: 30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-negative-lead",
+        from: {
+          x: 20,
+          y: 10,
+        },
+        to: {
+          x: 30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -26.25,
+        },
+        to: {
+          x: 0,
+          y: -40,
+        },
+        part: "vdd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 26.25,
+        },
+        to: {
+          x: 0,
+          y: 40,
+        },
+        part: "vss-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    formulaPresentation: {
+      defaultFormula: "g_m",
+      supportsCoefficient: true,
+      center: {
+        x: -1,
+        y: -1,
+      },
+      fontSize: 11,
+    },
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
+  },
+  {
+    schemaVersion: 1,
+    id: "fully-differential-transconductance-inputs-swapped",
+    name: "Fully Differential Transconductance (gₘ) (swapped inputs)",
+    viewBox: {
+      x: -34,
+      y: -39,
+      width: 68,
+      height: 78,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -30,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -30,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: 0,
+          y: -40,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: 0,
+          y: 40,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-positive-lead",
+        from: {
+          x: -30,
+          y: 10,
+        },
+        to: {
+          x: -20,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-negative-lead",
+        from: {
+          x: -30,
+          y: -10,
+        },
+        to: {
+          x: -20,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        part: "body",
+        data: "M -20 -35 L 20 -17.5 L 20 17.5 L -20 35 Z",
+        fillableBody: true,
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+        bounds: {
+          x: -20,
+          y: -35,
+          width: 40,
+          height: 70,
+        },
+      },
+      {
+        kind: "line",
+        part: "input-polarity",
+        from: {
+          x: -14,
+          y: -10,
+        },
+        to: {
+          x: -8,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-polarity",
+        from: {
+          x: -11,
+          y: -7,
+        },
+        to: {
+          x: -11,
+          y: -13,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "upright-input-polarity-negative",
+        from: {
+          x: -14,
+          y: 10,
+        },
+        to: {
+          x: -8,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-polarity",
+        from: {
+          x: 10,
+          y: -10,
+        },
+        to: {
+          x: 16,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-polarity",
+        from: {
+          x: 13,
+          y: -13,
+        },
+        to: {
+          x: 13,
+          y: -7,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "upright-output-polarity-negative",
+        from: {
+          x: 10,
+          y: 10,
+        },
+        to: {
+          x: 16,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-positive-lead",
+        from: {
+          x: 20,
+          y: -10,
+        },
+        to: {
+          x: 30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-negative-lead",
+        from: {
+          x: 20,
+          y: 10,
+        },
+        to: {
+          x: 30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -26.25,
+        },
+        to: {
+          x: 0,
+          y: -40,
+        },
+        part: "vdd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 26.25,
+        },
+        to: {
+          x: 0,
+          y: 40,
+        },
+        part: "vss-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    formulaPresentation: {
+      defaultFormula: "g_m",
+      supportsCoefficient: true,
+      center: {
+        x: -1,
+        y: -1,
+      },
+      fontSize: 11,
+    },
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
+  },
+  {
+    schemaVersion: 1,
     id: "diode",
     name: "Diode",
     viewBox: {
@@ -13355,6 +14302,326 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
       },
     ],
     variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "center-tap-xfmr",
+    name: "Center-Tap Transformer",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 48,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "P+",
+        role: "passive",
+        at: {
+          x: -20,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 9,
+        },
+      },
+      {
+        name: "P-",
+        role: "passive",
+        at: {
+          x: -20,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 9,
+        },
+      },
+      {
+        name: "S+",
+        role: "passive",
+        at: {
+          x: 20,
+          y: -20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 9,
+        },
+      },
+      {
+        name: "SC",
+        role: "passive",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 9,
+        },
+      },
+      {
+        name: "S-",
+        role: "passive",
+        at: {
+          x: 20,
+          y: 20,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 9,
+        },
+      },
+      {
+        name: "PC",
+        role: "passive",
+        at: {
+          x: -20,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 9,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: -20,
+        },
+        to: {
+          x: -11,
+          y: -20,
+        },
+        part: "primary-pos-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 20,
+        },
+        to: {
+          x: -11,
+          y: 20,
+        },
+        part: "primary-neg-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -11 -20 C -4.3333 -20 -4.3333 -10 -11 -10 C -4.3333 -10 -4.3333 0 -11 0 C -4.3333 0 -4.3333 10 -11 10 C -4.3333 10 -4.3333 20 -11 20",
+        bounds: {
+          x: -11,
+          y: -20,
+          width: 5,
+          height: 40,
+        },
+        part: "primary-winding",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 0,
+        },
+        to: {
+          x: -11,
+          y: 0,
+        },
+        part: "primary-tap-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: -11,
+          y: 0,
+        },
+        radius: 2,
+        fill: "foreground",
+        stroke: "none",
+        part: "primary-tap-dot",
+      },
+      {
+        kind: "line",
+        from: {
+          x: -2,
+          y: -18,
+        },
+        to: {
+          x: -2,
+          y: 18,
+        },
+        part: "core-left",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 2,
+          y: -18,
+        },
+        to: {
+          x: 2,
+          y: 18,
+        },
+        part: "core-right",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M 11 -20 C 4.3333 -20 4.3333 -10 11 -10 C 4.3333 -10 4.3333 0 11 0 C 4.3333 0 4.3333 10 11 10 C 4.3333 10 4.3333 20 11 20",
+        bounds: {
+          x: 6,
+          y: -20,
+          width: 5,
+          height: 40,
+        },
+        part: "secondary-winding",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 11,
+          y: -20,
+        },
+        to: {
+          x: 20,
+          y: -20,
+        },
+        part: "secondary-pos-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 11,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        part: "secondary-tap-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 11,
+          y: 0,
+        },
+        radius: 2,
+        fill: "foreground",
+        stroke: "none",
+        part: "secondary-tap-dot",
+      },
+      {
+        kind: "line",
+        from: {
+          x: 11,
+          y: 20,
+        },
+        to: {
+          x: 20,
+          y: 20,
+        },
+        part: "secondary-neg-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: -16,
+          y: -14,
+        },
+        radius: 2,
+        fill: "foreground",
+        stroke: "none",
+        part: "primary-polarity",
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 16,
+          y: -14,
+        },
+        radius: 2,
+        fill: "foreground",
+        stroke: "none",
+        part: "secondary-polarity",
+      },
+    ],
+    variants: [
+      {
+        id: "secondary-tap",
+        hiddenPinNames: ["PC"],
+        hiddenPrimitiveParts: ["primary-tap-lead", "primary-tap-dot"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "dual-tap",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "secondary-tap",
   },
   {
     schemaVersion: 1,
@@ -25103,6 +26370,3176 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
   },
   {
     schemaVersion: 1,
+    id: "opamp-compensated",
+    name: "Compensated Op Amp",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 8,
+        },
+      },
+      {
+        name: "COMP1",
+        role: "compensation",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "COMP2",
+        role: "compensation",
+        at: {
+          x: 10,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 23,
+        },
+      },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: -10,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: -10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: -10,
+        },
+        to: {
+          x: -30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 10,
+        },
+        to: {
+          x: -30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        fillableBody: true,
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: 11,
+        },
+        to: {
+          x: -23.75,
+          y: 17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -12.679492,
+        },
+        to: {
+          x: 0,
+          y: -30,
+        },
+        part: "comp1-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 10,
+          y: -6.905989,
+        },
+        to: {
+          x: 10,
+          y: -30,
+        },
+        part: "comp2-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: -18.452995,
+        },
+        to: {
+          x: -10,
+          y: -30,
+        },
+        part: "vdd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: 18.452995,
+        },
+        to: {
+          x: -10,
+          y: 30,
+        },
+        part: "vss-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+      {
+        id: "single-comp",
+        hiddenPinNames: ["VDD", "VSS", "COMP2"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "comp2-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-single-comp",
+        hiddenPinNames: ["COMP2"],
+        hiddenPrimitiveParts: ["comp2-lead"],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-compensated-inputs-swapped",
+    name: "Compensated Op Amp (swapped inputs)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 8,
+        },
+      },
+      {
+        name: "COMP1",
+        role: "compensation",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "COMP2",
+        role: "compensation",
+        at: {
+          x: 10,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 23,
+        },
+      },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: -10,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: -10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: -10,
+        },
+        to: {
+          x: -30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 10,
+        },
+        to: {
+          x: -30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        fillableBody: true,
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: -11,
+        },
+        to: {
+          x: -23.75,
+          y: -17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -12.679492,
+        },
+        to: {
+          x: 0,
+          y: -30,
+        },
+        part: "comp1-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 10,
+          y: -6.905989,
+        },
+        to: {
+          x: 10,
+          y: -30,
+        },
+        part: "comp2-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: -18.452995,
+        },
+        to: {
+          x: -10,
+          y: -30,
+        },
+        part: "vdd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: 18.452995,
+        },
+        to: {
+          x: -10,
+          y: 30,
+        },
+        part: "vss-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+      {
+        id: "single-comp",
+        hiddenPinNames: ["VDD", "VSS", "COMP2"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "comp2-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-single-comp",
+        hiddenPinNames: ["COMP2"],
+        hiddenPrimitiveParts: ["comp2-lead"],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-enable",
+    name: "Enable / Mute Op Amp",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 8,
+        },
+      },
+      {
+        name: "EN",
+        role: "input",
+        at: {
+          x: 10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 23,
+        },
+      },
+      {
+        name: "GND",
+        role: "ground",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: -10,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: -10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: -10,
+        },
+        to: {
+          x: -30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 10,
+        },
+        to: {
+          x: -30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        fillableBody: true,
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: 11,
+        },
+        to: {
+          x: -23.75,
+          y: 17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 10,
+          y: 6.905989,
+        },
+        to: {
+          x: 10,
+          y: 30,
+        },
+        part: "en-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        part: "gnd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: -18.452995,
+        },
+        to: {
+          x: -10,
+          y: -30,
+        },
+        part: "vdd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: 18.452995,
+        },
+        to: {
+          x: -10,
+          y: 30,
+        },
+        part: "vss-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "GND"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "gnd-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["GND"],
+        hiddenPrimitiveParts: ["gnd-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "gnd-pin",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-gnd-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-enable-inputs-swapped",
+    name: "Enable / Mute Op Amp (swapped inputs)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 8,
+        },
+      },
+      {
+        name: "EN",
+        role: "input",
+        at: {
+          x: 10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 23,
+        },
+      },
+      {
+        name: "GND",
+        role: "ground",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: -10,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: -10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: -10,
+        },
+        to: {
+          x: -30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 10,
+        },
+        to: {
+          x: -30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        fillableBody: true,
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: -11,
+        },
+        to: {
+          x: -23.75,
+          y: -17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 10,
+          y: 6.905989,
+        },
+        to: {
+          x: 10,
+          y: 30,
+        },
+        part: "en-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        part: "gnd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: -18.452995,
+        },
+        to: {
+          x: -10,
+          y: -30,
+        },
+        part: "vdd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: 18.452995,
+        },
+        to: {
+          x: -10,
+          y: 30,
+        },
+        part: "vss-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "GND"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "gnd-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["GND"],
+        hiddenPrimitiveParts: ["gnd-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "gnd-pin",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-gnd-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-bias",
+    name: "Biased Op Amp",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 8,
+        },
+      },
+      {
+        name: "VBIAS",
+        role: "output",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "EN",
+        role: "input",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: -10,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: -10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: -10,
+        },
+        to: {
+          x: -30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 10,
+        },
+        to: {
+          x: -30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        fillableBody: true,
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: 11,
+        },
+        to: {
+          x: -23.75,
+          y: 17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -12.679492,
+        },
+        to: {
+          x: 0,
+          y: -30,
+        },
+        part: "vbias-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        part: "en-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: -18.452995,
+        },
+        to: {
+          x: -10,
+          y: -30,
+        },
+        part: "vdd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: 18.452995,
+        },
+        to: {
+          x: -10,
+          y: 30,
+        },
+        part: "vss-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "EN"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "en-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["EN"],
+        hiddenPrimitiveParts: ["en-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "en-pin",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-en-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
+  },
+  {
+    schemaVersion: 1,
+    id: "opamp-bias-inputs-swapped",
+    name: "Biased Op Amp (swapped inputs)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT",
+        role: "output",
+        at: {
+          x: 30,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 8,
+        },
+      },
+      {
+        name: "VBIAS",
+        role: "output",
+        at: {
+          x: 0,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "EN",
+        role: "input",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: -10,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: -10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: -10,
+        },
+        to: {
+          x: -30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -40,
+          y: 10,
+        },
+        to: {
+          x: -30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 21.961524,
+          y: 0,
+        },
+        to: {
+          x: 30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        fillableBody: true,
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: -11,
+        },
+        to: {
+          x: -23.75,
+          y: -17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: -12.679492,
+        },
+        to: {
+          x: 0,
+          y: -30,
+        },
+        part: "vbias-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        part: "en-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: -18.452995,
+        },
+        to: {
+          x: -10,
+          y: -30,
+        },
+        part: "vdd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: 18.452995,
+        },
+        to: {
+          x: -10,
+          y: 30,
+        },
+        part: "vss-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS", "EN"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead", "en-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: ["EN"],
+        hiddenPrimitiveParts: ["en-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "en-pin",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-en-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
+  },
+  {
+    schemaVersion: 1,
+    id: "single-to-diff-amplifier",
+    name: "Single-to-Diff Amplifier",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN",
+        role: "input",
+        at: {
+          x: -40,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 25,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 25,
+        },
+      },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: -10,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: -10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: 0,
+        },
+        to: {
+          x: -30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: 4.641016,
+          y: -10,
+        },
+        to: {
+          x: 30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: 4.641016,
+          y: 10,
+        },
+        to: {
+          x: 30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        fillableBody: true,
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -13.538476,
+          y: -11,
+        },
+        to: {
+          x: -13.538476,
+          y: -17,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: -14,
+        },
+        to: {
+          x: -10.538476,
+          y: -14,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: 14,
+        },
+        to: {
+          x: -10.538476,
+          y: 14,
+        },
+        part: "upright-output-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: -18.452995,
+        },
+        to: {
+          x: -10,
+          y: -30,
+        },
+        part: "vdd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: 18.452995,
+        },
+        to: {
+          x: -10,
+          y: 30,
+        },
+        part: "vss-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
+  },
+  {
+    schemaVersion: 1,
+    id: "differential-video-amplifier",
+    name: "Differential Video Amplifier",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 25,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 25,
+        },
+      },
+      {
+        name: "G1",
+        role: "passive",
+        at: {
+          x: -10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+      {
+        name: "G2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: -20,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 6,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: -20,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 6,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: -10,
+        },
+        to: {
+          x: -30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: 10,
+        },
+        to: {
+          x: -30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: 4.641016,
+          y: -10,
+        },
+        to: {
+          x: 30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: 4.641016,
+          y: 10,
+        },
+        to: {
+          x: 30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        fillableBody: true,
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: 11,
+        },
+        to: {
+          x: -23.75,
+          y: 17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -13.538476,
+          y: -11,
+        },
+        to: {
+          x: -13.538476,
+          y: -17,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: -14,
+        },
+        to: {
+          x: -10.538476,
+          y: -14,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: 14,
+        },
+        to: {
+          x: -10.538476,
+          y: 14,
+        },
+        part: "upright-output-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: 18.452995,
+        },
+        to: {
+          x: -10,
+          y: 30,
+        },
+        part: "g1-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        part: "g2-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: -24.226497,
+        },
+        to: {
+          x: -20,
+          y: -30,
+        },
+        part: "vdd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 24.226497,
+        },
+        to: {
+          x: -20,
+          y: 30,
+        },
+        part: "vss-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
+  },
+  {
+    schemaVersion: 1,
+    id: "differential-video-amplifier-inputs-swapped",
+    name: "Differential Video Amplifier (swapped inputs)",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN+",
+        role: "non-inverting-input",
+        at: {
+          x: -40,
+          y: -10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "IN-",
+        role: "inverting-input",
+        at: {
+          x: -40,
+          y: 10,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 25,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 25,
+        },
+      },
+      {
+        name: "G1",
+        role: "passive",
+        at: {
+          x: -10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+      {
+        name: "G2",
+        role: "passive",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: -20,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 6,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: -20,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 6,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: -10,
+        },
+        to: {
+          x: -30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: 10,
+        },
+        to: {
+          x: -30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: 4.641016,
+          y: -10,
+        },
+        to: {
+          x: 30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: 4.641016,
+          y: 10,
+        },
+        to: {
+          x: 30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        fillableBody: true,
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -23.75,
+          y: -11,
+        },
+        to: {
+          x: -23.75,
+          y: -17,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: -14,
+        },
+        to: {
+          x: -20.75,
+          y: -14,
+        },
+        part: "input-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -26.75,
+          y: 14,
+        },
+        to: {
+          x: -20.75,
+          y: 14,
+        },
+        part: "upright-input-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -13.538476,
+          y: -11,
+        },
+        to: {
+          x: -13.538476,
+          y: -17,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: -14,
+        },
+        to: {
+          x: -10.538476,
+          y: -14,
+        },
+        part: "output-polarity",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -16.538476,
+          y: 14,
+        },
+        to: {
+          x: -10.538476,
+          y: 14,
+        },
+        part: "upright-output-polarity-negative",
+        style: {
+          strokeRole: "normal",
+          lineCap: "round",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: 18.452995,
+        },
+        to: {
+          x: -10,
+          y: 30,
+        },
+        part: "g1-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        part: "g2-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: -24.226497,
+        },
+        to: {
+          x: -20,
+          y: -30,
+        },
+        part: "vdd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -20,
+          y: 24.226497,
+        },
+        to: {
+          x: -20,
+          y: 30,
+        },
+        part: "vss-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
+  },
+  {
+    schemaVersion: 1,
+    id: "differential-line-driver",
+    name: "Differential Line Driver",
+    viewBox: {
+      x: -44,
+      y: -34,
+      width: 88,
+      height: 68,
+    },
+    pins: [
+      {
+        name: "IN",
+        role: "input",
+        at: {
+          x: -40,
+          y: 0,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 10,
+        },
+      },
+      {
+        name: "OUT+",
+        role: "output",
+        at: {
+          x: 30,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 25,
+        },
+      },
+      {
+        name: "OUT-",
+        role: "output",
+        at: {
+          x: 30,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 18,
+        },
+      },
+      {
+        name: "EN",
+        role: "input",
+        at: {
+          x: 0,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 17,
+        },
+      },
+      {
+        name: "VDD",
+        role: "positive-supply",
+        at: {
+          x: -10,
+          y: -30,
+        },
+        direction: "north",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+      {
+        name: "VSS",
+        role: "negative-supply",
+        at: {
+          x: -10,
+          y: 30,
+        },
+        direction: "south",
+        presentation: {
+          visibility: "visible",
+          leadLength: 12,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "line",
+        part: "input-lead",
+        from: {
+          x: -40,
+          y: 0,
+        },
+        to: {
+          x: -30,
+          y: 0,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: 4.641016,
+          y: -10,
+        },
+        to: {
+          x: 30,
+          y: -10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -30 -30 L -30 30 L 21.961524 0 Z",
+        bounds: {
+          x: -30,
+          y: -30,
+          width: 51.961524,
+          height: 60,
+        },
+        fillableBody: true,
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 10.641016,
+          y: 10,
+        },
+        radius: 3,
+        part: "negation-bubble",
+        style: {
+          strokeRole: "emphasis",
+          lineCap: "butt",
+          lineJoin: "miter",
+          miterLimit: 4,
+        },
+      },
+      {
+        kind: "line",
+        part: "output-lead",
+        from: {
+          x: 13.641016,
+          y: 10,
+        },
+        to: {
+          x: 30,
+          y: 10,
+        },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 0,
+          y: 12.679492,
+        },
+        to: {
+          x: 0,
+          y: 30,
+        },
+        part: "en-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: -18.452995,
+        },
+        to: {
+          x: -10,
+          y: -30,
+        },
+        part: "vdd-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -10,
+          y: 18.452995,
+        },
+        to: {
+          x: -10,
+          y: 30,
+        },
+        part: "vss-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [
+      {
+        id: "signal-pins",
+        hiddenPinNames: ["VDD", "VSS"],
+        hiddenPrimitiveParts: ["vdd-lead", "vss-lead"],
+        additionalPrimitives: [],
+      },
+      {
+        id: "supply-pins",
+        hiddenPinNames: [],
+        hiddenPrimitiveParts: [],
+        additionalPrimitives: [],
+      },
+    ],
+    defaultVariantId: "signal-pins",
+  },
+  {
+    schemaVersion: 1,
     id: "or-gate",
     name: "OR Gate",
     viewBox: {
@@ -27922,6 +32359,400 @@ export const razaviCatalogSymbols: readonly SymbolDefinition[] = [
           x: 20,
           y: 10,
         },
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+    ],
+    variants: [],
+  },
+  {
+    schemaVersion: 1,
+    id: "relay",
+    name: "Relay (SPDT)",
+    viewBox: {
+      x: -24,
+      y: -24,
+      width: 48,
+      height: 48,
+    },
+    pins: [
+      {
+        name: "COIL+",
+        role: "input",
+        at: {
+          x: -20,
+          y: -20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 5,
+        },
+      },
+      {
+        name: "COIL-",
+        role: "input",
+        at: {
+          x: -20,
+          y: 20,
+        },
+        direction: "west",
+        presentation: {
+          visibility: "visible",
+          leadLength: 5,
+        },
+      },
+      {
+        name: "COM",
+        role: "passive",
+        at: {
+          x: 20,
+          y: 0,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 4,
+        },
+      },
+      {
+        name: "NO",
+        role: "passive",
+        at: {
+          x: 20,
+          y: 10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 4,
+        },
+      },
+      {
+        name: "NC",
+        role: "passive",
+        at: {
+          x: 20,
+          y: -10,
+        },
+        direction: "east",
+        presentation: {
+          visibility: "visible",
+          leadLength: 4,
+        },
+      },
+    ],
+    primitives: [
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -20,
+            y: -20,
+          },
+          {
+            x: -15,
+            y: -20,
+          },
+          {
+            x: -15,
+            y: -16,
+          },
+        ],
+        part: "coil-top-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "path",
+        data: "M -15 -16 C -9.6667 -16 -9.6667 -8 -15 -8 C -9.6667 -8 -9.6667 0 -15 0 C -9.6667 0 -9.6667 8 -15 8 C -9.6667 8 -9.6667 16 -15 16",
+        bounds: {
+          x: -15,
+          y: -16,
+          width: 4,
+          height: 32,
+        },
+        part: "coil-winding",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "round",
+        },
+      },
+      {
+        kind: "polyline",
+        points: [
+          {
+            x: -15,
+            y: 16,
+          },
+          {
+            x: -15,
+            y: 20,
+          },
+          {
+            x: -20,
+            y: 20,
+          },
+        ],
+        part: "coil-bottom-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -8.5,
+          y: -3,
+        },
+        to: {
+          x: -5.5,
+          y: -3,
+        },
+        part: "linkage-1",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: -3.5,
+          y: -3,
+        },
+        to: {
+          x: -0.5,
+          y: -3,
+        },
+        part: "linkage-2",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 1.5,
+          y: -3,
+        },
+        to: {
+          x: 4.5,
+          y: -3,
+        },
+        part: "linkage-3",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: 0,
+            y: -10,
+          },
+          {
+            x: 4,
+            y: -10,
+          },
+          {
+            x: 2,
+            y: -6,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        part: "nc-contact-nib",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 4,
+          y: -10,
+        },
+        to: {
+          x: 12,
+          y: -10,
+        },
+        part: "nc-bar",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 14,
+          y: -10,
+        },
+        radius: 2,
+        fill: "none",
+        stroke: "foreground",
+        part: "nc-terminal",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 16,
+          y: -10,
+        },
+        to: {
+          x: 20,
+          y: -10,
+        },
+        part: "nc-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 12,
+          y: 0,
+        },
+        to: {
+          x: 1.5,
+          y: -5.7,
+        },
+        part: "armature",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 14,
+          y: 0,
+        },
+        radius: 2,
+        fill: "none",
+        stroke: "foreground",
+        part: "com-terminal",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 16,
+          y: 0,
+        },
+        to: {
+          x: 20,
+          y: 0,
+        },
+        part: "com-lead",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "polygon",
+        points: [
+          {
+            x: 0,
+            y: 10,
+          },
+          {
+            x: 4,
+            y: 10,
+          },
+          {
+            x: 2,
+            y: 6,
+          },
+        ],
+        fill: "none",
+        stroke: "foreground",
+        part: "no-contact-nib",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 4,
+          y: 10,
+        },
+        to: {
+          x: 12,
+          y: 10,
+        },
+        part: "no-bar",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "circle",
+        center: {
+          x: 14,
+          y: 10,
+        },
+        radius: 2,
+        fill: "none",
+        stroke: "foreground",
+        part: "no-terminal",
+        style: {
+          strokeRole: "normal",
+          lineCap: "butt",
+          lineJoin: "miter",
+        },
+      },
+      {
+        kind: "line",
+        from: {
+          x: 16,
+          y: 10,
+        },
+        to: {
+          x: 20,
+          y: 10,
+        },
+        part: "no-lead",
         style: {
           strokeRole: "normal",
           lineCap: "butt",

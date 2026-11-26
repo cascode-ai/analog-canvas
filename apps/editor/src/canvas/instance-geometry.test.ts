@@ -59,7 +59,7 @@ describe("selection geometry", () => {
           symbol.id,
         ) || ["transconductance", "adc", "dac"].includes(symbol.id),
     );
-    expect(blocks).toHaveLength(39);
+    expect(blocks).toHaveLength(45);
     for (const symbol of blocks) {
       const bounds = visibleSymbolLocalBounds(resolver.resolve(symbol.id)!);
       // All triangular Analog Blocks now share the accepted x=30 output
@@ -142,7 +142,7 @@ describe("selection geometry", () => {
     const supplied = builtInSymbols.filter((symbol) =>
       symbol.variants.some((variant) => variant.id === "supply-pins"),
     );
-    expect(supplied).toHaveLength(65);
+    expect(supplied).toHaveLength(77);
     for (const symbol of supplied) {
       const placement = {
         position: { x: 100, y: 100 },

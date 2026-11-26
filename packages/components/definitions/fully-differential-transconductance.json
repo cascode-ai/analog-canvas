@@ -1,0 +1,394 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "fully-differential-transconductance",
+    "name": "Fully Differential Transconductance (gₘ)",
+    "viewBox": {
+      "x": -34,
+      "y": -39,
+      "width": 68,
+      "height": 78
+    },
+    "pins": [
+      {
+        "name": "IN+",
+        "role": "non-inverting-input",
+        "at": {
+          "x": -30,
+          "y": 10
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "IN-",
+        "role": "inverting-input",
+        "at": {
+          "x": -30,
+          "y": -10
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "OUT+",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": -10
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "OUT-",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": 10
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": 0,
+          "y": -40
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": 0,
+          "y": 40
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "part": "input-positive-lead",
+        "from": {
+          "x": -30,
+          "y": 10
+        },
+        "to": {
+          "x": -20,
+          "y": 10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "input-negative-lead",
+        "from": {
+          "x": -30,
+          "y": -10
+        },
+        "to": {
+          "x": -20,
+          "y": -10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "part": "body",
+        "data": "M -20 -35 L 20 -17.5 L 20 17.5 L -20 35 Z",
+        "fillableBody": true,
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        },
+        "bounds": {
+          "x": -20,
+          "y": -35,
+          "width": 40,
+          "height": 70
+        }
+      },
+      {
+        "kind": "line",
+        "part": "input-polarity",
+        "from": {
+          "x": -14,
+          "y": 10
+        },
+        "to": {
+          "x": -8,
+          "y": 10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "input-polarity",
+        "from": {
+          "x": -11,
+          "y": 7
+        },
+        "to": {
+          "x": -11,
+          "y": 13
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "upright-input-polarity-negative",
+        "from": {
+          "x": -14,
+          "y": -10
+        },
+        "to": {
+          "x": -8,
+          "y": -10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "output-polarity",
+        "from": {
+          "x": 10,
+          "y": -10
+        },
+        "to": {
+          "x": 16,
+          "y": -10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "output-polarity",
+        "from": {
+          "x": 13,
+          "y": -13
+        },
+        "to": {
+          "x": 13,
+          "y": -7
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "upright-output-polarity-negative",
+        "from": {
+          "x": 10,
+          "y": 10
+        },
+        "to": {
+          "x": 16,
+          "y": 10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "output-positive-lead",
+        "from": {
+          "x": 20,
+          "y": -10
+        },
+        "to": {
+          "x": 30,
+          "y": -10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "output-negative-lead",
+        "from": {
+          "x": 20,
+          "y": 10
+        },
+        "to": {
+          "x": 30,
+          "y": 10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": -26.25
+        },
+        "to": {
+          "x": 0,
+          "y": -40
+        },
+        "part": "vdd-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 26.25
+        },
+        "to": {
+          "x": 0,
+          "y": 40
+        },
+        "part": "vss-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "formulaPresentation": {
+      "defaultFormula": "g_m",
+      "supportsCoefficient": true,
+      "center": {
+        "x": -1,
+        "y": -1
+      },
+      "fontSize": 11
+    },
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
+    "defaultVariantId": "signal-pins"
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "fully-differential-transconductance",
+    "symbolId": "fully-differential-transconductance",
+    "target": "fully_differential_transconductance",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIP",
+        "direction": "input",
+        "pinName": "IN+"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "IN-"
+      },
+      {
+        "name": "VOP",
+        "direction": "output",
+        "pinName": "OUT+"
+      },
+      {
+        "name": "VON",
+        "direction": "output",
+        "pinName": "OUT-"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "fully-differential-transconductance",
+    "name": "Fully Differential Transconductance (gₘ)",
+    "category": "analog-block",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A fully differential transconductor does not appear on the reviewed page; it extends the reviewed differential-transconductance trapezoid with complementary OUT+/OUT- leads and crossed polarity marks matching differential op-amps.",
+    "pinOrder": ["IN+", "IN-", "OUT+", "OUT-", "VDD", "VSS"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "Ideal fully differential transconductor; prints as a call of the generated linear subcircuit sourcing +gm/2*(IN+ - IN-) into OUT+ and sinking gm/2*(IN+ - IN-) from OUT-.",
+    "assetPath": "fully-differential-transconductance.json"
+  }
+}

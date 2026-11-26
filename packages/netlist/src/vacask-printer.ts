@@ -346,16 +346,9 @@ export function printVacaskWithLocations(
     if (definition.kind === "magnetic") {
       classes.add("inductor");
       if (definition.capacitors.length) classes.add("capacitor");
-    } else if (
-      builtInModelContract(definitionBody(definition))?.family === "logic"
-    ) {
-      classes.add("resistor");
-      classes.add("capacitor");
-    } else if (
-      builtInModelContract(definitionBody(definition))?.family === "passive"
-    ) {
-      // A passive body loads the primitives it holds: the crystal's R, L
-      // and C, the potentiometer's two resistors.
+    } else {
+      // Any behavioral body (logic, passive, op-amp, amplifier variant) loads
+      // the primitive passives its recipe references.
       for (const element of generatedBehavioralDefinition(
         definitionBody(definition),
       ).elements)

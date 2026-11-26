@@ -21,6 +21,7 @@ import {
   isIdealComparatorBody,
   instanceBuiltInSubcircuit,
   isIdealOpampBody,
+  isOptionalPortBehavioralBody,
   isLibraryPart,
   reviewedExternalDefinitionBinding,
 } from "@icm/devices";
@@ -52,9 +53,11 @@ export function bodySupplies(
     (target !== IDEAL_COMPARATOR_TARGET || format === "spice")
   )
     return idealComparatorReadsSupply(target) ? ["VDD"] : [];
-  if (isIdealOpampBody(target)) return [];
+  if (isIdealOpampBody(target) || isOptionalPortBehavioralBody(target))
+    return [];
   const family = builtInModelContract(target)?.family;
-  if (family === "passive" || family === "generic") return [];
+  if (family === "passive" || family === "generic" || family === "amplifier")
+    return [];
   return idealAnalogBlockCell(target, format) !== null ||
     (format === "spice" &&
       (target === "multiplier" || target === IDEAL_COMPARATOR_TARGET))

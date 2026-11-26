@@ -1,0 +1,445 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "relay",
+    "name": "Relay (SPDT)",
+    "viewBox": {
+      "x": -24,
+      "y": -24,
+      "width": 48,
+      "height": 48
+    },
+    "pins": [
+      {
+        "name": "COIL+",
+        "role": "input",
+        "at": {
+          "x": -20,
+          "y": -20
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 5
+        }
+      },
+      {
+        "name": "COIL-",
+        "role": "input",
+        "at": {
+          "x": -20,
+          "y": 20
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 5
+        }
+      },
+      {
+        "name": "COM",
+        "role": "passive",
+        "at": {
+          "x": 20,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 4
+        }
+      },
+      {
+        "name": "NO",
+        "role": "passive",
+        "at": {
+          "x": 20,
+          "y": 10
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 4
+        }
+      },
+      {
+        "name": "NC",
+        "role": "passive",
+        "at": {
+          "x": 20,
+          "y": -10
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 4
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": -20,
+            "y": -20
+          },
+          {
+            "x": -15,
+            "y": -20
+          },
+          {
+            "x": -15,
+            "y": -16
+          }
+        ],
+        "part": "coil-top-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "data": "M -15 -16 C -9.6667 -16 -9.6667 -8 -15 -8 C -9.6667 -8 -9.6667 0 -15 0 C -9.6667 0 -9.6667 8 -15 8 C -9.6667 8 -9.6667 16 -15 16",
+        "bounds": {
+          "x": -15,
+          "y": -16,
+          "width": 4,
+          "height": 32
+        },
+        "part": "coil-winding",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "polyline",
+        "points": [
+          {
+            "x": -15,
+            "y": 16
+          },
+          {
+            "x": -15,
+            "y": 20
+          },
+          {
+            "x": -20,
+            "y": 20
+          }
+        ],
+        "part": "coil-bottom-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -8.5,
+          "y": -3
+        },
+        "to": {
+          "x": -5.5,
+          "y": -3
+        },
+        "part": "linkage-1",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -3.5,
+          "y": -3
+        },
+        "to": {
+          "x": -0.5,
+          "y": -3
+        },
+        "part": "linkage-2",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 1.5,
+          "y": -3
+        },
+        "to": {
+          "x": 4.5,
+          "y": -3
+        },
+        "part": "linkage-3",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": 0,
+            "y": -10
+          },
+          {
+            "x": 4,
+            "y": -10
+          },
+          {
+            "x": 2,
+            "y": -6
+          }
+        ],
+        "fill": "none",
+        "stroke": "foreground",
+        "part": "nc-contact-nib",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 4,
+          "y": -10
+        },
+        "to": {
+          "x": 12,
+          "y": -10
+        },
+        "part": "nc-bar",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "circle",
+        "center": {
+          "x": 14,
+          "y": -10
+        },
+        "radius": 2,
+        "fill": "none",
+        "stroke": "foreground",
+        "part": "nc-terminal",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 16,
+          "y": -10
+        },
+        "to": {
+          "x": 20,
+          "y": -10
+        },
+        "part": "nc-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 12,
+          "y": 0
+        },
+        "to": {
+          "x": 1.5,
+          "y": -5.7
+        },
+        "part": "armature",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "circle",
+        "center": {
+          "x": 14,
+          "y": 0
+        },
+        "radius": 2,
+        "fill": "none",
+        "stroke": "foreground",
+        "part": "com-terminal",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 16,
+          "y": 0
+        },
+        "to": {
+          "x": 20,
+          "y": 0
+        },
+        "part": "com-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "polygon",
+        "points": [
+          {
+            "x": 0,
+            "y": 10
+          },
+          {
+            "x": 4,
+            "y": 10
+          },
+          {
+            "x": 2,
+            "y": 6
+          }
+        ],
+        "fill": "none",
+        "stroke": "foreground",
+        "part": "no-contact-nib",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 4,
+          "y": 10
+        },
+        "to": {
+          "x": 12,
+          "y": 10
+        },
+        "part": "no-bar",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "circle",
+        "center": {
+          "x": 14,
+          "y": 10
+        },
+        "radius": 2,
+        "fill": "none",
+        "stroke": "foreground",
+        "part": "no-terminal",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 16,
+          "y": 10
+        },
+        "to": {
+          "x": 20,
+          "y": 10
+        },
+        "part": "no-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": []
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "relay",
+    "symbolId": "relay",
+    "target": "spdt_relay",
+    "ports": [
+      {
+        "name": "COILP",
+        "direction": "input",
+        "pinName": "COIL+"
+      },
+      {
+        "name": "COILN",
+        "direction": "input",
+        "pinName": "COIL-"
+      },
+      {
+        "name": "COM",
+        "direction": "passive",
+        "pinName": "COM"
+      },
+      {
+        "name": "NO",
+        "direction": "passive",
+        "pinName": "NO"
+      },
+      {
+        "name": "NC",
+        "direction": "passive",
+        "pinName": "NC"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "relay",
+    "name": "Relay (SPDT)",
+    "category": "switch",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "An electromagnetic relay does not appear on the reviewed page; drawn in the house stroke weight with a four-loop coil on the left, dashed mechanical linkage, and SPDT NC/COM/NO contacts resting closed on NC on the right.",
+    "pinOrder": ["COIL+", "COIL-", "COM", "NO", "NC"],
+    "drawnReferencePrefix": "K",
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "SPICE has no relay card; it prints as a call of the generated behavioral body with coil resistance rcoil and smooth SPDT contacts switching COM from NC to NO above |V(COIL+, COIL-)| = von.",
+    "assetPath": "relay.json"
+  }
+}

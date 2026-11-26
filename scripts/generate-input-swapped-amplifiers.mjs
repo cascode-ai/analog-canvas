@@ -40,10 +40,15 @@ const SOURCE_IDS = [
   "comparator-differential",
   "comparator-differential-unmarked",
   "differential-transconductance",
+  "fully-differential-transconductance",
   "opamp-differential",
   "opamp-differential-lettered",
   "opamp-differential-crossed",
   "opamp-differential-crossed-lettered",
+  "opamp-compensated",
+  "opamp-enable",
+  "opamp-bias",
+  "differential-video-amplifier",
   "adc-differential",
 ];
 const SWAPPED_SUFFIX = "-inputs-swapped";

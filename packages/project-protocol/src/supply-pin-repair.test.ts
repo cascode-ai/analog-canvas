@@ -10,10 +10,31 @@ import { renderDocumentSvg } from "@icm/render-svg";
 import { parseProject, serializeProject } from "./index.js";
 import { withoutVocmPin } from "./transforms/vocm-pin.js";
 
-/** Every form that may show its supplies (#1833, #1941). */
+/**
+ * Symbols added after #1941 that shipped with supply pins from day one, so no
+ * pre-supply-pin snapshot of them ever existed in saved Projects (#2443).
+ */
+const BORN_WITH_SUPPLY_PINS = new Set([
+  "single-to-diff-amplifier",
+  "fully-differential-transconductance",
+  "fully-differential-transconductance-inputs-swapped",
+  "opamp-compensated",
+  "opamp-compensated-inputs-swapped",
+  "opamp-enable",
+  "opamp-enable-inputs-swapped",
+  "opamp-bias",
+  "opamp-bias-inputs-swapped",
+  "differential-video-amplifier",
+  "differential-video-amplifier-inputs-swapped",
+  "differential-line-driver",
+]);
+
+/** Every legacy form that predated supply pins (#1833, #1941). */
 const FORMS = builtInSymbols
-  .filter((symbol) =>
-    symbol.variants.some((variant) => variant.id === "supply-pins"),
+  .filter(
+    (symbol) =>
+      symbol.variants.some((variant) => variant.id === "supply-pins") &&
+      !BORN_WITH_SUPPLY_PINS.has(symbol.id),
   )
   .map((symbol) => symbol.id);
 

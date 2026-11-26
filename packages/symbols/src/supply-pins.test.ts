@@ -25,16 +25,17 @@ const FAMILIES: [RegExp, [Point, Point]][] = [
   [/^opamp(?:-wide)?(?:-lettered)?(?:-inputs-swapped)?$/u, TRIANGLE],
   [/^comparator(?:-unmarked)?(?:-inputs-swapped)?$/u, TRIANGLE],
   [/^voltage-amplifier(?:-lettered)?$/u, TRIANGLE],
-  // A differential form stands them clear of where its outputs leave.
+  // A differential form stands them clear of where its outputs leave;
+  // extended-pin op-amp variants likewise stand supplies back from COMP/EN/VBIAS/G1/G2.
   [
-    /^(?:opamp|comparator)-differential(?!-wide)/u,
+    /^(?:(?:opamp|comparator)-differential(?!-wide)|opamp-(?:compensated|enable|bias)|single-to-diff-amplifier|differential-line-driver)/u,
     [
       { x: -10, y: -30 },
       { x: -10, y: 30 },
     ],
   ],
   [
-    /^opamp-differential-wide/u,
+    /^(?:opamp-differential-wide|differential-video-amplifier)/u,
     [
       { x: -20, y: -30 },
       { x: -20, y: 30 },
@@ -55,7 +56,7 @@ const FAMILIES: [RegExp, [Point, Point]][] = [
     ],
   ],
   [
-    /^(?:differential-)?transconductance(?:-inputs-swapped)?$/u,
+    /^(?:(?:fully-)?differential-)?transconductance(?:-inputs-swapped)?$/u,
     [
       { x: 0, y: -40 },
       { x: 0, y: 40 },
@@ -100,6 +101,17 @@ const expected = (symbolId: string) =>
   FAMILIES.find(([pattern]) => pattern.test(symbolId))?.[1];
 /** The fully differential op-amps, which draw VOCM on request (#2443). */
 const drawsVocm = (symbolId: string) => /^opamp-differential/u.test(symbolId);
+/** Optional auxiliary pins that remain hidden in `signal-pins` and `supply-pins` (#2443). */
+const optionalHiddenPin = (
+  symbolId: string,
+): { pin: string; lead: string } | null =>
+  drawsVocm(symbolId)
+    ? { pin: "VOCM", lead: "vocm-lead" }
+    : symbolId.startsWith("opamp-enable")
+      ? { pin: "GND", lead: "gnd-lead" }
+      : symbolId.startsWith("opamp-bias")
+        ? { pin: "EN", lead: "en-lead" }
+        : null;
 
 /** Whether two segments cross or touch. */
 function meet(a: Point, b: Point, c: Point, d: Point): boolean {
@@ -136,11 +148,13 @@ describe("a block's supply pins", () => {
     "%s draws VDD above and VSS below on leads from its body when they are shown",
     (symbolId) => {
       const shown = catalog.resolve(symbolId, "supply-pins")!;
-      // A fully differential op-amp keeps its VOCM hidden (#2443).
-      const vocm = drawsVocm(symbolId);
-      expect(shown.variant?.hiddenPinNames).toEqual(vocm ? ["VOCM"] : []);
+      // Optional auxiliary pins (VOCM, GND on opamp-enable, EN on opamp-bias) stay hidden (#2443).
+      const optional = optionalHiddenPin(symbolId);
+      expect(shown.variant?.hiddenPinNames).toEqual(
+        optional ? [optional.pin] : [],
+      );
       expect(shown.variant?.hiddenPrimitiveParts).toEqual(
-        vocm ? ["vocm-lead"] : [],
+        optional ? [optional.lead] : [],
       );
       const [vdd, vss] = expected(symbolId)!;
       const pin = (name: string) =>
@@ -183,16 +197,16 @@ describe("a block's supply pins", () => {
     (symbolId) => {
       const plain = catalog.resolve(symbolId)!;
       expect(plain.variant?.id).toBe("signal-pins");
-      const vocm = drawsVocm(symbolId);
+      const optional = optionalHiddenPin(symbolId);
       expect(plain.variant?.hiddenPinNames).toEqual([
         "VDD",
         "VSS",
-        ...(vocm ? ["VOCM"] : []),
+        ...(optional ? [optional.pin] : []),
       ]);
       expect(plain.variant?.hiddenPrimitiveParts).toEqual([
         "vdd-lead",
         "vss-lead",
-        ...(vocm ? ["vocm-lead"] : []),
+        ...(optional ? [optional.lead] : []),
       ]);
     },
   );

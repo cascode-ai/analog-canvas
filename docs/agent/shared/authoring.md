@@ -167,6 +167,11 @@ their IDs, never resolved to the first.
   | `transmission-line`                                                        | `P1`, `N1`, `P2`, `N2`                                                              |
   | `tcoil`, `center-tap-inductor`                                             | `1`, `2`, `3`                                                                       |
   | `xfmr`                                                                     | `P+`, `P-`, `S+`, `S-`                                                              |
+  | `center-tap-xfmr`                                                          | `P+`, `P-`, `S+`, `SC`, `S-`, optional `PC` (`dual-tap` variant)                    |
+  | `relay`                                                                    | `COIL+`, `COIL-`, `COM`, `NO`, `NC`                                                 |
+  | `opamp-compensated`, `opamp-enable`, `opamp-bias`                          | `IN+`, `IN-`, `OUT`, plus `COMP1`/`COMP2`, `EN`/`GND`, or `VBIAS`/`EN`              |
+  | `single-to-diff-amplifier`, `differential-line-driver`                     | `IN`, `OUT+`, `OUT-` (plus `EN` on line driver)                                     |
+  | `fully-differential-transconductance`, `differential-video-amplifier`      | `IN+`, `IN-`, `OUT+`, `OUT-` (plus `G1`, `G2` on video amp)                         |
   | `chopper`                                                                  | `INP`, `INN`, `OUTP`, `OUTN`, plus `CK` for the clock its label names unless global |
   | `spdt-switch`, `simple-spdt-switch`                                        | `COM`, `A`, `B`, plus `CK` as the chopper's                                         |
 

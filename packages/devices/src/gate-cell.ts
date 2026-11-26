@@ -50,6 +50,13 @@ const CELL_FLIP_FLOPS: ReadonlySet<string> = new Set([
 const CELL_AMPLIFIERS: ReadonlyMap<string, string> = new Map([
   [OPAMP_TARGET, "op-amp"],
   ["opamp_differential", "op-amp"],
+  ["opamp_compensated", "op-amp"],
+  ["opamp_enable", "op-amp"],
+  ["opamp_bias", "op-amp"],
+  ["single_to_diff_amplifier", "amplifier"],
+  ["differential_video_amplifier", "amplifier"],
+  ["differential_line_driver", "line driver"],
+  ["fully_differential_transconductance", "transconductor"],
   ["comparator", "comparator"],
   [DIFFERENTIAL_COMPARATOR_TARGET, "comparator"],
 ]);

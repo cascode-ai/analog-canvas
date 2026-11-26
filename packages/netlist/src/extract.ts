@@ -19,6 +19,7 @@ import {
   ADDER_TARGET,
   IDEAL_COMPARATOR_BODIES,
   IDEAL_OPAMP_BODIES,
+  OPTIONAL_PORT_BEHAVIORAL_BODIES,
   adderBodySigns,
   builtInModelContract,
   deviceDescriptor,
@@ -27,11 +28,14 @@ import {
   callsIdealComparatorBody,
   callsIdealDifferentialOpampBody,
   callsIdealOpampBody,
+  callsOptionalPortBody,
   idealComparatorBodyPorts,
   idealComparatorBodyContract,
   idealOpampBodyContract,
   isIdealComparatorBody,
   isIdealOpampBody,
+  isOptionalPortBody,
+  optionalPortBodyPorts,
   instanceBuiltInSubcircuit,
   isGenericBlockTarget,
   callOwner,
@@ -73,10 +77,15 @@ import {
 import { extractCell } from "./extract-cell.js";
 import { projectCouplingReferences } from "./extract-coupling.js";
 import { collectProjectModelSources } from "./project-model-source.js";
-/** A target with a shared generated recipe: logic, multiplier, converters, crystal. */
+/** A target with a shared generated recipe: logic, multiplier, converters, crystal, amplifier variants. */
 function isBehaviouralTarget(target: string): boolean {
   const family = builtInModelContract(target)?.family;
-  return family === "logic" || family === "signal" || family === "passive";
+  return (
+    family === "logic" ||
+    family === "signal" ||
+    family === "passive" ||
+    family === "amplifier"
+  );
 }
 
 const MAX_CELLS = 1024;
@@ -601,6 +610,7 @@ function analyzeDesign(
     // the Project declares an external definition of that name.
     ...IDEAL_COMPARATOR_BODIES,
     ...IDEAL_OPAMP_BODIES,
+    ...OPTIONAL_PORT_BEHAVIORAL_BODIES,
   ]);
   for (const cell of cells) {
     for (const instance of cell.instances) {
@@ -620,8 +630,11 @@ function analyzeDesign(
         ? idealComparatorBodyContract(target).ports
         : isIdealOpampBody(target)
           ? idealOpampBodyContract(target).ports
-          : builtInModelContract(adderBodySigns(target) ? ADDER_TARGET : target)
-              ?.ports;
+          : isOptionalPortBody(target)
+            ? optionalPortBodyPorts(target)
+            : builtInModelContract(
+                adderBodySigns(target) ? ADDER_TARGET : target,
+              )?.ports;
       // An optional port is in the call only while its pin has a Net.
       const callPorts = (
         descriptor && callsIdealComparatorBody(descriptor, target)
@@ -783,6 +796,7 @@ function analyzeDesign(
   const ownBodies = [
     ...IDEAL_COMPARATOR_BODIES,
     ...IDEAL_OPAMP_BODIES,
+    ...OPTIONAL_PORT_BEHAVIORAL_BODIES,
     ...CLOCKED_SWITCH_TARGETS,
   ].filter((name) => generatedTargets.has(name));
   const writtenNames = new Map<string, string>();
@@ -867,6 +881,7 @@ function analyzeDesign(
       callOwner(project, instance) === "library" &&
       (callsIdealOpampBody(descriptor, target) ||
         callsIdealDifferentialOpampBody(descriptor, target) ||
+        callsOptionalPortBody(descriptor, target) ||
         idealCells.some((model) => model.name === target) ||
         behaviouralBodies.includes(target))
     )

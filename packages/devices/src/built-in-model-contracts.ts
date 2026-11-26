@@ -36,8 +36,11 @@ export type BuiltInModelRecipe =
       readonly implementation:
         | "opamp_differential"
         | "voltage_amplifier"
+        | "single_to_diff_amplifier"
+        | "differential_video_amplifier"
         | "transconductance"
         | "differential_transconductance"
+        | "fully_differential_transconductance"
         | "adder";
     }
   | {
@@ -66,9 +69,17 @@ export type BuiltInModelRecipe =
   | {
       readonly family: "passive";
       readonly implementation:
-        "crystal" | "potentiometer" | "transmission-line";
+        "crystal" | "potentiometer" | "transmission-line" | "relay";
     }
   | { readonly family: "opamp"; readonly implementation: "opamp" }
+  | {
+      readonly family: "amplifier";
+      readonly implementation:
+        | "opamp_compensated"
+        | "opamp_enable"
+        | "opamp_bias"
+        | "differential_line_driver";
+    }
   | {
       /** A box standing for a subcircuit the reader's libraries define. */
       readonly family: "generic";
@@ -86,7 +97,8 @@ export type BuiltInModelRecipe =
         | "regulator"
         | "solar_cell"
         | "antenna"
-        | "controlled_current_source";
+        | "controlled_current_source"
+        | "center_tap_xfmr";
     };
 
 export type BuiltInModelContract = BuiltInModelRecipe & {
@@ -198,6 +210,13 @@ const analog = {
     "1m",
     "S",
     "Ideal transconductance driven by the differential input voltage.",
+  ),
+  fully_differential_transconductance: parameter(
+    "gm",
+    "Differential transconductance",
+    "1m",
+    "S",
+    "Ideal fully differential transconductance sourcing +gm/2·(IN+ − IN−) into OUT+ and sinking gm/2·(IN+ − IN−) from OUT−.",
   ),
   multiplier: parameter(
     "gain",
@@ -341,6 +360,176 @@ const transmissionLine: readonly DeviceParameterDefinition[] = [
     "Time a wave takes from one port to the other. A line of normalized electrical length nl at frequency f has td = nl/f: a quarter wave at 1 GHz is {0.25/1G}.",
   ),
 ];
+const relay: readonly DeviceParameterDefinition[] = [
+  {
+    ...parameter(
+      "rcoil",
+      "Coil resistance",
+      "150",
+      "Ohm",
+      "DC resistance of the energizing coil between COIL+ and COIL−.",
+    ),
+    displayRole: "value",
+    valueName: "RCOIL",
+  },
+  parameter(
+    "von",
+    "Pull-in voltage",
+    "5",
+    "V",
+    "Coil voltage threshold |V(COIL+, COIL−)| above which COM switches from NC to NO.",
+  ),
+  parameter(
+    "ron",
+    "Closed resistance",
+    "1",
+    "Ohm",
+    "On-state contact resistance between COM and the closed throw.",
+  ),
+  parameter(
+    "roff",
+    "Open resistance",
+    "1e12",
+    "Ohm",
+    "Off-state isolation resistance between COM and the open throw.",
+  ),
+];
+const singleToDiffAmplifier: readonly DeviceParameterDefinition[] = [
+  parameter(
+    "gain",
+    "Differential gain",
+    "10",
+    "V/V",
+    "Ideal single-ended-to-differential voltage gain: OUT± = vocm ± gain·IN/2.",
+  ),
+  parameter(
+    "vocm",
+    "Output common mode",
+    "0",
+    "V",
+    "Output common-mode level from ground.",
+  ),
+];
+const differentialVideoAmplifier: readonly DeviceParameterDefinition[] = [
+  parameter(
+    "gain",
+    "Differential gain",
+    "100",
+    "V/V",
+    "Ideal differential voltage gain (NE592 style): OUT± = vocm ± gain·(IN+ − IN−)/2.",
+  ),
+  parameter(
+    "vocm",
+    "Output common mode",
+    "0",
+    "V",
+    "Output common-mode level from ground.",
+  ),
+];
+const amplifierParameters: Readonly<
+  Record<string, readonly DeviceParameterDefinition[]>
+> = {
+  opamp_compensated: [
+    parameter(
+      "gain",
+      "Open-loop gain",
+      "1e6",
+      "V/V",
+      "Ideal open-loop voltage gain between the output limits.",
+    ),
+    parameter("vhigh", "Output high limit", "5", "V", "High output limit."),
+    parameter("vlow", "Output low limit", "-5", "V", "Low output limit."),
+  ],
+  opamp_enable: [
+    parameter(
+      "gain",
+      "Open-loop gain",
+      "1e6",
+      "V/V",
+      "Ideal open-loop voltage gain when enabled.",
+    ),
+    parameter("vhigh", "Output high limit", "5", "V", "High output limit."),
+    parameter("vlow", "Output low limit", "-5", "V", "Low output limit."),
+    parameter(
+      "vt",
+      "Enable threshold",
+      "0.5",
+      "V",
+      "Input voltage on EN above which the output stage is active.",
+    ),
+    parameter(
+      "ron",
+      "Enabled output resistance",
+      "10",
+      "Ohm",
+      "Series output resistance while enabled.",
+    ),
+    parameter(
+      "roff",
+      "Muted output resistance",
+      "1e9",
+      "Ohm",
+      "High-impedance output resistance while muted/disabled.",
+    ),
+  ],
+  opamp_bias: [
+    parameter(
+      "gain",
+      "Open-loop gain",
+      "1e6",
+      "V/V",
+      "Ideal open-loop voltage gain between the output limits.",
+    ),
+    parameter("vhigh", "Output high limit", "5", "V", "High output limit."),
+    parameter("vlow", "Output low limit", "-5", "V", "Low output limit."),
+    parameter(
+      "vbias",
+      "Bias output voltage",
+      "0.7",
+      "V",
+      "DC voltage driven on VBIAS through a 100 Ω source impedance.",
+    ),
+    parameter(
+      "vt",
+      "Enable threshold",
+      "0.5",
+      "V",
+      "Input voltage on optional EN above which the output stage is active.",
+    ),
+  ],
+  differential_line_driver: [
+    parameter("vhigh", "High output", "3.3", "V", "Logic-high output level."),
+    parameter("vlow", "Low output", "0", "V", "Logic-low output level."),
+    parameter(
+      "vt",
+      "Input threshold",
+      "1.5",
+      "V",
+      "Input switching threshold on IN.",
+    ),
+    parameter(
+      "ven",
+      "Enable threshold",
+      "0.5",
+      "V",
+      "Enable threshold on EN above which OUT+ and OUT− drive the line.",
+    ),
+    parameter(
+      "ron",
+      "Driver impedance",
+      "50",
+      "Ohm",
+      "Output impedance of OUT+ and OUT− while enabled.",
+    ),
+    parameter(
+      "roff",
+      "Tri-state impedance",
+      "1e12",
+      "Ohm",
+      "High-impedance off resistance while disabled.",
+    ),
+  ],
+};
 // A unijunction's base bar, B2 to B1, with the emitter junction meeting it
 // a fraction `eta` of the way up from B1.
 // Its value is R_BB.
@@ -438,6 +627,29 @@ const boardParameters: Readonly<
       displayRole: "value",
     },
   ],
+  center_tap_xfmr: [
+    parameter(
+      "lp",
+      "Primary inductance",
+      "1m",
+      "H",
+      "Total primary inductance from P+ to P− (split into lp/4 halves when PC is wired).",
+    ),
+    parameter(
+      "ls",
+      "Secondary inductance",
+      "1m",
+      "H",
+      "Total secondary inductance from S+ to S− (each half S+–SC and SC–S− is ls/4).",
+    ),
+    parameter(
+      "k",
+      "Coupling",
+      "0.99",
+      "",
+      "Magnetic coupling between primary and secondary windings (-1 < k < 1).",
+    ),
+  ],
 };
 // The ideal comparator's export checks that each level is a number, so none
 // takes an expression in braces.
@@ -503,10 +715,38 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
     implementation: "opamp_differential",
   },
   voltage_amplifier: { family: "linear", implementation: "voltage_amplifier" },
+  single_to_diff_amplifier: {
+    family: "linear",
+    implementation: "single_to_diff_amplifier",
+  },
+  differential_video_amplifier: {
+    family: "linear",
+    implementation: "differential_video_amplifier",
+  },
   transconductance: { family: "linear", implementation: "transconductance" },
   differential_transconductance: {
     family: "linear",
     implementation: "differential_transconductance",
+  },
+  fully_differential_transconductance: {
+    family: "linear",
+    implementation: "fully_differential_transconductance",
+  },
+  opamp_compensated: {
+    family: "amplifier",
+    implementation: "opamp_compensated",
+  },
+  opamp_enable: {
+    family: "amplifier",
+    implementation: "opamp_enable",
+  },
+  opamp_bias: {
+    family: "amplifier",
+    implementation: "opamp_bias",
+  },
+  differential_line_driver: {
+    family: "amplifier",
+    implementation: "differential_line_driver",
   },
   [ADDER_TARGET]: { family: "linear", implementation: "adder" },
   multiplier: { family: "signal", implementation: "multiplier" },
@@ -538,6 +778,7 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
     family: "passive",
     implementation: "transmission-line",
   },
+  spdt_relay: { family: "passive", implementation: "relay" },
   impedance: { family: "generic", implementation: "impedance" },
   two_port: { family: "generic", implementation: "two-port" },
   ujt: { family: "semiconductor", implementation: "ujt" },
@@ -555,6 +796,10 @@ const recipes: Readonly<Record<string, BuiltInModelRecipe>> = {
   controlled_current_source: {
     family: "board",
     implementation: "controlled_current_source",
+  },
+  center_tap_xfmr: {
+    family: "board",
+    implementation: "center_tap_xfmr",
   },
   d_flip_flop: { family: "logic", implementation: "flip-flop" },
   d_flip_flop_q: { family: "logic", implementation: "flip-flop" },
@@ -607,27 +852,35 @@ function contract(target: string): BuiltInModelContract | undefined {
                 ? crystal
                 : implementation === "transmission-line"
                   ? transmissionLine
-                  : potentiometer
-              : family === "semiconductor"
-                ? implementation === "ujt"
-                  ? ujt
-                  : implementation === "shockley"
-                    ? shockley
-                    : implementation === "crd"
-                      ? crd
-                      : // A PUT's peak point is its gate's, set by the
-                        // circuit; a thyristor, IGBT or clamped NPN has
-                        // its generic transistors' own.
-                        []
-                : family === "board"
-                  ? (boardParameters[target] ?? [])
-                  : target === ADDER_TARGET
-                    ? ADDER_SIGN_PARAMETERS
-                    : target === "opamp_differential"
-                      ? differentialOpamp
-                      : Object.hasOwn(analog, target)
-                        ? [analog[target as keyof typeof analog]]
-                        : [],
+                  : implementation === "relay"
+                    ? relay
+                    : potentiometer
+              : family === "amplifier"
+                ? (amplifierParameters[target] ?? [])
+                : family === "semiconductor"
+                  ? implementation === "ujt"
+                    ? ujt
+                    : implementation === "shockley"
+                      ? shockley
+                      : implementation === "crd"
+                        ? crd
+                        : // A PUT's peak point is its gate's, set by the
+                          // circuit; a thyristor, IGBT or clamped NPN has
+                          // its generic transistors' own.
+                          []
+                  : family === "board"
+                    ? (boardParameters[target] ?? [])
+                    : target === ADDER_TARGET
+                      ? ADDER_SIGN_PARAMETERS
+                      : target === "opamp_differential"
+                        ? differentialOpamp
+                        : target === "single_to_diff_amplifier"
+                          ? singleToDiffAmplifier
+                          : target === "differential_video_amplifier"
+                            ? differentialVideoAmplifier
+                            : Object.hasOwn(analog, target)
+                              ? [analog[target as keyof typeof analog]]
+                              : [],
     // A generic block is only ever a call: the reader's libraries define it.
     backends:
       family === "generic"
@@ -637,6 +890,7 @@ function contract(target: string): BuiltInModelContract | undefined {
             spectre:
               family === "linear" ||
               family === "opamp" ||
+              family === "amplifier" ||
               family === "comparator" ||
               family === "passive" ||
               family === "semiconductor" ||

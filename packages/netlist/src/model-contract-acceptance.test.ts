@@ -148,9 +148,7 @@ function fixture(symbolId: string, parameters: Record<string, string> = {}) {
   // The optional VOCM pin stays unwired: the default `vocm` 0 body, as
   // differential-opamp-vocm.test.ts covers the wired one (#2443).
   const ports = descriptor.ports.filter(
-    (p) =>
-      (symbolId !== "comparator" || !p.supply) &&
-      !(symbolId === "opamp-differential" && p.name === "VOCM"),
+    (p) => (symbolId !== "comparator" || !p.supply) && !p.optional,
   );
   for (const port of ports) {
     const pinName = port.pinName ?? port.supply!;
@@ -283,6 +281,66 @@ const customStimulusCases: Partial<
       "drive (src 0) vs dc=5 mag=1\nlimit (src a) rr r=1000\nreturn (k 0) vs dc=0",
     probe: "drive:flow(br)",
     op: 0,
+  },
+  relay: {
+    // Unenergized coil: COM is connected to NC through ron=1 Ohm.
+    stimulus:
+      "vcoil (COILP 0) vs dc=0\nvcoiln (COILN 0) vs dc=0\nvcom (COM 0) vs dc=1\nrno (NO 0) rr r=1000\nrnc (NC 0) rr r=1000",
+    probe: "NC",
+    op: 1000 / 1001,
+  },
+  "center-tap-xfmr": {
+    stimulus:
+      "vpri (PP 0) vs dc=0 mag=1\nvprin (PN 0) vs dc=0\nvsc (SC 0) vs dc=0\nrlp (SP 0) rr r=1e6\nrln (SN 0) rr r=1e6",
+    probe: "SP",
+    op: 0,
+  },
+  "opamp-compensated": {
+    parameters: { gain: "100" },
+    stimulus:
+      "rail (VDD 0) vs dc=1.8\nvip (VIP 0) vs dc=0.01\nrcomp (COMP1 0) rr r=1e6\nrload (VOUT 0) rr r=1000",
+    probe: "VOUT",
+    op: 1,
+  },
+  "opamp-enable": {
+    parameters: { gain: "100" },
+    stimulus:
+      "rail (VDD 0) vs dc=1.8\nvip (VIP 0) vs dc=0.01\nven (EN 0) vs dc=1.8\nrload (VOUT 0) rr r=1000",
+    probe: "VOUT",
+    op: 1000 / 1010,
+  },
+  "opamp-bias": {
+    parameters: { gain: "100", vbias: "0.7" },
+    stimulus:
+      "rail (VDD 0) vs dc=1.8\nvip (VIP 0) vs dc=0.01\nrload (VOUT 0) rr r=1000\nrbias (VBIAS 0) rr r=1e9",
+    probe: "VOUT",
+    op: 1,
+  },
+  "single-to-diff-amplifier": {
+    parameters: { gain: "100" },
+    stimulus:
+      "rail (VDD 0) vs dc=1.8\nvin (VIN 0) vs dc=0.01\nrloadp (VOP 0) rr r=1000\nrloadn (VON 0) rr r=1000",
+    probe: "VOP",
+    op: 0.5,
+  },
+  "fully-differential-transconductance": {
+    stimulus:
+      "rail (VDD 0) vs dc=1.8\nvip (VIP 0) vs dc=0.01\nrloadp (VOP 0) rr r=1000\nrloadn (VON 0) rr r=1000",
+    probe: "VOP",
+    op: 0.005,
+  },
+  "differential-video-amplifier": {
+    parameters: { gain: "100" },
+    stimulus:
+      "rail (VDD 0) vs dc=1.8\nvip (VIP 0) vs dc=0.01\nrg (G1 G2) rr r=50\nrloadp (VOP 0) rr r=1000\nrloadn (VON 0) rr r=1000",
+    probe: "VOP",
+    op: 0.5,
+  },
+  "differential-line-driver": {
+    stimulus:
+      "rail (VDD 0) vs dc=3.3\nvin (VIN 0) vs dc=3.3\nven (EN 0) vs dc=3.3\nrloadp (VOP 0) rr r=1000\nrloadn (VON 0) rr r=1000",
+    probe: "VOP",
+    op: (3.3 * 1000) / 1050,
   },
 };
 

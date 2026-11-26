@@ -1,5 +1,9 @@
 import { deriveStableId } from "@icm/model";
-import { builtInModelContract } from "@icm/devices";
+import {
+  builtInModelContract,
+  optionalPortBodyPorts,
+  optionalPortBodySpec,
+} from "@icm/devices";
 
 import {
   GENERIC_DIODE_MODEL,
@@ -10,6 +14,7 @@ import {
 } from "./extract-generic-models.js";
 import type {
   DesignNetlistCell,
+  DesignNetlistCoupling,
   DesignNetlistInstance,
   DesignNetlistModel,
 } from "./ir.js";
@@ -63,10 +68,14 @@ export function semiconductorDeviceCell(
   target: string,
   format: NetlistFormat,
 ): DesignNetlistCell | null {
-  const model = builtInModelContract(target);
+  const optionalSpec = optionalPortBodySpec(target);
+  const contractTarget = optionalSpec?.target ?? target;
+  const model = builtInModelContract(contractTarget);
   if (model?.family !== "semiconductor" && model?.family !== "board")
     return null;
-  const ports = model.ports.map((port) => port.name);
+  const ports = (
+    optionalSpec ? optionalPortBodyPorts(target)! : model.ports
+  ).map((port) => port.name);
   const expression = (text: string) =>
     format === "spice" ? `{${text}}` : text;
   const valueName = {
@@ -79,6 +88,7 @@ export function semiconductorDeviceCell(
     deviceClass:
       | "resistor"
       | "capacitor"
+      | "inductor"
       | "diode"
       | "bjt"
       | "jfet"
@@ -130,6 +140,7 @@ export function semiconductorDeviceCell(
   let internal: string[];
   let instances: DesignNetlistInstance[];
   let models: DesignNetlistModel[];
+  let couplings: DesignNetlistCoupling[] | undefined;
   if (model.implementation === "ujt") {
     const [e, b1, b2] = ports as [string, string, string];
     internal = ["nb"];
@@ -522,6 +533,118 @@ export function semiconductorDeviceCell(
       ),
     ];
     models = [];
+  } else if (model.implementation === "center_tap_xfmr") {
+    const dual = optionalSpec?.optionalPort === "PC";
+    internal = [];
+    models = [];
+    const coupling = (
+      reference: string,
+      first: DesignNetlistInstance,
+      second: DesignNetlistInstance,
+      kExpr: string,
+    ): DesignNetlistCoupling => ({
+      id: deriveStableId("netlist-semiconductor-coupling", target, reference),
+      reference,
+      inductorIds: [first.id, second.id],
+      k: expression(kExpr),
+      polarity: 1,
+    });
+    if (dual) {
+      const [pp, pn, sp, sc, sn, pc] = ports as [
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+      ];
+      const lp1 = part(
+        "inductor",
+        "LP1",
+        [
+          ["1", pp],
+          ["2", pc],
+        ],
+        { value: expression("lp/4") },
+      );
+      const lp2 = part(
+        "inductor",
+        "LP2",
+        [
+          ["1", pc],
+          ["2", pn],
+        ],
+        { value: expression("lp/4") },
+      );
+      const ls1 = part(
+        "inductor",
+        "LS1",
+        [
+          ["1", sp],
+          ["2", sc],
+        ],
+        { value: expression("ls/4") },
+      );
+      const ls2 = part(
+        "inductor",
+        "LS2",
+        [
+          ["1", sc],
+          ["2", sn],
+        ],
+        { value: expression("ls/4") },
+      );
+      instances = [lp1, lp2, ls1, ls2];
+      couplings = [
+        coupling("KPP", lp1, lp2, "abs(k)"),
+        coupling("KSS", ls1, ls2, "abs(k)"),
+        coupling("KP1S1", lp1, ls1, "k"),
+        coupling("KP1S2", lp1, ls2, "k"),
+        coupling("KP2S1", lp2, ls1, "k"),
+        coupling("KP2S2", lp2, ls2, "k"),
+      ];
+    } else {
+      const [pp, pn, sp, sc, sn] = ports as [
+        string,
+        string,
+        string,
+        string,
+        string,
+      ];
+      const lp = part(
+        "inductor",
+        "LP",
+        [
+          ["1", pp],
+          ["2", pn],
+        ],
+        { value: expression("lp") },
+      );
+      const ls1 = part(
+        "inductor",
+        "LS1",
+        [
+          ["1", sp],
+          ["2", sc],
+        ],
+        { value: expression("ls/4") },
+      );
+      const ls2 = part(
+        "inductor",
+        "LS2",
+        [
+          ["1", sc],
+          ["2", sn],
+        ],
+        { value: expression("ls/4") },
+      );
+      instances = [lp, ls1, ls2];
+      couplings = [
+        coupling("KPS1", lp, ls1, "k"),
+        coupling("KPS2", lp, ls2, "k"),
+        coupling("KSS", ls1, ls2, "abs(k)"),
+      ];
+    }
   } else if (model.implementation === "schottky_npn") {
     const [c, b, e] = ports as [string, string, string];
     internal = [];
@@ -624,5 +747,6 @@ export function semiconductorDeviceCell(
     })),
     instances,
     models,
+    ...(couplings ? { couplings } : {}),
   };
 }

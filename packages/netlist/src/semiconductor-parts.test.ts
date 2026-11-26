@@ -58,7 +58,9 @@ function partCell(
         },
   });
   const pins = body
-    ? body.ports.map((port) => [port.name, port.pinName!] as const)
+    ? body.ports
+        .filter((port) => !port.optional)
+        .map((port) => [port.name, port.pinName!] as const)
     : device!.pinOrder.map(
         (pin) =>
           [
@@ -310,5 +312,85 @@ describe("regulators, references and board parts (#2444)", () => {
     );
     expect(spice).toMatch(/^X1 p n ctrl controlled_current_source gm=2m$/mu);
     expect(spectre).toContain("GCORE (p n ctrl 0) vccs gm=gm");
+  });
+
+  it("export an electromagnetic SPDT relay as its coil and smooth contact model", () => {
+    const [spice, spectre] = exported(partCell("relay", { rcoil: "200" }));
+    expect(spice).toContain(
+      ".subckt spdt_relay COILP COILN COM NO NC params: rcoil=150 von=5 ron=1 roff=1e12",
+    );
+    expect(spice).toContain("Rcoil COILP COILN {rcoil}");
+    expect(spice).toMatch(/^X1 COILP COILN COM NO NC spdt_relay rcoil=200$/mu);
+    expect(spectre).toContain("subckt spdt_relay (COILP COILN COM NO NC)");
+    expect(spectre).toContain("Rcoil (COILP COILN) resistor r=rcoil");
+  });
+
+  it("export a center-tapped transformer as 3 windings by default and 4 when PC is wired", () => {
+    const [spice5, spectre5] = exported(
+      partCell("center-tap-xfmr", { lp: "1m", ls: "4m", k: "0.99" }),
+    );
+    expect(spice5).toContain(
+      [
+        ".subckt center_tap_xfmr PP PN SP SC SN params: lp=1m ls=1m k=0.99",
+        "LP PP PN {lp}",
+        "LS1 SP SC {ls/4}",
+        "LS2 SC SN {ls/4}",
+        "KPS1 LP LS1 {k}",
+        "KPS2 LP LS2 {k}",
+        "KSS LS1 LS2 {abs(k)}",
+        ".ends center_tap_xfmr",
+      ].join("\n"),
+    );
+    expect(spice5).toMatch(
+      /^X1 PP PN SP SC SN center_tap_xfmr k=0.99 lp=1m ls=4m$/mu,
+    );
+    expect(spectre5).toContain(
+      "KPS1 mutual_inductor coupling=k ind1=LP ind2=LS1",
+    );
+    expect(spectre5).toContain(
+      "KSS mutual_inductor coupling=abs(k) ind1=LS1 ind2=LS2",
+    );
+
+    // Wiring optional primary center tap PC selects the dual-tap 4-winding body.
+    const dual = partCell("center-tap-xfmr", { lp: "1m", ls: "4m", k: "0.99" });
+    const doc = dual.documents[0]!;
+    doc.instances.push({ id: "pin-PC", symbolId: "port", placement: null });
+    doc.nets.push({
+      id: "PC",
+      terminals: [
+        { instanceId: "pin-PC", pinName: "P" },
+        { instanceId: "part", pinName: "PC" },
+      ],
+    });
+    doc.netlist!.terminals.push({
+      id: "terminal-PC",
+      name: "PC",
+      netId: "PC",
+      direction: "inout",
+      interfaceInstanceIds: ["pin-PC"],
+    });
+    const [spice6, spectre6] = exported(dual);
+    expect(spice6).toContain(
+      [
+        ".subckt icm_center_tap_xfmr_dual PP PN SP SC SN PC params: lp=1m ls=1m k=0.99",
+        "LP1 PP PC {lp/4}",
+        "LP2 PC PN {lp/4}",
+        "LS1 SP SC {ls/4}",
+        "LS2 SC SN {ls/4}",
+        "KPP LP1 LP2 {abs(k)}",
+        "KSS LS1 LS2 {abs(k)}",
+        "KP1S1 LP1 LS1 {k}",
+        "KP1S2 LP1 LS2 {k}",
+        "KP2S1 LP2 LS1 {k}",
+        "KP2S2 LP2 LS2 {k}",
+        ".ends icm_center_tap_xfmr_dual",
+      ].join("\n"),
+    );
+    expect(spice6).toMatch(
+      /^X1 PP PN SP SC SN PC icm_center_tap_xfmr_dual k=0.99 lp=1m ls=4m$/mu,
+    );
+    expect(spectre6).toContain(
+      "subckt icm_center_tap_xfmr_dual (PP PN SP SC SN PC)",
+    );
   });
 });

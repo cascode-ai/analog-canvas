@@ -28,6 +28,7 @@ import {
   isSupplyLimitParameter,
   limitFollowsSupply,
   isSupplyHighLevel,
+  optionalPortBodyFor,
   type BuiltInSubcircuitDescriptor,
 } from "@icm/devices";
 import { parseSpiceNumber } from "@icm/spice";
@@ -347,6 +348,15 @@ export function extractBuiltInSubcircuitInstance(
   const diffOpampBody = idealDifferentialOpamp
     ? differentialOpampBodyFor(opampParameters, vocmBody)
     : undefined;
+  const optionalBody =
+    libraryPart &&
+    !idealDifferentialOpamp &&
+    target.toLowerCase() === definition.target.toLowerCase()
+      ? optionalPortBodyFor(
+          definition.target,
+          ports.find((port) => port.optional)?.name,
+        )
+      : undefined;
   if (idealOpamp || idealDifferentialOpamp) {
     for (const key of [OPAMP_GBW, OPAMP_ROUT] as const) {
       const entry = parameters.find(([name]) => name.toLowerCase() === key);
@@ -372,7 +382,7 @@ export function extractBuiltInSubcircuitInstance(
     reference,
     invocationKind: "subcircuit",
     deviceClass: "hierarchical",
-    target: opampBody ?? diffOpampBody ?? target,
+    target: opampBody ?? diffOpampBody ?? optionalBody ?? target,
     nodes,
     // A comparator's call keeps the authored order. Its body that reads VDD
     // takes no vhigh, so that call carries none. An op-amp's limit set to its

@@ -1,0 +1,384 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "opamp-enable-inputs-swapped",
+    "name": "Enable / Mute Op Amp (swapped inputs)",
+    "viewBox": {
+      "x": -44,
+      "y": -34,
+      "width": 88,
+      "height": 68
+    },
+    "pins": [
+      {
+        "name": "IN+",
+        "role": "non-inverting-input",
+        "at": {
+          "x": -40,
+          "y": -10
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "IN-",
+        "role": "inverting-input",
+        "at": {
+          "x": -40,
+          "y": 10
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "OUT",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": 0
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 8
+        }
+      },
+      {
+        "name": "EN",
+        "role": "input",
+        "at": {
+          "x": 10,
+          "y": 30
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 23
+        }
+      },
+      {
+        "name": "GND",
+        "role": "ground",
+        "at": {
+          "x": 0,
+          "y": 30
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 17
+        }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": -10,
+          "y": -30
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 12
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": -10,
+          "y": 30
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 12
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "from": {
+          "x": -40,
+          "y": -10
+        },
+        "to": {
+          "x": -30,
+          "y": -10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -40,
+          "y": 10
+        },
+        "to": {
+          "x": -30,
+          "y": 10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 21.961524,
+          "y": 0
+        },
+        "to": {
+          "x": 30,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "data": "M -30 -30 L -30 30 L 21.961524 0 Z",
+        "bounds": {
+          "x": -30,
+          "y": -30,
+          "width": 51.961524,
+          "height": 60
+        },
+        "fillableBody": true,
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -23.75,
+          "y": -11
+        },
+        "to": {
+          "x": -23.75,
+          "y": -17
+        },
+        "part": "input-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -26.75,
+          "y": -14
+        },
+        "to": {
+          "x": -20.75,
+          "y": -14
+        },
+        "part": "input-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -26.75,
+          "y": 14
+        },
+        "to": {
+          "x": -20.75,
+          "y": 14
+        },
+        "part": "upright-input-polarity-negative",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 10,
+          "y": 6.905989
+        },
+        "to": {
+          "x": 10,
+          "y": 30
+        },
+        "part": "en-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": 0,
+          "y": 12.679492
+        },
+        "to": {
+          "x": 0,
+          "y": 30
+        },
+        "part": "gnd-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -10,
+          "y": -18.452995
+        },
+        "to": {
+          "x": -10,
+          "y": -30
+        },
+        "part": "vdd-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -10,
+          "y": 18.452995
+        },
+        "to": {
+          "x": -10,
+          "y": 30
+        },
+        "part": "vss-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS", "GND"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead", "gnd-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": ["GND"],
+        "hiddenPrimitiveParts": ["gnd-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "gnd-pin",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-gnd-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
+    "defaultVariantId": "signal-pins"
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "opamp-enable-inputs-swapped",
+    "symbolId": "opamp-enable-inputs-swapped",
+    "target": "opamp_enable",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIP",
+        "direction": "input",
+        "pinName": "IN+"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "IN-"
+      },
+      {
+        "name": "VOUT",
+        "direction": "output",
+        "pinName": "OUT"
+      },
+      {
+        "name": "EN",
+        "direction": "input",
+        "pinName": "EN"
+      },
+      {
+        "name": "GND",
+        "direction": "inout",
+        "pinName": "GND",
+        "optional": true
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "opamp-enable-inputs-swapped",
+    "name": "Enable / Mute Op Amp (swapped inputs)",
+    "category": "analog-block",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "An op-amp with an enable/mute pin (and optional GND pin for power op-amps such as LM3876) does not appear on the reviewed page; it extends the reviewed equilateral op-amp with EN and optional GND leads on the lower slanted edge.",
+    "pinOrder": ["IN+", "IN-", "OUT", "EN", "GND", "VDD", "VSS"],
+    "palette": false,
+    "automaticMappings": [],
+    "manualOnlyReason": "Op-amp with enable/mute control; prints as a call of the generated behavioral op-amp body whose output drives the load when V(EN) > vt and mutes to high impedance below vt.",
+    "assetPath": "opamp-enable-inputs-swapped.json",
+    "generation": {
+      "kind": "derived-input-swap",
+      "sourceSymbolId": "opamp-enable",
+      "converterPath": "scripts/generate-input-swapped-amplifiers.mjs",
+      "converterVersion": 1
+    }
+  }
+}
