@@ -63,15 +63,12 @@ const expectedCrowdedLabels = {
   "ota-library/document-ota-5t-testbench": ["instance-value-IBIAS"],
   "ota-library/document-ota-5t-testbench-sin": ["instance-value-IBIAS"],
 };
-// The reviewed common-source drawing leaves one wire ending in the open, which
-// ERC_DANGLING_WIRE names: the dashed bulk wire from XM1. The stub from the
-// supply's minus pin ends on a Junction exactly on the Ground marker's pin, so
-// the two are one same-Net contact and the wire does not end in the open
-// (#2357). Pinned by owner, not by count, so a new open end still fails; the
-// reviewed geometry is not changed here.
-const expectedOpenWireEnds = {
-  "common-source/cell-common-source": ["route-ui-5:junction-ui-4"],
-};
+// The reviewed common-source drawing's two former open-end findings are both
+// same-Net contacts: the supply minus stub meets the Ground marker's pin
+// (#2357), and XM1's dashed bulk wire (`route-ui-5:junction-ui-4`) meets the
+// source wire of the same Logical Net (#2645). Kept pinned as empty so any new
+// open end fails; the reviewed geometry is not changed here.
+const expectedOpenWireEnds = {};
 
 // The full-library case stays an acceptance obligation during migration. Do not
 // filter unfinished model-backed folders out of it to obtain a green result.
