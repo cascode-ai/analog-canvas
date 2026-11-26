@@ -27,7 +27,11 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
-import { resolveDrawingOrder, routeElectricalConnections } from "@icm/model";
+import {
+  draftingIsBackground,
+  resolveDrawingOrder,
+  routeElectricalConnections,
+} from "@icm/model";
 
 import { copySelectionInputs } from "./copy-source-reads";
 import type { CopyContext } from "./project-copy";
@@ -80,7 +84,11 @@ export function copyDrawingOrder(
     "instances" | "annotations" | "draftingObjects"
   >,
 ): DrawingOrderEntry[] | undefined {
-  if (!source.drawingOrder && !contents.instances.some((item) => item.bodyFill))
+  if (
+    !source.drawingOrder &&
+    !contents.instances.some((item) => item.bodyFill) &&
+    !contents.draftingObjects.some(draftingIsBackground)
+  )
     return;
   return resolveDrawingOrder({
     drawingOrder: resolveDrawingOrder(source),

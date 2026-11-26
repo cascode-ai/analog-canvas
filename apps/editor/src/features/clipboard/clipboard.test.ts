@@ -3098,4 +3098,232 @@ describe("a copy stands on its own", () => {
       fallbackPosition: { x: 220, y: 100 },
     });
   });
+
+  it("keeps a background filled rectangle behind wires when copying only the rectangle (#2485)", () => {
+    const document = createEmptyDocument("doc", "Filled rect paste");
+    document.nets.push({ id: "net-1", terminals: [] });
+    document.junctions.push(
+      { id: "j1", netId: "net-1", position: { x: 40, y: 100 } },
+      { id: "j2", netId: "net-1", position: { x: 280, y: 100 } },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "wire-1",
+        netId: "net-1",
+        start: { kind: "junction", junctionId: "j1" },
+        end: { kind: "junction", junctionId: "j2" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    document.drafting = {
+      objects: [
+        {
+          id: "box-1",
+          kind: "rectangle",
+          locked: false,
+          zIndex: 0,
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          center: { x: 100, y: 100 },
+          width: 80,
+          height: 40,
+          rotation: 0,
+          lineStyle: "solid",
+          styleOverride: { fillColor: "#d4ecff" },
+        },
+        {
+          id: "fir-label",
+          kind: "text",
+          locked: false,
+          zIndex: 0,
+          anchor: {
+            kind: "object",
+            objectId: "box-1",
+            localOffset: { x: 0, y: 0 },
+            fallbackPosition: { x: 100, y: 100 },
+          },
+          content: { runs: [{ kind: "text", value: "FIR" }] },
+          alignment: "middle",
+          rotation: 0,
+          typographyToken: "label",
+        },
+      ],
+    };
+    document.drawingOrder = [
+      { kind: "drafting", id: "box-1" },
+      { kind: "drafting", id: "fir-label" },
+      { kind: "electrical" },
+      { kind: "circuit-marks" },
+    ];
+
+    const clipboard = copySelection(document, [], ["box-1"]);
+    expect(clipboard?.drawingOrder).toBeDefined();
+    const proposal = proposePaste(document, clipboard!, { x: 120, y: 0 }, 1);
+    const result = executeTransaction(
+      document,
+      {
+        transactionId: "paste-bg-rect",
+        documentId: document.id,
+        expectedRevision: document.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const pastedBoxId = proposal.idRemap.draftingObjects["box-1"]!;
+    const pastedLabelId = proposal.idRemap.draftingObjects["fir-label"]!;
+    const order = result.document.drawingOrder!;
+    const boxIndex = order.findIndex(
+      (entry) => entry.kind === "drafting" && entry.id === pastedBoxId,
+    );
+    const labelIndex = order.findIndex(
+      (entry) => entry.kind === "drafting" && entry.id === pastedLabelId,
+    );
+    const electricalIndex = order.findIndex(
+      (entry) => entry.kind === "electrical",
+    );
+    expect(boxIndex).toBeGreaterThanOrEqual(0);
+    expect(labelIndex).toBeGreaterThan(boxIndex);
+    expect(labelIndex).toBeLessThan(electricalIndex);
+  });
+
+  it("preserves copyDrawingOrder for filled background rectangles even before an explicit drawingOrder exists", () => {
+    const source = createEmptyDocument("source", "Source");
+    source.drafting = {
+      objects: [
+        {
+          id: "box-bg",
+          kind: "rectangle",
+          locked: false,
+          zIndex: 0,
+          layer: "background",
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          center: { x: 100, y: 100 },
+          width: 80,
+          height: 40,
+          rotation: 0,
+          lineStyle: "solid",
+          styleOverride: { fillColor: "#d4ecff" },
+        },
+        {
+          id: "fir-label",
+          kind: "text",
+          locked: false,
+          zIndex: 0,
+          anchor: {
+            kind: "object",
+            objectId: "box-bg",
+            localOffset: { x: 0, y: 0 },
+            fallbackPosition: { x: 100, y: 100 },
+          },
+          content: { runs: [{ kind: "text", value: "FIR" }] },
+          alignment: "middle",
+          rotation: 0,
+          typographyToken: "label",
+        },
+      ],
+    };
+
+    const clipboard = copySelection(source, [], ["box-bg"]);
+    expect(clipboard?.drawingOrder).toBeDefined();
+    const target = createEmptyDocument("target", "Target");
+    target.drawingOrder = [{ kind: "electrical" }, { kind: "circuit-marks" }];
+
+    const proposal = proposePaste(target, clipboard!, { x: 40, y: 0 }, 1);
+    const result = executeTransaction(
+      target,
+      {
+        transactionId: "paste-bg-layer-rect",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: proposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const pastedBoxId = proposal.idRemap.draftingObjects["box-bg"]!;
+    const pastedLabelId = proposal.idRemap.draftingObjects["fir-label"]!;
+    const order = result.document.drawingOrder!;
+    const boxIndex = order.findIndex(
+      (entry) => entry.kind === "drafting" && entry.id === pastedBoxId,
+    );
+    const labelIndex = order.findIndex(
+      (entry) => entry.kind === "drafting" && entry.id === pastedLabelId,
+    );
+    const electricalIndex = order.findIndex(
+      (entry) => entry.kind === "electrical",
+    );
+    expect(boxIndex).toBeGreaterThanOrEqual(0);
+    expect(boxIndex).toBeLessThan(electricalIndex);
+    expect(labelIndex).toBeGreaterThan(electricalIndex);
+
+    // Even a legacy clipboard without clipboard.drawingOrder must keep a
+    // background-layered rectangle behind electrical wires in an ordered target.
+    const legacyClipboard = structuredClone(clipboard!);
+    delete legacyClipboard.drawingOrder;
+    const legacyProposal = proposePaste(
+      target,
+      legacyClipboard,
+      { x: 40, y: 0 },
+      2,
+    );
+    const legacyResult = executeTransaction(
+      target,
+      {
+        transactionId: "paste-legacy-bg-layer-rect",
+        documentId: target.id,
+        expectedRevision: target.revision,
+        actor: { kind: "human", id: "test" },
+        edits: legacyProposal.edits,
+      },
+      { symbolResolver: resolver },
+    );
+    expect(legacyResult.ok).toBe(true);
+    if (!legacyResult.ok) return;
+    const legacyBoxId = legacyProposal.idRemap.draftingObjects["box-bg"]!;
+    const legacyOrder = legacyResult.document.drawingOrder!;
+    expect(
+      legacyOrder.findIndex(
+        (entry) => entry.kind === "drafting" && entry.id === legacyBoxId,
+      ),
+    ).toBeLessThan(
+      legacyOrder.findIndex((entry) => entry.kind === "electrical"),
+    );
+  });
+
+  it("does not materialize drawingOrder when copying a foreground filled rectangle without source drawingOrder", () => {
+    const source = createEmptyDocument("source", "Foreground filled rect");
+    source.drafting = {
+      objects: [
+        {
+          id: "box-fg",
+          kind: "rectangle",
+          locked: false,
+          zIndex: 0,
+          layer: "foreground",
+          anchor: { kind: "free", position: { x: 100, y: 100 } },
+          center: { x: 100, y: 100 },
+          width: 80,
+          height: 40,
+          rotation: 0,
+          lineStyle: "solid",
+          styleOverride: { fillColor: "#d4ecff" },
+        },
+      ],
+    };
+
+    const clipboard = copySelection(source, [], ["box-fg"]);
+    expect(clipboard?.drawingOrder).toBeUndefined();
+    const target = createEmptyDocument("target", "Target");
+    const proposal = proposePaste(target, clipboard!, { x: 40, y: 0 }, 1);
+    expect(
+      proposal.edits.some((edit) => edit.kind === "reorder_drawing_objects"),
+    ).toBe(false);
+  });
 });

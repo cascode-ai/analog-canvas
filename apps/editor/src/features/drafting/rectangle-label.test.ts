@@ -241,4 +241,61 @@ describe("rectangle label ownership in layers and mirroring", () => {
         mirroredLabel.anchor.localOffset,
     ).toEqual({ x: -12, y: -4 });
   });
+
+  it("mirrors an off-center rectangle label even when only the host rectangle is selected", () => {
+    const box = rectangle("box-1", { x: 100, y: 60 }, 80, 40);
+    const label: Extract<DraftingObject, { kind: "text" }> = {
+      ...proposeRectangleLabel(box, "fir-1"),
+      anchor: {
+        kind: "object",
+        objectId: "box-1",
+        localOffset: { x: 12, y: -4 },
+        fallbackPosition: { x: 112, y: 56 },
+      },
+      content: { runs: [{ kind: "text", value: "FIR" }] },
+    };
+    let document = documentWith([box, label]);
+    const controller = createSelectionTransformController({
+      document,
+      resolver,
+      styleProfile: resolveDocumentStyleProfile(document.presentation),
+      routeGeometryRecords: [],
+      annotationGrid: 1,
+      selectedInstanceIds: [],
+      selection: {
+        instanceIds: [],
+        routeIds: [],
+        junctionIds: [],
+        annotationIds: [],
+        draftingIds: ["box-1"],
+      },
+      transact(edits) {
+        const result = executeTransaction(
+          document,
+          {
+            transactionId: "mirror-rect-only",
+            documentId: document.id,
+            expectedRevision: document.revision,
+            actor: { kind: "human", id: "test" },
+            edits,
+          },
+          { symbolResolver: resolver },
+        );
+        if (result.ok) document = result.document;
+        return result;
+      },
+      setStatus: vi.fn(),
+    });
+
+    controller.mirror("left-right");
+
+    const mirroredLabel = document.drafting?.objects.find(
+      (item) => item.id === "fir-1",
+    );
+    expect(
+      mirroredLabel?.kind === "text" &&
+        mirroredLabel.anchor.kind === "object" &&
+        mirroredLabel.anchor.localOffset,
+    ).toEqual({ x: -12, y: -4 });
+  });
 });

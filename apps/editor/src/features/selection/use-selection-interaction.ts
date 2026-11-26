@@ -130,6 +130,9 @@ const isSameMoveProjectionInput = <T extends MoveProjectionInput>(
 export interface UseSelectionInteractionOptions {
   project: CircuitProject;
   document: SchematicDocument;
+  /** Live committed Project/Document so same-tick commits (e.g. text-edit blur) are never overwritten by a stale render closure. */
+  getProject: () => CircuitProject;
+  getDocument: () => SchematicDocument;
   resolver: SymbolResolver;
   visualSelection: VisualSelection;
   selectedIds: readonly string[];
@@ -254,20 +257,21 @@ export function useSelectionInteraction(
    */
   const prepareDetachedMove = (
     instanceIds: ReadonlySet<string>,
+    baseDocument: SchematicDocument = options.document,
   ): { document: SchematicDocument; edits: SchematicEdit[] } => {
     detachSequenceRef.current += 1;
     const planned = planDetachedMove(
-      options.document,
+      baseDocument,
       options.resolver,
       instanceIds,
       detachSequenceRef.current,
     );
     if (planned.edits.length === 0) {
-      return { document: options.document, edits: [] };
+      return { document: baseDocument, edits: [] };
     }
     const gate = gateRoutingOperationPlan(
-      options.document,
-      createRoutingOperationPlan(options.document, {
+      baseDocument,
+      createRoutingOperationPlan(baseDocument, {
         intent: "transform",
         diagnostics: [],
         edits: planned.edits,
@@ -462,6 +466,7 @@ export function useSelectionInteraction(
     preparePreview: () => SelectionMovePreview,
     source: SchematicDocument,
     prefixEdits: SchematicEdit[],
+    baseDocument: SchematicDocument,
     onFinish?: (dragged: boolean) => void,
     thresholdPx = 4,
   ): void => {
@@ -496,6 +501,7 @@ export function useSelectionInteraction(
         options.canvasDragSessionRef.current = null;
         try {
           if (dragged && session) {
+            if (options.getDocument() !== baseDocument) return;
             const point = options.pointFromClient(
               client.x,
               client.y,
@@ -542,7 +548,7 @@ export function useSelectionInteraction(
       },
     });
     pointerMoveSessionRef.current = {
-      source: options.document,
+      source: baseDocument,
       cancel: () => options.canvasDragSessionRef.current?.cancel(),
     };
   };
@@ -858,15 +864,10 @@ export function useSelectionInteraction(
           }
           started = true;
         }
+        const grid = options.getDocument().presentation.grid;
         options.setCopyPreviewPoint({
-          x: options.snapCoordinate(
-            point.x,
-            options.document.presentation.grid,
-          ),
-          y: options.snapCoordinate(
-            point.y,
-            options.document.presentation.grid,
-          ),
+          x: options.snapCoordinate(point.x, grid),
+          y: options.snapCoordinate(point.y, grid),
         });
       },
       onFinish: ({ client, dragged }) => {
@@ -897,7 +898,8 @@ export function useSelectionInteraction(
       options.cancelInteraction();
     }
     event.stopPropagation();
-    const instance = options.document.instances.find(
+    const currentDocument = options.getDocument();
+    const instance = currentDocument.instances.find(
       (candidate) => candidate.id === instanceId,
     );
     if (!instance?.placement) return;
@@ -932,10 +934,13 @@ export function useSelectionInteraction(
             draftingIds: [],
           };
     let detachEdits: SchematicEdit[] = [];
-    let previewBaseDocument = options.document;
+    let previewBaseDocument = currentDocument;
     if (detachDrag) {
       try {
-        const prepared = prepareDetachedMove(new Set([instanceId]));
+        const prepared = prepareDetachedMove(
+          new Set([instanceId]),
+          currentDocument,
+        );
         detachEdits = prepared.edits;
         previewBaseDocument = prepared.document;
       } catch (error) {
@@ -973,7 +978,7 @@ export function useSelectionInteraction(
           primaryInstanceId: instanceId,
           originalPositions: Object.fromEntries(
             movePlan.instanceIds.map((id) => {
-              const candidate = options.document.instances.find(
+              const candidate = currentDocument.instances.find(
                 (item) => item.id === id,
               )!;
               return [id, { ...candidate.placement!.position }];
@@ -985,6 +990,7 @@ export function useSelectionInteraction(
       },
       previewBaseDocument,
       detachEdits,
+      currentDocument,
       (dragged) => {
         if (dragged && detachDrag) selectInstance(instanceId, false);
         else if (!dragged && detachDrag) toggleInstance(instanceId);
@@ -999,7 +1005,8 @@ export function useSelectionInteraction(
     hitTarget: SVGElement = event.currentTarget,
   ): void => {
     if (options.tool !== "pointer" || event.button !== 0) return;
-    const movePlan = planSelectionMove(options.document, selection);
+    const currentDocument = options.getDocument();
+    const movePlan = planSelectionMove(currentDocument, selection);
     if (movePlan.previewObjectIds.length === 0) {
       options.cancelInteraction();
       options.setStatus(
@@ -1027,8 +1034,9 @@ export function useSelectionInteraction(
       event,
       hitTarget,
       () => preview,
-      options.document,
+      currentDocument,
       [],
+      currentDocument,
     );
   };
 
@@ -1313,7 +1321,7 @@ export function useSelectionInteraction(
     // directly, independent of the (possibly stale) live selection state.
     let copied: SchematicClipboard | null;
     try {
-      copied = captureProjectCopy(options.project, options.document, {
+      copied = captureProjectCopy(options.getProject(), options.getDocument(), {
         instanceIds: explicitInstanceIds ?? options.selectedIds,
         draftingIds: explicitInstanceIds
           ? []
@@ -1362,22 +1370,24 @@ export function useSelectionInteraction(
       // The whole copied subgraph turns/flips as one rigid body about its
       // grab anchor, and each part's labels follow its turn — the same
       // geometry the ghost previews, from the same resolved Symbols.
+      const currentProject = options.getProject();
+      const currentDocument = options.getDocument();
       const oriented = orientClipboard(
         copyPlacement.clipboard,
         copyPlacement.orientationOperations,
         copyPlacement.anchor,
         {
           resolver: prepareProjectCopy(
-            options.project,
-            options.document,
+            currentProject,
+            currentDocument,
             copyPlacement.clipboard,
           ).resolver,
-          presentation: options.document.presentation,
+          presentation: currentDocument.presentation,
         },
       );
       proposal = planProjectCopyPlacement(
-        options.project,
-        options.document,
+        currentProject,
+        currentDocument,
         oriented,
         {
           x: point.x - copyPlacement.anchor.x,

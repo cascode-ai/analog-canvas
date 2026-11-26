@@ -5,6 +5,7 @@ import {
 } from "@icm/edit-engine";
 import {
   deriveRoutingAffectedClosure,
+  draftingLabelOwnerId,
   resolveAnnotationPresentation,
   resolveDocumentRoutingGeometry,
   resolveDraftingObjectGeometry,
@@ -244,7 +245,24 @@ export function createSelectionTransformController({
       ...closure.internalRoutes,
       ...draftingObjects.map((object) => object.id),
     ]);
-    const draftingEdits = draftingObjects.flatMap((object): SchematicEdit[] => {
+    const selectedDraftingIds = new Set(
+      draftingObjects.map((object) => object.id),
+    );
+    const attachedDraftingLabels = (document.drafting?.objects ?? []).filter(
+      (object) => {
+        const ownerId = draftingLabelOwnerId(object);
+        return (
+          !object.locked &&
+          ownerId !== undefined &&
+          !selectedDraftingIds.has(object.id) &&
+          mirroredHostIds.has(ownerId)
+        );
+      },
+    );
+    const draftingEdits = [
+      ...draftingObjects,
+      ...attachedDraftingLabels,
+    ].flatMap((object): SchematicEdit[] => {
       const next = mirrorDraftingObject(
         object,
         pivot,
