@@ -48,11 +48,15 @@ export async function queueGallerySimulationChecks(
 /** How the queue stands; null when it cannot be read. */
 export async function loadGallerySimulationChecks(
   fetchLike: typeof fetch,
+  polling = false,
 ): Promise<GallerySimulationCheckProgress | null> {
   try {
-    const response = await fetchLike("/api/gallery/simulation-checks", {
-      credentials: "same-origin",
-    });
+    const response = await fetchLike(
+      "/api/gallery/simulation-checks" + (polling ? "?poll=1" : ""),
+      {
+        credentials: "same-origin",
+      },
+    );
     return response.ok
       ? ((await response.json()) as GallerySimulationCheckProgress)
       : null;

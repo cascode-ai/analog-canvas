@@ -928,7 +928,7 @@ it("does not extend authorization when account transport fails or redirects", as
         displayName: "Offline",
       })
     ).status,
-  ).toBe(401);
+  ).toBe(503);
 });
 
 it("returns a newly minted token even when another tab lists tokens before its response arrives", async () => {

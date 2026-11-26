@@ -145,16 +145,25 @@ export async function routeRegionalMaintenance(
   const auth = (operation: string, body: unknown) =>
     authBinding
       .getByName("auth")
-      .fetch("https://auth/internal/resource-action-" + operation, {
-        method: "POST",
-        headers: {
-          cookie: request.headers.get("cookie") ?? "",
-          ...(byToken
-            ? { authorization: request.headers.get("authorization")! }
-            : {}),
+      .fetch(
+        "https://auth/internal/resource-action-" +
+          operation +
+          (request.method === "GET" &&
+          url.pathname === CHECKS &&
+          url.searchParams.get("poll") === "1"
+            ? "?poll"
+            : ""),
+        {
+          method: "POST",
+          headers: {
+            cookie: request.headers.get("cookie") ?? "",
+            ...(byToken
+              ? { authorization: request.headers.get("authorization")! }
+              : {}),
+          },
+          body: JSON.stringify(body),
         },
-        body: JSON.stringify(body),
-      });
+      );
   try {
     const peer = new URL(env.RESOURCE_ACTION_PEER);
     if (
@@ -173,7 +182,8 @@ export async function routeRegionalMaintenance(
       if (!response.ok) throw new Error("Unknown writer");
       return (await response.json()) as { known: boolean; origin: string };
     };
-    const location = async (id: string) => String((await locationInfo(id)).origin);
+    const location = async (id: string) =>
+      String((await locationInfo(id)).origin);
     // Versions replicate under their entry's id, so they share its writer.
     const writerKey = async (body: { table: string; id: string }) =>
       (await (await call("gallery-project-format-key", body)).json()).key as
@@ -351,7 +361,9 @@ export async function routeRegionalMaintenance(
       const loc = await locationInfo(entryId);
       if (localInput) {
         if (!loc.known || loc.origin === env.RESOURCE_REGION) {
-          const response = await call("simulation-check-input", { id: entryId });
+          const response = await call("simulation-check-input", {
+            id: entryId,
+          });
           return answer(await response.json(), response.status);
         }
         if (loc.origin !== peerRegion) return fail("wrong-writer", 409);

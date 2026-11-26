@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { routeGalleryRequest } from "./gallery";
+import canvas from "./index";
+import { regionalRuntimeBindings } from "./regional-entry.test-support";
 import { RegionalSessionDO } from "./regional-session";
 import {
   environment,
@@ -46,6 +47,7 @@ it("stops Gallery access at the regional session lease deadline after a recent r
   const cookie = callback.headers.get("set-cookie")!.split(";")[0]!;
   const target = {
     ...environment(),
+    ...regionalRuntimeBindings(),
     AUTH_REGIONAL_CLIENT: config,
     AUTH: {
       getByName: () => ({
@@ -61,16 +63,22 @@ it("stops Gallery access at the regional session lease deadline after a recent r
   });
   // A read only a session answers: the account's publishing allowance.
   const read = () =>
-    routeGalleryRequest(
+    canvas.fetch(
       new Request(`${origin}/api/gallery/quota`, {
         headers: { Cookie: cookie },
       }),
       target,
     );
 
-  now += REGIONAL_LEASE_MS - 1_000;
+  const deadline = now + REGIONAL_LEASE_MS;
+  while (now + 240_000 < deadline) {
+    now += 240_000;
+    expect((await read()).status).toBe(200);
+  }
+  now = deadline - 1_000;
   expect((await read())?.status).toBe(200);
-  now += 2_000;
-  expect((await read())?.status).toBe(401);
   expect(localAuth.fetchLike).not.toHaveBeenCalled();
+  now += 2_000;
+  expect((await read()).status).toBe(503);
+  expect(localAuth.fetchLike).toHaveBeenCalledTimes(1);
 });

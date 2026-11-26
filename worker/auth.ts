@@ -5,7 +5,35 @@ import {
   type AuthEnv,
   type SessionUser,
 } from "./auth-do";
-import { REGIONAL_SESSION_COOKIE } from "./regional-auth-contract";
+import { cookie, REGIONAL_SESSION_COOKIE } from "./regional-auth-contract";
+
+export class SessionRegionUnavailable extends Error {}
+
+function sessionLookup(request: Request): string {
+  const endpoint = "https://auth/internal/session-user";
+  if (!cookie(request, REGIONAL_SESSION_COOKIE)) return endpoint;
+  const url = new URL(request.url);
+  const path = url.pathname;
+  if (
+    request.method === "GET" &&
+    path === "/api/gallery/simulation-checks" &&
+    url.searchParams.get("poll") === "1"
+  )
+    return endpoint + "?poll";
+  const write = request.method !== "GET" && request.method !== "HEAD";
+  const fresh =
+    request.method === "DELETE" ||
+    path.startsWith("/api/admin/") ||
+    /^\/api\/gallery\/(?:maintenance|owner-data|recycled|rejected|review|simulation-checks)(?:\/|$)/u.test(
+      path,
+    ) ||
+    /^\/api\/gallery\/[^/]+\/reviews$/u.test(path) ||
+    (path === "/api/components" &&
+      url.searchParams.get("status") === "deleted") ||
+    path === "/api/simulation/operations" ||
+    (write && !/^\/api\/projects(?:\/[^/]+)?$/u.test(path));
+  return endpoint + (fresh ? "?fresh" : write ? "?write" : "");
+}
 
 function hasSessionCookie(request: Request): boolean {
   return (request.headers.get("Cookie") ?? "").split(";").some((part) => {
@@ -33,13 +61,19 @@ export async function sessionUserOf(
   if (!env.AUTH || !hasSessionCookie(request)) return null;
   try {
     const response = await env.AUTH.getByName("auth").fetch(
-      "https://auth/internal/session-user",
+      sessionLookup(request),
       { headers: { cookie: request.headers.get("Cookie") ?? "" } },
     );
+    if (
+      response.status === 503 &&
+      (await response.json()).error === "session-region-unavailable"
+    )
+      throw new SessionRegionUnavailable();
     if (!response.ok) return null;
     const payload = (await response.json()) as { user?: SessionUser | null };
     return payload.user ?? null;
-  } catch {
+  } catch (error) {
+    if (error instanceof SessionRegionUnavailable) throw error;
     return null;
   }
 }

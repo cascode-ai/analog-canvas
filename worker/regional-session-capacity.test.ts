@@ -1,8 +1,166 @@
 import { expect, it } from "vitest";
-import { makerOf, ORIGIN } from "./gallery.test-support";
+import {
+  adminOf,
+  makerOf,
+  ownerAccountOf,
+  ORIGIN,
+  saveRequest,
+  submitOne,
+  wiredProjectText,
+} from "./gallery.test-support";
+import canvas from "./index";
+import { regionalRuntimeBindings } from "./regional-entry.test-support";
 import { accounts, config } from "./regional-auth.test-support";
 import { RegionalSessionDO } from "./regional-session";
 import { REGIONAL_LEASE_MS } from "./regional-auth-contract";
+
+it("parks an idle login and shares one authority check when two tabs return", async () => {
+  const h = accounts();
+  const cookie = await h.connect(await makerOf(h.source));
+  let renewals = 0;
+  const transport = h.region.fetchLike;
+  const started = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  h.region.fetchLike = async (input, init) => {
+    if (String(input).endsWith("/renew")) {
+      renewals++;
+      started.resolve();
+      if (waking) await release.promise;
+    }
+    return transport(input, init);
+  };
+  let waking = false;
+  h.advance(300_001);
+  await h.region.alarm();
+  expect(renewals).toBe(0);
+  waking = true;
+  const returning = Promise.all([
+    h.call("/api/auth/me", cookie),
+    h.call("/api/auth/me", cookie),
+  ]);
+  await started.promise;
+  release.resolve();
+  for (const response of await returning)
+    expect((await response.json()).authorization).toBe("active");
+  expect(renewals).toBe(1);
+});
+
+it("keeps an idle login across an outage and commits only an explicit retry of a Cloud Project save", async () => {
+  const h = accounts();
+  const env = { ...h.resources, ...regionalRuntimeBindings() };
+  const cookie = await h.connect(await makerOf(h.source));
+  const transport = h.region.fetchLike;
+  h.region.fetchLike = async () => {
+    throw new Error("authority offline");
+  };
+  expect(
+    (await canvas.fetch(saveRequest(cookie, "Active save"), env)).status,
+  ).toBe(201);
+  h.advance(300_001);
+  const attempt = () =>
+    canvas.fetch(saveRequest(cookie, "Returning save"), env);
+  const blocked = await attempt();
+  expect(blocked.status).toBe(503);
+  expect(blocked.headers.has("set-cookie")).toBe(false);
+  h.region.fetchLike = transport;
+  expect((await attempt()).status).toBe(201);
+  const list = await canvas.fetch(
+    new Request(ORIGIN + "/api/projects", { headers: { cookie } }),
+    env,
+  );
+  expect(
+    (await list.json()).projects.map((p: { name: string }) => p.name).sort(),
+  ).toEqual(["Active save", "Returning save"]);
+});
+
+it("rejects a Gallery withdrawal immediately after authority logout despite a live local lease", async () => {
+  const h = accounts();
+  const source = await makerOf(h.source);
+  const cookie = await h.connect(source);
+  const id = await submitOne(h.source, "Withdrawal fixture", {
+    cookie: source,
+    text: wiredProjectText("Withdrawal fixture"),
+  });
+  const inFlight = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  const transport = h.region.fetchLike;
+  let first = true;
+  h.region.fetchLike = async (input, init) => {
+    const response = await transport(input, init);
+    if (String(input).endsWith("/renew") && first) {
+      first = false;
+      inFlight.resolve();
+      await release.promise;
+    }
+    return response;
+  };
+  h.advance(30_000);
+  const alarm = h.region.alarm();
+  await inFlight.promise;
+  await h.source.authDurable.fetch(
+    new Request(ORIGIN + "/api/auth/logout", {
+      method: "POST",
+      headers: { origin: ORIGIN, cookie: source },
+    }),
+  );
+  const withdrawal = canvas.fetch(
+    new Request(ORIGIN + "/api/gallery/" + id + "/recycle", {
+      method: "POST",
+      headers: { origin: ORIGIN, cookie },
+    }),
+    { ...h.resources, ...regionalRuntimeBindings() },
+  );
+  await h.call("/api/auth/me", cookie);
+  release.resolve();
+  await alarm;
+  expect((await withdrawal).status).toBe(401);
+  expect(await (await h.call("/api/auth/me", cookie)).json()).toMatchObject({
+    user: null,
+    authorization: "anonymous",
+  });
+});
+
+it("applies an authority role change before reading the Gallery moderation bin", async () => {
+  const h = accounts();
+  const cookie = await h.connect(await adminOf(h.source));
+  const env = { ...h.resources, ...regionalRuntimeBindings() };
+  const bin = () =>
+    canvas.fetch(
+      new Request(ORIGIN + "/api/gallery/recycled", { headers: { cookie } }),
+      env,
+    );
+  expect((await bin()).status).toBe(200);
+  h.source.authSql.exec(
+    "UPDATE users SET email=? WHERE email=?",
+    "former@example.com",
+    "owner@example.com",
+  );
+  expect((await bin()).status).toBe(401);
+  expect(
+    (await (await h.call("/api/auth/me", cookie)).json()).user.isAdmin,
+  ).toBe(false);
+});
+
+it("does not keep a regional Owner active through simulation progress polling", async () => {
+  const h = accounts();
+  const cookie = await h.connect(await ownerAccountOf(h.source));
+  const env = { ...h.resources, ...regionalRuntimeBindings() };
+  const poll = (polling: boolean) =>
+    canvas.fetch(
+      new Request(
+        ORIGIN + "/api/gallery/simulation-checks" + (polling ? "?poll=1" : ""),
+        { headers: { cookie } },
+      ),
+      env,
+    );
+  for (let minute = 0; minute < 4; minute++) {
+    h.advance(60_000);
+    expect((await poll(true)).status).toBe(200);
+  }
+  h.advance(60_001);
+  expect((await poll(true)).status).toBe(401);
+  expect((await poll(false)).status).toBe(200);
+});
 
 it("renews 1000 sessions across restart with two-second transport and processing overhead", async () => {
   const h = accounts();

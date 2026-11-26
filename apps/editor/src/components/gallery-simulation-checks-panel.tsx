@@ -16,19 +16,28 @@ export function GallerySimulationChecks() {
     useState<GallerySimulationCheckProgress | null>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
-  const waiting = progress?.waiting ?? 0;
+  const waiting = (progress?.waiting ?? 0) > 0;
   useEffect(() => {
     let cancelled = false;
-    const read = () =>
-      void loadGallerySimulationChecks(fetch).then((next) => {
-        if (!cancelled && next) setProgress(next);
-      });
-    read();
-    // While checks wait, the server's pass moves them on every few minutes.
-    const timer = waiting > 0 ? window.setInterval(read, 60_000) : undefined;
+    void loadGallerySimulationChecks(fetch).then((next) => {
+      if (!cancelled && next) setProgress(next);
+    });
     return () => {
       cancelled = true;
-      if (timer !== undefined) window.clearInterval(timer);
+    };
+  }, []);
+  useEffect(() => {
+    if (!waiting) return;
+    let cancelled = false;
+    // While checks wait, the server's pass moves them on every few minutes.
+    const timer = window.setInterval(() => {
+      void loadGallerySimulationChecks(fetch, true).then((next) => {
+        if (!cancelled && next) setProgress(next);
+      });
+    }, 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
     };
   }, [waiting]);
   async function verifyAll(): Promise<void> {
