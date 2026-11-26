@@ -79,6 +79,8 @@ export function withProjectComponentDefinitions(
     )
   )
     return project;
+  if (!definitions.length && !Object.hasOwn(project, "componentDefinitions"))
+    return project;
   const { componentDefinitions: _previous, ...content } = project;
   return definitions.length
     ? { ...content, componentDefinitions: definitions }

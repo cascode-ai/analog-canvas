@@ -8,6 +8,7 @@ import type {
 } from "@icm/model";
 import { foldNetName, routeEnd, isFrozenSnapshot } from "@icm/model";
 import { registerDocumentCache } from "./document-caches.js";
+import { groupedBy } from "./grouped-by.js";
 import {
   resolveCommittedDocumentLogicalNets,
   type ResolvedDocumentLogicalNets,
@@ -509,20 +510,35 @@ export function supplyDefaultMosBulkNet(
   );
 }
 
-interface MosBulkRead {
-  bodyNets: ReadonlyMap<string, Net>;
-  unconnectedBodies: ReadonlySet<string>;
-  defaultSupply(kind: MosBulkKind): Net | undefined;
+function configuredBulkNetId(document: SchematicDocument, kind: MosBulkKind) {
+  return kind === "nmos"
+    ? document.mosBulkDefaults?.nmosNetId
+    : document.mosBulkDefaults?.pmosNetId;
 }
 
-/** One synchronous read of all body connections. A new pass observes the
- * current Cell even when a transaction has edited a draft at the same revision. */
-export function readMosBulkConnections(
+function createMosBulkRead(
   document: SchematicDocument,
-  logicalNets: ResolvedDocumentLogicalNets,
-): (instance: Instance) => MosBulkResolution | undefined {
+  logicalNets?: ResolvedDocumentLogicalNets,
+) {
   const supplies = new Map<MosBulkKind, Net | undefined>();
-  const read: MosBulkRead = {
+  const defaults = new Map<MosBulkKind, Net | undefined>();
+  const sourceIdsByNet = new Map<string, ReadonlySet<string>>();
+  let routes: BulkRouteIndex | undefined;
+  let wiredNets: Set<string> | undefined;
+  let evidenceByNet:
+    | ReadonlyMap<
+        string,
+        readonly SchematicDocument["connectivityEvidence"][number][]
+      >
+    | undefined;
+  const evidenceFor = (netId: string) => {
+    evidenceByNet ??= groupedBy(
+      document.connectivityEvidence,
+      (item) => item.netId,
+    );
+    return evidenceByNet.get(netId) ?? [];
+  };
+  return {
     bodyNets: indexMosBodyNets(document.nets),
     unconnectedBodies: new Set(
       document.noConnects.flatMap(({ endpoint }) =>
@@ -531,7 +547,7 @@ export function readMosBulkConnections(
           : [],
       ),
     ),
-    defaultSupply(kind) {
+    defaultSupply(kind: MosBulkKind) {
       if (!supplies.has(kind))
         supplies.set(
           kind,
@@ -539,9 +555,105 @@ export function readMosBulkConnections(
         );
       return supplies.get(kind);
     },
+    configuredNet(kind: MosBulkKind) {
+      if (!defaults.has(kind)) {
+        const id = configuredBulkNetId(document, kind);
+        defaults.set(
+          kind,
+          id ? document.nets.find((net) => net.id === id) : undefined,
+        );
+      }
+      return defaults.get(kind);
+    },
+    hasExplicitRoute(instanceId: string) {
+      return (routes ??= bulkRouteIndex(document)).explicit.has(instanceId);
+    },
+    instance(instanceId: string) {
+      return (routes ??= bulkRouteIndex(document)).instances.get(instanceId);
+    },
+    hasGeometryOrCellTerminal(netId: string) {
+      wiredNets ??= new Set([
+        ...document.routes.map((route) => route.netId),
+        ...document.junctions.map((junction) => junction.netId),
+        ...(document.netlist?.terminals ?? []).map(
+          (terminal) => terminal.netId,
+        ),
+      ]);
+      return wiredNets.has(netId);
+    },
+    evidence: evidenceFor,
+    sourceIds(netId: string) {
+      let ids = sourceIdsByNet.get(netId);
+      if (!ids) {
+        ids = spiceSourceIds(evidenceFor(netId));
+        sourceIdsByNet.set(netId, ids);
+      }
+      return ids;
+    },
   };
+}
+
+type MosBulkRead = ReturnType<typeof createMosBulkRead>;
+
+/** One synchronous read of all body connections. A new pass observes the
+ * current Cell even when a transaction has edited a draft at the same revision. */
+export function readMosBulkConnections(
+  document: SchematicDocument,
+  logicalNets: ResolvedDocumentLogicalNets,
+): (instance: Instance) => MosBulkResolution | undefined {
+  const read = createMosBulkRead(document, logicalNets);
   return (instance) =>
     resolveInstanceBody(document, instance, logicalNets, read);
+}
+
+/** Identify the bodies the Edit Engine may reconcile on this insertion snapshot. */
+export function mosBulkReconciliationCandidates(
+  document: SchematicDocument,
+  instances: readonly Instance[],
+  logicalNets?: ResolvedDocumentLogicalNets,
+): string[] {
+  let read: MosBulkRead | undefined;
+  const detachedByKind = {
+    nmos: new Map<Net, boolean>(),
+    pmos: new Map<Net, boolean>(),
+  };
+  return instances.flatMap((instance) => {
+    const kind = mosBulkKind(instance);
+    if (!kind) return [];
+    const configuredId = configuredBulkNetId(document, kind);
+    if (!configuredId && !instance.mosBulkBinding) return [];
+    const current = (read ??= createMosBulkRead(document, logicalNets));
+    if (current.hasExplicitRoute(instance.id))
+      return instance.mosBulkBinding ? [instance.id] : [];
+    if (!configuredId) return [];
+
+    const resolution = resolveInstanceBody(
+      document,
+      instance,
+      logicalNets,
+      current,
+    );
+    if (resolution?.status === "cell-default" && !resolution.materialized)
+      return [instance.id];
+    if (resolution?.status !== "explicit" || !resolution.materialized)
+      return [];
+    if (resolution.net.id === configuredId) return [instance.id];
+    const detached = detachedByKind[kind];
+    if (!detached.has(resolution.net)) {
+      detached.set(
+        resolution.net,
+        Boolean(
+          detachedBulkDefault(
+            document,
+            resolution.net,
+            current.configuredNet(kind),
+            current,
+          ),
+        ),
+      );
+    }
+    return detached.get(resolution.net) ? [instance.id] : [];
+  });
 }
 
 /**
@@ -569,7 +681,8 @@ function resolveInstanceBody(
   logicalNets?: ResolvedDocumentLogicalNets,
   read?: MosBulkRead,
 ): MosBulkResolution | undefined {
-  if (!mosBulkKind(instance)) return undefined;
+  const kind = mosBulkKind(instance);
+  if (!kind) return undefined;
 
   const connectedNet = read
     ? read.bodyNets.get(instance.id)
@@ -580,10 +693,11 @@ function resolveInstanceBody(
   // the body on a node nothing else reaches: the netlist writes that node
   // once and a matched pair ends up with one body on ground and the other on
   // nothing. Reclaim it here the way reconciliation does on an edit.
-  if (connectedNet && !strandedMosBulkNet(document, instance)) {
-    const origin = hasExplicitMosBulkRoute(document, instance.id)
-      ? undefined
-      : instance.mosBulkBinding;
+  if (connectedNet && !isStrandedBulk(document, instance, connectedNet, read)) {
+    const explicit = read
+      ? read.hasExplicitRoute(instance.id)
+      : hasExplicitMosBulkRoute(document, instance.id);
+    const origin = explicit ? undefined : instance.mosBulkBinding;
     return {
       status: origin?.netId === connectedNet.id ? origin.origin : "explicit",
       instance,
@@ -621,14 +735,12 @@ function resolveInstanceBody(
     };
   }
 
-  const kind = mosBulkKind(instance)!;
-  const configuredId =
-    kind === "nmos"
-      ? document.mosBulkDefaults?.nmosNetId
-      : document.mosBulkDefaults?.pmosNetId;
-  const configured = configuredId
-    ? document.nets.find((net) => net.id === configuredId)
-    : undefined;
+  const configuredId = configuredBulkNetId(document, kind);
+  const configured = read
+    ? read.configuredNet(kind)
+    : configuredId
+      ? document.nets.find((net) => net.id === configuredId)
+      : undefined;
   if (configured) {
     return {
       status: "cell-default",
@@ -794,28 +906,67 @@ export function strandedMosBulkNet(
       ? document.instances.find((candidate) => candidate.id === instanceOrId)
       : instanceOrId;
   if (!instance?.mosBulkBinding || !mosBulkKind(instance)) return undefined;
-  // A legacy `supply-default` binding is the old materialized supply
-  // connection, readable compatibility data rather than something a paste or
-  // a deleted marker left behind. Residue is what this editor writes for a
-  // Cell's policy or for one instance.
-  if (instance.mosBulkBinding.origin === "supply-default") return undefined;
   const net = connectedMosBodyNet(document, instance.id);
-  if (!net || instance.mosBulkBinding.netId !== net.id) return undefined;
-  const sole =
+  return net && isStrandedBulk(document, instance, net) ? net : undefined;
+}
+
+function hasBulkNetGeometryOrCellTerminal(
+  document: SchematicDocument,
+  netId: string,
+  read?: MosBulkRead,
+): boolean {
+  return read
+    ? read.hasGeometryOrCellTerminal(netId)
+    : document.routes.some((route) => route.netId === netId) ||
+        document.junctions.some((junction) => junction.netId === netId) ||
+        (document.netlist?.terminals ?? []).some(
+          (terminal) => terminal.netId === netId,
+        );
+}
+
+function bulkNetEvidence(
+  document: SchematicDocument,
+  netId: string,
+  read?: MosBulkRead,
+) {
+  return read
+    ? read.evidence(netId)
+    : document.connectivityEvidence.filter(
+        (evidence) => evidence.netId === netId,
+      );
+}
+
+function spiceSourceIds(
+  evidence: readonly SchematicDocument["connectivityEvidence"][number][],
+) {
+  return new Set(
+    evidence.flatMap((item) =>
+      item.kind === "spice-source" ? [item.sourceNetId] : [],
+    ),
+  );
+}
+
+function isStrandedBulk(
+  document: SchematicDocument,
+  instance: Instance,
+  net: Net,
+  read?: MosBulkRead,
+): boolean {
+  const binding = instance.mosBulkBinding;
+  const [terminal] = net.terminals;
+  // Older supply-default bindings preserve their explicit membership.
+  return Boolean(
+    binding &&
+    binding.origin !== "supply-default" &&
+    binding.netId === net.id &&
     net.terminals.length === 1 &&
-    net.terminals[0]!.instanceId === instance.id &&
-    net.terminals[0]!.pinName === "B";
-  return sole &&
-    !document.routes.some((route) => route.netId === net.id) &&
-    !document.junctions.some((junction) => junction.netId === net.id) &&
-    !document.connectivityEvidence.some(
-      (evidence) => evidence.netId === net.id,
-    ) &&
-    !(document.netlist?.terminals ?? []).some(
-      (terminal) => terminal.netId === net.id,
-    )
-    ? net
-    : undefined;
+    terminal?.instanceId === instance.id &&
+    terminal.pinName === "B" &&
+    !hasBulkNetGeometryOrCellTerminal(document, net.id, read) &&
+    (read
+      ? read.evidence(net.id).length === 0
+      : !document.connectivityEvidence.some((item) => item.netId === net.id)),
+  );
 }
 
 /**
@@ -834,52 +985,51 @@ export function resolveDetachedMosBulkDefault(
       : instanceOrId;
   const kind = instance ? mosBulkKind(instance) : undefined;
   if (!instance || !kind) return undefined;
-  const configuredNetId =
-    kind === "nmos"
-      ? document.mosBulkDefaults?.nmosNetId
-      : document.mosBulkDefaults?.pmosNetId;
-  const configuredNet = configuredNetId
-    ? document.nets.find((net) => net.id === configuredNetId)
+  const configuredId = configuredBulkNetId(document, kind);
+  const configured = configuredId
+    ? document.nets.find((net) => net.id === configuredId)
     : undefined;
-  const connectedNet = connectedMosBodyNet(document, instance.id);
+  return detachedBulkDefault(
+    document,
+    connectedMosBodyNet(document, instance.id),
+    configured,
+  );
+}
+
+function detachedBulkDefault(
+  document: SchematicDocument,
+  connected: Net | undefined,
+  configured: Net | undefined,
+  read?: MosBulkRead,
+): Net | undefined {
   if (
-    !configuredNet ||
-    !connectedNet ||
-    connectedNet.id === configuredNet.id ||
-    connectedNet.terminals.length === 0 ||
-    connectedNet.terminals.some((terminal) => {
+    !configured ||
+    !connected ||
+    connected.id === configured.id ||
+    connected.terminals.length === 0 ||
+    connected.terminals.some((terminal) => {
       if (terminal.pinName !== "B") return true;
-      const peer = document.instances.find(
-        (candidate) => candidate.id === terminal.instanceId,
-      );
+      const peer = read
+        ? read.instance(terminal.instanceId)
+        : document.instances.find(
+            (instance) => instance.id === terminal.instanceId,
+          );
       return !peer || !mosBulkKind(peer);
     }) ||
-    document.routes.some((route) => route.netId === connectedNet.id) ||
-    document.junctions.some((junction) => junction.netId === connectedNet.id) ||
-    document.connectivityEvidence.some(
-      (evidence) =>
-        evidence.netId === connectedNet.id && evidence.kind === "name-claim",
-    ) ||
-    document.netlist?.terminals.some(
-      (terminal) => terminal.netId === connectedNet.id,
-    )
+    hasBulkNetGeometryOrCellTerminal(document, connected.id, read)
   ) {
     return undefined;
   }
-  const sourceIds = (netId: string) =>
-    new Set(
-      document.connectivityEvidence.flatMap((evidence) =>
-        evidence.kind === "spice-source" && evidence.netId === netId
-          ? [evidence.sourceNetId]
-          : [],
-      ),
-    );
-  const connectedSourceIds = sourceIds(connectedNet.id);
-  const configuredSourceIds = sourceIds(configuredNet.id);
-  return [...connectedSourceIds].some((sourceId) =>
-    configuredSourceIds.has(sourceId),
+  const evidence = bulkNetEvidence(document, connected.id, read);
+  if (evidence.some((item) => item.kind === "name-claim")) return undefined;
+  const configuredSources = read
+    ? read.sourceIds(configured.id)
+    : spiceSourceIds(bulkNetEvidence(document, configured.id));
+  return evidence.some(
+    (item) =>
+      item.kind === "spice-source" && configuredSources.has(item.sourceNetId),
   )
-    ? configuredNet
+    ? configured
     : undefined;
 }
 

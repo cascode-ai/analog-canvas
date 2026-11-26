@@ -7,10 +7,11 @@ import {
   routeElectricalConnections,
 } from "@icm/model";
 import type { RouteEndpoint, SchematicDocument } from "@icm/model";
-import type { SymbolResolver } from "@icm/symbols";
+import { InMemorySymbolResolver, type SymbolResolver } from "@icm/symbols";
 
 import {
   collectDocumentContactEvidence,
+  deriveContactEndpointGroups,
   type CoincidentContact,
   type DocumentContactEvidence,
 } from "./contact.js";
@@ -76,11 +77,26 @@ interface CachedDocumentDerivedContext {
   readonly revision: number;
   readonly symbols: string;
   readonly context: DocumentDerivedContext;
+  readonly contactEndpointGroups?: readonly (readonly RouteEndpoint[])[];
 }
 
 const contextCache = registerDocumentCache(
   new WeakMap<SchematicDocument, CachedDocumentDerivedContext>(),
 );
+
+/** Canonical coincident endpoints for file writes, keyed by Cell and resolved symbols. */
+export function readDocumentContactEndpointGroups(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  junctionsByNetId: ReturnType<typeof indexJunctionsByNet>,
+) {
+  const cached = contextCache.get(document);
+  return cached?.contactEndpointGroups &&
+    InMemorySymbolResolver.hasStableDefinitions(resolver) &&
+    cached.symbols === resolvedSymbolContext(document, resolver)
+    ? cached.contactEndpointGroups
+    : deriveContactEndpointGroups(document, resolver, junctionsByNetId);
+}
 
 export function buildDocumentDerivedContext(
   document: SchematicDocument,
@@ -159,6 +175,9 @@ export function buildDocumentDerivedContext(
     endpointLookup,
   );
   const spatialIndex = buildDocumentSpatialIndex(document, routingGeometry);
+  const canReuseContacts =
+    symbols !== undefined &&
+    InMemorySymbolResolver.hasStableDefinitions(resolver);
   const contactEvidence = collectDocumentContactEvidence(
     document,
     resolver,
@@ -171,7 +190,7 @@ export function buildDocumentDerivedContext(
       endpointConnections,
       endpointLookup,
     },
-    symbols !== undefined,
+    canReuseContacts,
   );
   const netsById = new Map(document.nets.map((net) => [net.id, net]));
   // A free label attaches to a Route on its primary Net. Electrical bus
@@ -264,6 +283,24 @@ export function buildDocumentDerivedContext(
       revision: document.revision,
       symbols,
       context,
+      // Direct endpoint resolution is the file authority when legacy keys alias.
+      ...(canReuseContacts && !hasAliasedEndpoints
+        ? {
+            contactEndpointGroups: Object.freeze(
+              contactEvidence.contacts.flatMap(({ endpoints }) =>
+                endpoints.length > 1
+                  ? [
+                      Object.freeze(
+                        endpoints.map((endpoint) =>
+                          Object.freeze({ ...endpoint }),
+                        ),
+                      ),
+                    ]
+                  : [],
+              ),
+            ),
+          }
+        : {}),
     });
   return context;
 }

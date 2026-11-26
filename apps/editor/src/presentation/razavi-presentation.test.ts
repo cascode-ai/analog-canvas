@@ -1,4 +1,8 @@
-import { createEmptyDocument, createEmptyProject } from "@icm/model";
+import {
+  createEmptyDocument,
+  createEmptyProject,
+  createRoutePath,
+} from "@icm/model";
 import { validateLogicalNetContract } from "@icm/derived";
 import { describe, expect, it } from "vitest";
 
@@ -165,6 +169,39 @@ describe("Razavi hidden bulk policy", () => {
     expect(
       razaviManualBulkConnectionEdits(document, document.instances),
     ).toEqual([]);
+  });
+
+  it("clears stale binding on an explicitly drawn body, even with no configured default", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push({
+      ...manualMos("M1", "nmos"),
+      mosBulkBinding: { origin: "instance-override", netId: "bias" },
+    });
+    const body = { kind: "terminal" as const, instanceId: "M1", pinName: "B" };
+    document.nets.push({
+      id: "bias",
+      terminals: [{ instanceId: "M1", pinName: "B" }],
+    });
+    document.junctions.push({
+      id: "J1",
+      netId: "bias",
+      position: { x: 20, y: 0 },
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "body",
+        netId: "bias",
+        start: body,
+        end: { kind: "junction", junctionId: "J1" },
+        bends: [],
+        modes: ["manual"],
+        presentation: "bulk-dashed",
+      }),
+    );
+
+    expect(
+      razaviManualBulkConnectionEdits(document, document.instances),
+    ).toEqual([{ kind: "reconcile_mos_bulk", instanceIds: ["M1"] }]);
   });
 
   it("does not create canonical supply Nets at Project entry", () => {

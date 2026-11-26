@@ -82,15 +82,37 @@ function executionContextKey(
   });
 }
 
-/** Prepare through the same atomic executor used by GUI, Agent and Project edits. */
+interface PreparationRouting {
+  readMembership?: Parameters<typeof executeTransaction>[3];
+  changedNetIds: Set<string>;
+}
+
+/** Prepare a detachable preview through the ordinary atomic executor. */
 export function prepareTransaction(
   document: SchematicDocument,
   input: EditTransaction | unknown,
   context: EditExecutionContext = {},
-  routing?: {
-    readMembership?: Parameters<typeof executeTransaction>[3];
-    changedNetIds: Set<string>;
-  },
+  routing?: PreparationRouting,
+) {
+  return prepare(document, input, context, routing, false);
+}
+
+/** The Wire gate keeps the candidate private until Canvas adoption. */
+export function prepareCanvasTransaction(
+  document: SchematicDocument,
+  input: EditTransaction | unknown,
+  context: EditExecutionContext = {},
+  routing?: PreparationRouting,
+) {
+  return prepare(document, input, context, routing, isFrozenSnapshot(document));
+}
+
+function prepare(
+  document: SchematicDocument,
+  input: EditTransaction | unknown,
+  context: EditExecutionContext,
+  routing: PreparationRouting | undefined,
+  keepOwned: boolean,
 ):
   | { result: RejectedTransaction; prepared?: undefined }
   | {
@@ -114,29 +136,29 @@ export function prepareTransaction(
   // Exposed previews cannot alter the validated result later adopted by a
   // commit. Keep the mutable Map private, and copy it for each consumer.
   const { coalescedEndpoints, ...content } = result;
-  const detached = structuredClone(content);
+  const detached = keepOwned ? content : structuredClone(content);
   if (isFrozenSnapshot(document))
     detached.document = shareEqualDocumentStructure(
       document,
       detached.document,
       routing?.changedNetIds,
     );
-  const owned = freezeSnapshot(detached);
+  const owned = {
+    ...freezeSnapshot(detached),
+    ...(coalescedEndpoints
+      ? { coalescedEndpoints: new Map(coalescedEndpoints) }
+      : {}),
+  };
   preparations.set(prepared, {
     source: isFrozenSnapshot(document) ? document : JSON.stringify(document),
     edits: JSON.stringify(transaction.edits),
     symbols,
     context: executionContextKey(context, symbols),
-    result: {
-      ...owned,
-      ...(coalescedEndpoints
-        ? { coalescedEndpoints: new Map(coalescedEndpoints) }
-        : {}),
-    },
+    result: owned,
   });
   latestPreparation.set(document, prepared);
   return {
-    result,
+    result: keepOwned ? owned : result,
     prepared,
     membershipUnchanged:
       detached.document.nets === document.nets &&

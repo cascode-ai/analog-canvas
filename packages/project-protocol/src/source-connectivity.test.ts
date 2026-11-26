@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createEmptyProject,
   createRoutePath,
+  parseProjectSnapshot,
   type CircuitProject,
 } from "@icm/model";
 import {
@@ -11,7 +12,16 @@ import {
 } from "./index.js";
 import { planProjectCodeCommit } from "../../../apps/editor/src/features/project-code/project-code.js";
 import { executeTransaction } from "../../edit-engine/src/transaction.js";
-import { createProjectSymbolResolver } from "@icm/symbols";
+import {
+  builtInSymbols,
+  createProjectSymbolResolver,
+  InMemorySymbolResolver,
+  withProjectComponentDefinitions,
+} from "@icm/symbols";
+import {
+  buildDocumentDerivedContext,
+  resolveEndpointPoint,
+} from "@icm/derived";
 
 function fixture() {
   const project = createEmptyProject("graph", "Source graph");
@@ -52,6 +62,58 @@ const groups = (p: CircuitProject) =>
     .sort();
 
 describe("connections authored once in Project Code", () => {
+  it("encodes the same coincident endpoints with a cold, stale or matching Canvas context", () => {
+    const project = fixture();
+    const document = project.documents[0]!;
+    const live = createProjectSymbolResolver(project, builtInSymbols);
+    const terminal = pin("a");
+    const point = resolveEndpointPoint(document, live, terminal);
+    if (!point) throw new Error("Missing resistor pin location");
+    document.nets.push({
+      id: "touch",
+      terminals: [
+        { instanceId: terminal.instanceId, pinName: terminal.pinName },
+      ],
+    });
+    document.junctions.push({ id: "contact", netId: "touch", position: point });
+    const snapshot = parseProjectSnapshot(
+      withProjectComponentDefinitions(project),
+    );
+    const cell = snapshot.documents[0]!;
+    const canonical = createProjectSymbolResolver(snapshot, []);
+    const cold = serializeProject(snapshot);
+    expect(JSON.parse(cold).documents[0].connections.contacts).toEqual([
+      [{ junction: "contact" }, { terminal: ["a", "1"] }],
+    ]);
+
+    const shifted = structuredClone(canonical.resolve("resistor")!.definition);
+    shifted.pins.find((p) => p.name === "1")!.at.x += 10;
+    const stale = new InMemorySymbolResolver([shifted]);
+    expect(
+      buildDocumentDerivedContext(cell, stale).contactEvidence.contacts,
+    ).not.toContainEqual(
+      expect.objectContaining({
+        endpoints: [{ kind: "junction", junctionId: "contact" }, terminal],
+      }),
+    );
+    expect(serializeProject(snapshot)).toBe(cold);
+
+    buildDocumentDerivedContext(cell, canonical);
+    expect(serializeProject(snapshot)).toBe(cold);
+
+    const otherSnapshot = parseProjectSnapshot(structuredClone(snapshot));
+    let matchingLookup = true;
+    buildDocumentDerivedContext(otherSnapshot.documents[0]!, {
+      resolve(id, variant) {
+        if (id !== "resistor") return canonical.resolve(id, variant);
+        const result = matchingLookup ? canonical : stale;
+        matchingLookup = false;
+        return result.resolve(id, variant);
+      },
+    });
+    expect(serializeProject(otherSnapshot)).toBe(cold);
+  });
+
   it("retains empty Nets and orders joined terminals under the first Net identity", () => {
     const s = source();
     const document = s.documents[0];

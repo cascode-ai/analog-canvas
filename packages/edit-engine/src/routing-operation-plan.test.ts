@@ -15,8 +15,10 @@ import {
   evaluateRoutingOperationPlan,
   gateRoutingOperationPlan,
   gateCanvasRoutingOperation,
+  gateCanvasWireCommit,
   type RoutingOperationPlan,
 } from "./routing-operation-plan.js";
+import { adoptPreparedCanvasTransaction } from "./prepared-transaction.js";
 import { proposeWireIntent } from "./wire-intent-planner.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
@@ -209,6 +211,47 @@ describe("RoutingOperationPlan", () => {
     expect(fast.evaluated.finalDocument.nets.map((net) => net.id)).toEqual([
       "net-a",
     ]);
+  });
+
+  it("commits an owned Wire revision while its public preview remains independently editable", () => {
+    const document = twoNetDocument();
+    document.nets.push({ id: "background", terminals: [] });
+    const project = createEmptyProject("drawing", "Drawing", document.id);
+    project.documents = [document];
+    buildProjectConnectivityIndex(freezeSnapshot(project), resolver);
+    const context = { symbolResolver: resolver };
+    const plan = createRoutingOperationPlan(document, {
+      intent: "connect",
+      diagnostics: [],
+      edits: [
+        { kind: "merge_nets", targetNetId: "net-a", sourceNetId: "net-b" },
+        {
+          kind: "connect_endpoints",
+          from: { kind: "junction", junctionId: "J1" },
+          to: { kind: "junction", junctionId: "J2" },
+        },
+      ],
+    });
+
+    const pending = gateCanvasWireCommit(document, plan, context);
+    const preview = gateCanvasRoutingOperation(document, plan, context);
+    if (!preview.ok || !pending.ok) throw new Error("Expected a valid Wire");
+    const expected = structuredClone(preview.evaluated.finalDocument);
+    preview.evaluated.finalDocument.nets.length = 0;
+
+    const committed = adoptPreparedCanvasTransaction(
+      document,
+      pending.edits,
+      pending.preparedTransaction,
+      context,
+    );
+    expect(committed.ok && committed.applied).toBe(true);
+    expect(committed.document).toEqual(expected);
+    expect(Object.isFrozen(committed.document)).toBe(true);
+    expect(committed.document.nets.find((net) => net.id === "background")).toBe(
+      document.nets[2],
+    );
+    expect(document.revision).toBe(0);
   });
 
   it("refuses a third conductor named by a scalar Wire at the same boundary as the full evaluator", () => {

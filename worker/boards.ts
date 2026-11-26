@@ -80,7 +80,7 @@ const ENTRY_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{2,63}$/u;
  * The one board's id in the store (gallery-store-boards.ts mainBoardId); null
  * while the store cannot name it, such as a store still on an older build.
  */
-export async function mainBoardIdOf(env: GalleryEnv): Promise<string | null> {
+async function mainBoardIdOf(env: GalleryEnv): Promise<string | null> {
   const { status, payload } = await callGallery<{ id?: unknown }>(
     env,
     "board-main",

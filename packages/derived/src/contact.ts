@@ -300,6 +300,34 @@ export function groupCoincidentEndpoints(
   return byPoint.values();
 }
 
+/** Persistence needs coincident endpoint groups without presentation incidents. */
+export function deriveContactEndpointGroups(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  junctionsByNetId = indexJunctionsByNet(document.junctions),
+): (readonly RouteEndpoint[])[] {
+  const lookup = buildEndpointObjectLookup(document);
+  return [...document.nets]
+    .sort((left, right) => left.id.localeCompare(right.id, "en"))
+    .flatMap((net) => {
+      const endpoints = netEndpoints(
+        document,
+        net,
+        junctionsByNetId.get(net.id) ?? [],
+      );
+      if (endpoints.length < 2) return [];
+      return [
+        ...groupCoincidentEndpoints(document, resolver, endpoints, lookup),
+      ]
+        .filter((group) => group.endpoints.length > 1)
+        .sort(
+          (left, right) =>
+            left.point.x - right.point.x || left.point.y - right.point.y,
+        )
+        .map((group) => group.endpoints);
+    });
+}
+
 const SPATIAL_CONTACT_ROUTE_THRESHOLD = 32;
 
 interface ContactContext {
