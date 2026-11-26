@@ -8,7 +8,7 @@ import {
 } from "@icm/model";
 import {
   ConnectionGraph,
-  deriveDocumentContactEvidence,
+  readDocumentContactEndpointGroups,
   endpointKey,
   indexJunctionsByNet,
   netEndpoints,
@@ -89,11 +89,14 @@ export function captureSourceConnectivity(
       for (const edge of routeElectricalConnections(route))
         graph.join(edge.endpoints.map(endpointKey));
     const contacts: Endpoint[][] = [];
-    for (const contact of deriveDocumentContactEvidence(document, resolver)
-      .contacts) {
-      const keys = contact.endpoints.map(endpointKey);
+    for (const endpoints of readDocumentContactEndpointGroups(
+      document,
+      resolver,
+      junctionsByNet,
+    )) {
+      const keys = endpoints.map(endpointKey);
       if (graph.groups(keys).length < 2) continue;
-      contacts.push(contact.endpoints.map(encode));
+      contacts.push(endpoints.map(encode));
       graph.join(keys);
     }
     const unrouted: Endpoint[][] = [];

@@ -362,10 +362,11 @@ Primary owners: `packages/model`, `packages/edit-engine`, `packages/derived`
 - `ResolvedRouteGeometry` is the shared geometry for render, hit, drag, markers,
   diagnostics, export and Agent Snapshot; nobody reconstructs contacts from
   Symbol coordinates.
-- `deriveDocumentContactEvidence` is the sole reader of confirmed contacts; the
-  transaction connectivity normalizer and conductor-topology normalizer are the
-  write sides (including self-overlap). Readers never compensate for overlaps or
-  missing T vertices.
+- Confirmed-contact reads use the same ordered groups of coincident endpoints on
+  each Base Net. `deriveDocumentContactEvidence` adds presentation incidents.
+  File encoding reads the groups. The transaction connectivity and
+  conductor-topology normalizers own contact writes, including self-overlap.
+  Reads preserve authored overlaps and missing T vertices.
 - Route queries are read-only derived modules; normalization, authoring,
   stretch and `RouteEditPlan` belong to `@icm/edit-engine`.
 - A dot means branch topology: arms and stems count by distinct visible

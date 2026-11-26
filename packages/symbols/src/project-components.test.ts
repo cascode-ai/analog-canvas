@@ -3,6 +3,7 @@ import {
   ComponentDefinitionSchema,
   createEmptyProject,
   createEmptyDocument,
+  parseProjectSnapshot,
 } from "@icm/model";
 import { deviceDescriptor, subcircuitDescriptor } from "@icm/devices";
 import { builtInSymbols } from "./builtins.js";
@@ -26,6 +27,11 @@ function sample() {
 }
 
 describe("Project component classes", () => {
+  it("retains the validated Project when there are no definitions to capture", () => {
+    const project = parseProjectSnapshot(createEmptyProject("empty", "Empty"));
+    expect(withProjectComponentDefinitions(project)).toBe(project);
+  });
+
   it("keeps generated artwork until the child interface or presentation changes", () => {
     const source = sample();
     const child = source.documents[1]!;

@@ -1,5 +1,5 @@
 import { withProjectComponentDefinitions } from "@icm/symbols";
-import type { CircuitProject } from "@icm/model";
+import { isFrozenSnapshot, type CircuitProject } from "@icm/model";
 
 import {
   tryParseProjectWithMetadata,
@@ -103,11 +103,13 @@ function normalizedFile(
   project: CircuitProject,
   version = CURRENT_PROJECT_FILE_VERSION,
 ): unknown {
+  const validated = validateProjectReadSnapshot(project);
+  const withDefinitions = withProjectComponentDefinitions(validated);
   return sortKeys(
     encodeProjectFile(
-      validateProjectReadSnapshot(
-        withProjectComponentDefinitions(validateProjectReadSnapshot(project)),
-      ),
+      withDefinitions === validated && isFrozenSnapshot(validated)
+        ? validated
+        : validateProjectReadSnapshot(withDefinitions),
       version,
     ),
   );
