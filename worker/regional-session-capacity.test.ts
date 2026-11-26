@@ -120,6 +120,47 @@ it("rejects a Gallery withdrawal immediately after authority logout despite a li
   });
 });
 
+it("a returning save cannot use an alarm response from before the idle boundary", async () => {
+  const h = accounts();
+  const source = await makerOf(h.source);
+  const cookie = await h.connect(source);
+  const env = { ...h.resources, ...regionalRuntimeBindings() };
+  const transport = h.region.fetchLike;
+  const answered = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  let checks = 0;
+  h.region.fetchLike = async (input, init) => {
+    const reply = await transport(input, init);
+    if (String(input).endsWith("/renew") && ++checks === 1) {
+      answered.resolve();
+      await release.promise;
+    }
+    return reply;
+  };
+  h.advance(299_000);
+  const alarm = h.region.alarm();
+  await answered.promise;
+  await h.source.authDurable.fetch(
+    new Request(ORIGIN + "/api/auth/logout", {
+      method: "POST",
+      headers: { cookie: source, origin: ORIGIN },
+    }),
+  );
+  h.advance(1001);
+  const lookup = Promise.withResolvers<void>();
+  const clock = h.region.now;
+  h.region.now = () => {
+    lookup.resolve();
+    return clock();
+  };
+  const save = canvas.fetch(saveRequest(cookie, "Revoked save"), env);
+  await lookup.promise;
+  release.resolve();
+  await alarm;
+  expect((await save).status).toBe(401);
+  expect(checks).toBe(2);
+});
+
 it("applies an authority role change before reading the Gallery moderation bin", async () => {
   const h = accounts();
   const cookie = await h.connect(await adminOf(h.source));

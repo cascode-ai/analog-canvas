@@ -1,5 +1,9 @@
 import type { SessionUser } from "./auth-do";
-import { RegionalRenewals, type RenewalResult } from "./regional-renewals";
+import {
+  RegionalRenewals,
+  type RenewalResult,
+  type RenewalUse,
+} from "./regional-renewals";
 import {
   applyProfileByline,
   isProfileByline,
@@ -370,7 +374,7 @@ export class RegionalSessionDO {
     if (idle || row.lease_until <= this.now() || fresh) {
       if (use === "passive") return { user: null, authorization: "expired" };
       const prior = this.projectedUser(row);
-      const outcome = await this.renew(row, fresh);
+      const outcome = await this.renew(row, fresh ? "action" : "wake");
       if (outcome !== "confirmed")
         return {
           user: null,
@@ -1064,14 +1068,14 @@ export class RegionalSessionDO {
     await Promise.all(
       due
         .filter((row) => !this.accountOperations.has(row.token_hash))
-        .map((row) => this.renew(row)),
+        .map((row) => this.renew(row, "alarm")),
     );
     await this.schedule();
   }
 
-  private renew(row: SessionRow, fresh = false) {
+  private renew(row: SessionRow, use: RenewalUse) {
     const key = row.token_hash + ":" + row.generation;
-    return this.renewals.run(key, fresh, () => this.renewFromAuthority(row));
+    return this.renewals.run(key, use, () => this.renewFromAuthority(row));
   }
 
   private async renewFromAuthority(row: SessionRow): Promise<RenewalResult> {
