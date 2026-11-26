@@ -824,7 +824,7 @@ export function runErcChecks(
       diagnostics,
     );
     reportBiasCurrentOverdrive(document, logicalNets, diagnostics);
-    reportDanglingWires(document, docIndex, diagnostics);
+    reportDanglingWires(document, docIndex, logicalNets, resolver, diagnostics);
     reportNetLabelsNamingNothing(document, diagnostics);
     reportOverbarNameMismatches(document, diagnostics);
     reportLabelsNamingAnotherPart(document, diagnostics);
@@ -1550,11 +1550,34 @@ function reportNetPiecesJoinedOnlyInData(
   }
 }
 
+function memberNetIds(item: {
+  readonly netId: string;
+  readonly members?: readonly { readonly netId: string }[] | undefined;
+}): readonly string[] {
+  return item.members?.length
+    ? item.members.map((member) => member.netId)
+    : [item.netId];
+}
+
+function logicalNetIdsOf(
+  netIds: Iterable<string>,
+  logicalNets: ReturnType<typeof resolveDocumentLogicalNets>,
+): Set<string> {
+  const result = new Set<string>();
+  for (const netId of netIds) {
+    const logicalId = logicalNets.byBaseNetId.get(netId)?.id;
+    if (logicalId !== undefined) result.add(logicalId);
+  }
+  return result;
+}
+
 /**
  * A Net Label whose Net reaches no pin, wire or Junction names nothing, though
  * drawn beside a wire it reads as that wire's name: the wire's own Net stays
  * unnamed. A label pasted away from a wire lands so, as do older drawings;
  * pasting it onto the wire, or the Net Label tool (L), puts it on its wire.
+ * Hidden Net Labels (`visible: false`, such as retired process-supply stubs)
+ * are never drawn and are skipped.
  */
 function reportNetLabelsNamingNothing(
   document: CircuitProject["documents"][number],
@@ -1562,11 +1585,12 @@ function reportNetLabelsNamingNothing(
 ): void {
   const reached = new Set<string>([
     ...document.nets.flatMap((net) => (net.terminals.length ? [net.id] : [])),
-    ...document.routes.map((route) => route.netId),
-    ...document.junctions.map((junction) => junction.netId),
+    ...document.routes.flatMap((route) => memberNetIds(route)),
+    ...document.junctions.flatMap((junction) => memberNetIds(junction)),
   ]);
   for (const annotation of document.annotations) {
-    if (annotation.kind !== "net-label") continue;
+    if (annotation.kind !== "net-label" || annotation.visible === false)
+      continue;
     const netId =
       annotation.binding?.kind === "net-name"
         ? annotation.binding.netId
@@ -1603,6 +1627,7 @@ function reportOverbarNameMismatches(
   for (const annotation of document.annotations) {
     const binding = annotation.binding;
     if (
+      annotation.visible === false ||
       (binding?.kind !== "net-name" &&
         binding?.kind !== "cell-terminal-name") ||
       !annotation.formatOverride ||
@@ -1629,6 +1654,8 @@ function reportOverbarNameMismatches(
 function reportDanglingWires(
   document: CircuitProject["documents"][number],
   docIndex: ReturnType<ProjectConnectivityIndex["documents"]["get"]>,
+  logicalNets: ReturnType<typeof resolveDocumentLogicalNets>,
+  resolver: SymbolResolver,
   diagnostics: ErcDiagnostic[],
 ): void {
   const routesByJunction = new Map<
@@ -1652,13 +1679,24 @@ function reportDanglingWires(
       for (const endpoint of contact.endpoints)
         if (endpoint.kind === "junction")
           contactedJunctions.add(endpoint.junctionId);
+  const geometry =
+    document.routes.length < 2
+      ? undefined
+      : (docIndex?.routingGeometry ??
+        resolveDocumentRoutingGeometry(document, resolver));
+  const routeById =
+    docIndex?.routesById && docIndex.routesById.size === document.routes.length
+      ? docIndex.routesById
+      : new Map(document.routes.map((route) => [route.id, route]));
   const labelledObjects = new Set(
     document.annotations.flatMap((annotation) =>
-      annotation.anchor.kind === "object"
-        ? [annotation.anchor.objectId]
-        : annotation.anchor.kind === "route"
-          ? [annotation.anchor.routeId]
-          : [],
+      annotation.visible === false
+        ? []
+        : annotation.anchor.kind === "object"
+          ? [annotation.anchor.objectId]
+          : annotation.anchor.kind === "route"
+            ? [annotation.anchor.routeId]
+            : [],
     ),
   );
   for (const evidence of document.connectivityEvidence)
@@ -1673,6 +1711,7 @@ function reportDanglingWires(
   const reach = document.presentation.grid * 4;
   const freeLabels = document.annotations.flatMap((annotation) => {
     if (
+      annotation.visible === false ||
       (annotation.kind !== "net-label" && annotation.kind !== "power-label") ||
       annotation.anchor.kind !== "free"
     )
@@ -1704,6 +1743,33 @@ function reportDanglingWires(
       )
     )
       continue;
+    // A Junction standing on another Route of the same Logical Net (such as a
+    // `bulk-dashed` body tap onto a solid wire kept unsplit by normalization,
+    // or a tap onto a Power Rail) joins that conductor rather than ending open.
+    // For multi-bit bus Junctions, every member Logical Net must be met there.
+    const junctionLogicalIds = logicalNetIdsOf(
+      memberNetIds(junction),
+      logicalNets,
+    );
+    if (geometry !== undefined && junctionLogicalIds.size > 0) {
+      const coveredLogicalIds = new Set<string>();
+      for (const address of findRouteSegmentsAtPoint(
+        geometry,
+        junction.position,
+        docIndex?.spatialIndex,
+      )) {
+        if (address.routeId === route.id) continue;
+        const other = routeById.get(address.routeId);
+        if (!other) continue;
+        for (const logicalId of logicalNetIdsOf(
+          memberNetIds(other),
+          logicalNets,
+        ))
+          coveredLogicalIds.add(logicalId);
+      }
+      if ([...junctionLogicalIds].every((id) => coveredLogicalIds.has(id)))
+        continue;
+    }
     diagnostics.push({
       id: `erc:dangling-wire:${document.id}:${junction.id}`,
       domain: "erc",
@@ -1745,16 +1811,18 @@ function reportPinsTouchingAnotherNet(
       ? undefined
       : (docIndex?.routingGeometry ??
         resolveDocumentRoutingGeometry(document, resolver));
-  const routeById = new Map(document.routes.map((route) => [route.id, route]));
-  const logicalIdOf = (baseNetId: string | undefined): string | undefined =>
-    baseNetId ? logicalNets.byBaseNetId.get(baseNetId)?.id : undefined;
-  const netIdByTerminalKey = new Map<string, string>();
+  const routeById =
+    docIndex?.routesById && docIndex.routesById.size === document.routes.length
+      ? docIndex.routesById
+      : new Map(document.routes.map((route) => [route.id, route]));
+  const netIdsByTerminalKey = new Map<string, Set<string>>();
   for (const net of document.nets)
-    for (const terminal of net.terminals)
-      netIdByTerminalKey.set(
-        `${terminal.instanceId}\u0000${terminal.pinName}`,
-        net.id,
-      );
+    for (const terminal of net.terminals) {
+      const key = `${terminal.instanceId}\u0000${terminal.pinName}`;
+      const existing = netIdsByTerminalKey.get(key);
+      if (existing) existing.add(net.id);
+      else netIdsByTerminalKey.set(key, new Set([net.id]));
+    }
   const declaredOpen = new Set(
     document.noConnects.flatMap((item) =>
       item.endpoint.kind === "terminal"
@@ -1768,7 +1836,7 @@ function reportPinsTouchingAnotherNet(
       instanceId: string;
       pinName: string;
       netId: string | undefined;
-      logicalId: string | undefined;
+      logicalIds: ReadonlySet<string>;
     }[]
   >();
   const endpointLookup =
@@ -1809,15 +1877,15 @@ function reportPinsTouchingAnotherNet(
           : undefined,
       );
       if (!point) continue;
-      const pinNetId = netIdByTerminalKey.get(key);
-      const pinLogicalId = logicalIdOf(pinNetId);
+      const pinNetIds = netIdsByTerminalKey.get(key);
+      const pinLogicalIds = logicalNetIdsOf(pinNetIds ?? [], logicalNets);
       const at = `${Math.round(point.x * 1000)}:${Math.round(point.y * 1000)}`;
       const here = pinsAtPoint.get(at) ?? [];
       here.push({
         instanceId: instance.id,
         pinName: pin.name,
-        netId: pinNetId,
-        logicalId: pinLogicalId,
+        netId: pinNetIds ? [...pinNetIds][0] : undefined,
+        logicalIds: pinLogicalIds,
       });
       pinsAtPoint.set(at, here);
       if (!geometry) continue;
@@ -1828,8 +1896,14 @@ function reportPinsTouchingAnotherNet(
       ).flatMap((address) => {
         const route = routeById.get(address.routeId);
         if (!route) return [];
-        const routeLogicalId = logicalIdOf(route.netId);
-        return routeLogicalId && routeLogicalId !== pinLogicalId
+        const routeLogicalIds = logicalNetIdsOf(
+          memberNetIds(route),
+          logicalNets,
+        );
+        const sharesLogicalNet = [...routeLogicalIds].some((id) =>
+          pinLogicalIds.has(id),
+        );
+        return routeLogicalIds.size > 0 && !sharesLogicalNet
           ? [{ route, netId: route.netId }]
           : [];
       });
@@ -1844,7 +1918,7 @@ function reportPinsTouchingAnotherNet(
         gateEligible: false,
         message: supplyMarkerForSymbol(instance.symbolId)
           ? `Supply marker ${instance.reference ?? instance.id} sits on a wire of Net ${first.netId} without being joined to it, so that wire does not get its supply; join the marker's pin to the wire`
-          : pinLogicalId
+          : pinLogicalIds.size > 0
             ? `Pin ${instance.id}.${pin.name} sits on a wire of Net ${first.netId} but belongs to a different Net`
             : `Pin ${instance.id}.${pin.name} sits on a wire of Net ${first.netId} without being connected to it`,
         primary: terminalLocator(document.id, instance.id, pin.name),
@@ -1872,10 +1946,7 @@ function reportPinsTouchingAnotherNet(
         const first = pins[index]!;
         const second = pins[other]!;
         if (first.instanceId === second.instanceId) continue;
-        if (
-          first.logicalId !== undefined &&
-          first.logicalId === second.logicalId
-        )
+        if ([...first.logicalIds].some((id) => second.logicalIds.has(id)))
           continue;
         const firstName = `${first.instanceId}.${first.pinName}`;
         const secondName = `${second.instanceId}.${second.pinName}`;
@@ -1887,7 +1958,7 @@ function reportPinsTouchingAnotherNet(
           confidence: "high",
           gateEligible: false,
           message:
-            first.logicalId && second.logicalId
+            first.logicalIds.size > 0 && second.logicalIds.size > 0
               ? `Pins ${firstName} and ${secondName} sit on one point but belong to different Nets`
               : `Pins ${firstName} and ${secondName} sit on one point without being connected`,
           primary: terminalLocator(

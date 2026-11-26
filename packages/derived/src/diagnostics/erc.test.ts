@@ -1084,6 +1084,392 @@ describe("ERC engine", () => {
     ).toEqual([]);
   });
 
+  it("ignores hidden Net Labels when checking ERC_NET_LABEL_NAMES_NOTHING and ERC_OVERBAR_NAME_MISMATCH (#2645)", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.nets.push(
+      { id: "process-empty", terminals: [] },
+      { id: "visible-empty", terminals: [] },
+      { id: "overbar-net", terminals: [] },
+    );
+    document.annotations.push(
+      {
+        id: "process-supply-hidden",
+        kind: "net-label",
+        binding: { kind: "net-name", netId: "process-empty" },
+        netId: "process-empty",
+        anchor: { kind: "free", position: { x: 0, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+        visible: false,
+      },
+      {
+        id: "visible-orphan",
+        kind: "net-label",
+        binding: { kind: "net-name", netId: "visible-empty" },
+        netId: "visible-empty",
+        anchor: { kind: "free", position: { x: 20, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      },
+      {
+        id: "hidden-overbar",
+        kind: "net-label",
+        binding: { kind: "net-name", netId: "overbar-net" },
+        netId: "overbar-net",
+        anchor: { kind: "free", position: { x: 40, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+        visible: false,
+        formatOverride: {
+          runs: [
+            {
+              kind: "span",
+              style: "overbar",
+              children: [{ kind: "text", value: "EN" }],
+            },
+          ],
+        },
+      },
+      {
+        id: "visible-overbar",
+        kind: "net-label",
+        binding: { kind: "net-name", netId: "overbar-net" },
+        netId: "overbar-net",
+        anchor: { kind: "free", position: { x: 60, y: 0 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+        formatOverride: {
+          runs: [
+            {
+              kind: "span",
+              style: "overbar",
+              children: [{ kind: "text", value: "EN" }],
+            },
+          ],
+        },
+      },
+    );
+    document.connectivityEvidence.push(
+      {
+        id: "claim-hidden",
+        kind: "name-claim",
+        netId: "process-empty",
+        name: "0",
+        scope: "global",
+        powerDomain: "ground",
+        owner: { kind: "net-label", annotationId: "process-supply-hidden" },
+      },
+      {
+        id: "claim-visible",
+        kind: "name-claim",
+        netId: "visible-empty",
+        name: "FLOATING",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "visible-orphan" },
+      },
+      {
+        id: "claim-overbar",
+        kind: "name-claim",
+        netId: "overbar-net",
+        name: "EN",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "hidden-overbar" },
+      },
+      {
+        id: "claim-visible-overbar",
+        kind: "name-claim",
+        netId: "overbar-net",
+        name: "EN",
+        scope: "local",
+        owner: { kind: "net-label", annotationId: "visible-overbar" },
+      },
+    );
+    document.junctions.push({
+      id: "overbar-j",
+      netId: "overbar-net",
+      position: { x: 60, y: 0 },
+      role: "route-anchor",
+    });
+    const diagnostics = run(project);
+    expect(
+      diagnostics
+        .filter((item) => item.code === "ERC_NET_LABEL_NAMES_NOTHING")
+        .map((item) => item.parameters),
+    ).toEqual([{ annotationId: "visible-orphan", netId: "visible-empty" }]);
+    expect(
+      diagnostics
+        .filter((item) => item.code === "ERC_OVERBAR_NAME_MISMATCH")
+        .map((item) => item.parameters),
+    ).toEqual([{ annotationId: "visible-overbar", name: "EN" }]);
+  });
+
+  it("treats a Junction landing on another Route of the same Logical Net as connected, not dangling (#2645)", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.nets.push(
+      { id: "trunk-net", terminals: [] },
+      { id: "foreign-net", terminals: [] },
+    );
+    document.junctions.push(
+      {
+        id: "T0",
+        netId: "trunk-net",
+        position: { x: 0, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "T1",
+        netId: "trunk-net",
+        position: { x: 100, y: 0 },
+        role: "route-anchor",
+      },
+      {
+        id: "tap-start",
+        netId: "trunk-net",
+        position: { x: 50, y: 40 },
+        role: "route-anchor",
+      },
+      {
+        id: "tap-on-trunk",
+        netId: "trunk-net",
+        position: { x: 50, y: 0 },
+        role: "branch",
+      },
+      {
+        id: "F0",
+        netId: "foreign-net",
+        position: { x: 0, y: 80 },
+        role: "route-anchor",
+      },
+      {
+        id: "F1",
+        netId: "foreign-net",
+        position: { x: 100, y: 80 },
+        role: "route-anchor",
+      },
+      {
+        id: "bad-start",
+        netId: "trunk-net",
+        position: { x: 50, y: 120 },
+        role: "route-anchor",
+      },
+      {
+        id: "bad-on-foreign",
+        netId: "trunk-net",
+        position: { x: 50, y: 80 },
+        role: "branch",
+      },
+    );
+    document.routes.push(
+      createRoutePath({
+        id: "trunk",
+        netId: "trunk-net",
+        start: { kind: "junction", junctionId: "T0" },
+        end: { kind: "junction", junctionId: "T1" },
+        bends: [],
+        modes: ["manual"],
+        presentation: "power-rail",
+      }),
+      createRoutePath({
+        id: "bulk-tap",
+        netId: "trunk-net",
+        start: { kind: "junction", junctionId: "tap-start" },
+        end: { kind: "junction", junctionId: "tap-on-trunk" },
+        bends: [],
+        modes: ["manual"],
+        presentation: "bulk-dashed",
+      }),
+      createRoutePath({
+        id: "foreign-trunk",
+        netId: "foreign-net",
+        start: { kind: "junction", junctionId: "F0" },
+        end: { kind: "junction", junctionId: "F1" },
+        bends: [],
+        modes: ["manual"],
+        presentation: "power-rail",
+      }),
+      createRoutePath({
+        id: "bad-tap",
+        netId: "trunk-net",
+        start: { kind: "junction", junctionId: "bad-start" },
+        end: { kind: "junction", junctionId: "bad-on-foreign" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    // `tap-on-trunk` lands on same-net `trunk`, so it is not dangling;
+    // `tap-start`, `bad-start`, and `bad-on-foreign` (different Net!) still report.
+    // A hidden free Net Label right beside `tap-start` must NOT suppress it.
+    document.annotations.push({
+      id: "hidden-free-label",
+      kind: "net-label",
+      binding: { kind: "net-name", netId: "trunk-net" },
+      netId: "trunk-net",
+      anchor: { kind: "free", position: { x: 50, y: 40 } },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+      visible: false,
+    });
+    const dangling = run(project)
+      .filter((diagnostic) => diagnostic.code === "ERC_DANGLING_WIRE")
+      .map((diagnostic) => diagnostic.parameters);
+    expect(dangling).toEqual([
+      { routeId: "bad-tap", junctionId: "bad-on-foreign" },
+      { routeId: "bad-tap", junctionId: "bad-start" },
+      { routeId: "bulk-tap", junctionId: "tap-start" },
+    ]);
+  });
+
+  it("matches all member Logical Nets for multi-bit bus pins in ERC_TOUCHING_NOT_CONNECTED (#2645)", () => {
+    const project = emptyProject();
+    const document = project.documents[0]!;
+    document.instances.push(instance("P_BUS"), {
+      ...instance("X_BUS"),
+      placement: { position: { x: 100, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    document.nets.push(
+      {
+        id: "bus-bit-0",
+        terminals: [
+          { instanceId: "P_BUS", pinName: "R", memberId: "m0" },
+          { instanceId: "X_BUS", pinName: "L", memberId: "m0" },
+        ],
+      },
+      {
+        id: "bus-bit-1",
+        terminals: [
+          { instanceId: "P_BUS", pinName: "R", memberId: "m1" },
+          { instanceId: "X_BUS", pinName: "L", memberId: "m1" },
+        ],
+      },
+      { id: "unrelated", terminals: [] },
+    );
+    document.routes.push({
+      ...createRoutePath({
+        id: "bus-route",
+        netId: "bus-bit-0",
+        start: { kind: "terminal", instanceId: "P_BUS", pinName: "R" },
+        end: { kind: "terminal", instanceId: "X_BUS", pinName: "L" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      members: [
+        {
+          id: "bus-route-m0",
+          netId: "bus-bit-0",
+          startMemberId: "m0",
+          endMemberId: "m0",
+        },
+        {
+          id: "bus-route-m1",
+          netId: "bus-bit-1",
+          startMemberId: "m1",
+          endMemberId: "m1",
+        },
+      ],
+    });
+    // Multi-bit bus pins on their own bus route must not trigger ERC_TOUCHING_NOT_CONNECTED.
+    expect(
+      run(project).filter((item) => item.code === "ERC_TOUCHING_NOT_CONNECTED"),
+    ).toEqual([]);
+
+    // Adding an unrelated wire across P_BUS.R must still report ERC_TOUCHING_NOT_CONNECTED.
+    const withForeign: CircuitProject = {
+      ...project,
+      documents: [
+        {
+          ...document,
+          junctions: [
+            ...document.junctions,
+            {
+              id: "U0",
+              netId: "unrelated",
+              position: { x: 20, y: -40 },
+              role: "route-anchor",
+            },
+            {
+              id: "U1",
+              netId: "unrelated",
+              position: { x: 20, y: 40 },
+              role: "route-anchor",
+            },
+          ],
+          routes: [
+            ...document.routes,
+            createRoutePath({
+              id: "unrelated-wire",
+              netId: "unrelated",
+              start: { kind: "junction", junctionId: "U0" },
+              end: { kind: "junction", junctionId: "U1" },
+              bends: [],
+              modes: ["manual"],
+            }),
+          ],
+        },
+      ],
+    };
+    expect(
+      run(withForeign)
+        .filter((item) => item.code === "ERC_TOUCHING_NOT_CONNECTED")
+        .map((item) => item.parameters),
+    ).toEqual([
+      {
+        instanceId: "P_BUS",
+        pinName: "R",
+        routeId: "unrelated-wire",
+        netId: "unrelated",
+      },
+    ]);
+
+    // Coincident multi-bit bus pins sharing a member Logical Net stay quiet.
+    const coincidentBus: CircuitProject = {
+      ...emptyProject(),
+      documents: [
+        {
+          ...emptyProject().documents[0]!,
+          instances: [
+            instance("A"),
+            {
+              ...instance("B"),
+              placement: {
+                position: { x: 40, y: 0 },
+                rotation: 0 as const,
+                mirror: "none" as const,
+              },
+            },
+          ],
+          nets: [
+            {
+              id: "b0",
+              terminals: [
+                { instanceId: "A", pinName: "R", memberId: "m0" },
+                { instanceId: "B", pinName: "L", memberId: "m0" },
+              ],
+            },
+            {
+              id: "b1",
+              terminals: [
+                { instanceId: "A", pinName: "R", memberId: "m1" },
+                { instanceId: "B", pinName: "L", memberId: "m1" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(
+      run(coincidentBus).filter(
+        (item) => item.code === "ERC_TOUCHING_NOT_CONNECTED",
+      ),
+    ).toEqual([]);
+  });
+
   it("flags unconnected visible pins and suppresses them via NoConnect", () => {
     const project = emptyProject();
     project.documents[0]!.instances = [instance("I1")];
