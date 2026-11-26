@@ -5,10 +5,6 @@ export {
   renderVisiblePinNames,
 } from "./symbol-render.js";
 export * from "./signal-flow-formula.js";
-export {
-  renderRichTextDocument,
-  renderRichTextWithOverbars,
-  richTextOverbars,
-} from "./rich-text.js";
+export { renderRichTextDocument } from "./rich-text.js";
 export { renderFormulaDocument } from "./formula.js";
 export * from "./schematic-text.js";
