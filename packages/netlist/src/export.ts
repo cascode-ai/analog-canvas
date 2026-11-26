@@ -203,8 +203,10 @@ function applyPortCase(ir: DesignNetlistIR, portCase: NetlistPortCase): void {
  * 17 no longer calls the tap of a SKY130 spiral drawn as a 2-pin inductor a
  * dead end: its device floats it by design, so a circuit it alone blocked
  * extracts.
+ * 18 requires at least one extracted device in the top Cell so empty or
+ * box-only drawings without devices do not receive the netlist mark (#2644).
  */
-export const NETLIST_MARK_RULE_VERSION = 17;
+export const NETLIST_MARK_RULE_VERSION = 18;
 
 export function designExtractsNetlist(
   project: CircuitProject,
@@ -213,11 +215,18 @@ export function designExtractsNetlist(
   const result = createDesignNetlistExport(project, {
     format: "spice",
     ...options,
+    includeIr: true,
   });
-  return (
-    result.status === "ready" &&
-    unfinishedDrawingDiagnostics(result.diagnostics).length === 0
+  if (
+    result.status !== "ready" ||
+    unfinishedDrawingDiagnostics(result.diagnostics).length > 0
+  ) {
+    return false;
+  }
+  const topCell = result.ir?.cells.find(
+    (cell) => cell.id === result.ir?.topCellId,
   );
+  return (topCell?.instances.length ?? 0) > 0;
 }
 
 /**

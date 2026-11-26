@@ -4,9 +4,9 @@ import {
   type Harness,
   ORIGIN,
   environment,
+  extractableProjectText,
   makerOf,
   ownerAccountOf,
-  projectText,
   route,
   submitOne,
 } from "./gallery.test-support";
@@ -36,7 +36,9 @@ async function wallFixture() {
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          entries: [{ id, name, tags, projectText: projectText(name) }],
+          entries: [
+            { id, name, tags, projectText: extractableProjectText(name) },
+          ],
         }),
       }),
     );

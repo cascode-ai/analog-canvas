@@ -12,6 +12,7 @@ import {
   adminOf,
   cookieHeaders,
   environment,
+  extractableProjectText,
   makerOf,
   ownerAccountOf,
   projectText,
@@ -1161,7 +1162,10 @@ describe("netlist marks and thumbs", () => {
       cookie,
       text: serializeProject(sketch),
     });
-    const extractableId = await submitOne(env, "Extractable", { cookie });
+    const extractableId = await submitOne(env, "Extractable", {
+      cookie,
+      text: extractableProjectText("Extractable"),
+    });
     expect((await route(env, likeRequest(sketchId, cookie))).status).toBe(200);
 
     const list = async (query: string, viewer?: string) => {
@@ -1475,8 +1479,14 @@ describe("netlist marks and thumbs", () => {
     // repeated over answers that are already current.
     const env = environment();
     const cookie = await adminOf(env);
-    const first = await submitOne(env, "Batch one", { cookie });
-    const second = await submitOne(env, "Batch two", { cookie });
+    const first = await submitOne(env, "Batch one", {
+      cookie,
+      text: extractableProjectText("Batch one"),
+    });
+    const second = await submitOne(env, "Batch two", {
+      cookie,
+      text: extractableProjectText("Batch two"),
+    });
     // Publishing stamped the current rule, so the pass has nothing to do.
     const refresh = async (limit: number) => {
       const response = await route(
@@ -1593,9 +1603,9 @@ describe("gallery circuit tags", () => {
       placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
     });
     for (const [name, tags, text] of [
-      ["Extractable", ["amplifier", "ota"], projectText("Extractable")],
+      ["Extractable", ["amplifier", "ota"], extractableProjectText("Extractable")],
       ["Sketch", ["amplifier", "comparator"], serializeProject(sketch)],
-      ["Hidden", ["amplifier", "buffer"], projectText("Hidden")],
+      ["Hidden", ["amplifier", "buffer"], extractableProjectText("Hidden")],
     ] as const) {
       const response = await route(
         env,
