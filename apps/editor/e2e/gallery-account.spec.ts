@@ -250,13 +250,10 @@ test("central sign-in returns to the editor with its unsaved circuit and real re
     const galleryUrl = accounts.origin + "/api/gallery?tag=amplifier";
     expect((await page.request.get(galleryUrl)).status()).toBe(200);
     accounts.expireLease();
-    // Past the lease the session is gone, while anyone still reads the Gallery.
+    // The next visit checks the still-valid authority grant and resumes the draft.
     expect((await page.request.get(galleryUrl)).status()).toBe(200);
     await page.goto(accounts.origin + "/editor?resume=1");
     await awaitEditorReady(page);
-    await page.getByTestId("account-signin").locator("summary").click();
-    await expect(page.getByTestId("signin-central")).toBeVisible();
-    await page.getByTestId("signin-central").click();
     await expect(page).toHaveURL(accounts.origin + "/editor?resume=1");
     await expect(page.getByTestId("account-name")).toContainText(
       "Domestic browser",
