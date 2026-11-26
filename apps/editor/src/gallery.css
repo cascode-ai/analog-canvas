@@ -1811,6 +1811,8 @@ div.gallery-contributor-status {
     "SF Pro Text", "Segoe UI Variable Text", ui-sans-serif, system-ui,
     -apple-system, BlinkMacSystemFont, sans-serif;
   position: relative;
+  display: flex;
+  flex-direction: column;
   box-sizing: border-box;
   width: var(--gallery-sidebar-width, 262px);
   min-width: 0;
@@ -1845,10 +1847,27 @@ div.gallery-contributor-status {
   outline: none;
 }
 
+/* Keeps the sticky sidebar out of the grid row's intrinsic height so a short
+   wall does not stretch or shift as the sidebar grows on scroll (#2654). */
+.gallery-sidebar-track {
+  position: relative;
+  flex: 1;
+  min-height: 160px;
+}
+
+.gallery-sidebar-track-inner {
+  position: absolute;
+  inset: 0;
+}
+
 .gallery-tag-sidebar {
   position: sticky;
   top: var(--icm-menubar-h);
-  max-height: calc(100dvh - var(--icm-menubar-h));
+  max-height: min(
+    100%,
+    var(--gallery-sidebar-max-height, 100%),
+    calc(100dvh - var(--icm-menubar-h))
+  );
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -1913,6 +1932,7 @@ div.gallery-contributor-status {
 
 .gallery-sidebar-search {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 6px;
   margin: 20px 14px 0;
@@ -1955,6 +1975,7 @@ div.gallery-contributor-status {
 }
 
 .gallery-sidebar-slot[data-collapsed="true"] {
+  display: block;
   width: 44px;
   padding-top: 18px;
   text-align: center;
@@ -2077,6 +2098,13 @@ div.gallery-contributor-status {
     font: inherit;
     font-size: 13px;
     cursor: pointer;
+  }
+  .gallery-sidebar-track {
+    position: static;
+    min-height: 0;
+  }
+  .gallery-sidebar-track-inner {
+    position: static;
   }
   .gallery-tag-sidebar {
     display: none;

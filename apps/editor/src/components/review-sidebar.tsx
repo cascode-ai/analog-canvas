@@ -2,7 +2,10 @@ import { useState } from "react";
 
 import { COMPARISON_SOURCES } from "../gallery-sources";
 import { MINE_FILTERS, type MineFilter } from "../review-queue";
-import { SidebarFoldButton } from "./gallery-tag-sidebar";
+import {
+  GallerySidebarScrollArea,
+  SidebarFoldButton,
+} from "./gallery-tag-sidebar";
 
 const num = (value: number) => value.toLocaleString("en-US");
 /** Authors the list shows before "+ N more". */
@@ -142,7 +145,7 @@ export function ScopeSidebar({
           testId="review-sidebar-fold"
         />
       </div>
-      <aside className="gallery-tag-sidebar" aria-label="Filter">
+      <GallerySidebarScrollArea ariaLabel="Filter">
         <div className="review-sidebar-list">
           {item("random", "Random")}
           {item("community", "Community")}
@@ -243,7 +246,7 @@ export function ScopeSidebar({
             </div>
           </>
         ) : null}
-      </aside>
+      </GallerySidebarScrollArea>
     </div>
   );
 }

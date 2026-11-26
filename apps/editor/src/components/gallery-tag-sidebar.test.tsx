@@ -1,7 +1,10 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it } from "vitest";
-import { GalleryTagSidebar } from "./gallery-tag-sidebar";
+import {
+  GalleryTagSidebar,
+  stickySidebarMaxHeight,
+} from "./gallery-tag-sidebar";
 
 it("keeps every original tag and a removed tag from a saved filter reachable", () => {
   const markup = renderToStaticMarkup(
@@ -101,4 +104,47 @@ it("holds the last tag counts while new ones load; only the first load shows non
   expect(render([])).toContain(
     'Amplifiers</span><span class="gallery-sidebar-count" aria-hidden="true">…</span>',
   );
+});
+
+it("fits the sticky sidebar height to the visible viewport before and after page scroll (#2654)", () => {
+  // At scrollTop = 0, tabs and search sit above the track (trackTop = 168).
+  expect(
+    stickySidebarMaxHeight({
+      shellTop: 0,
+      shellClientHeight: 1057,
+      stickyTopOffset: 48,
+      trackTop: 168.4,
+      trackBottom: 4200,
+    }),
+  ).toBe(888);
+  // Once scrolled past tabs and search, the sidebar sticks at stickyTopOffset.
+  expect(
+    stickySidebarMaxHeight({
+      shellTop: 0,
+      shellClientHeight: 1057,
+      stickyTopOffset: 48,
+      trackTop: -200,
+      trackBottom: 3800,
+    }),
+  ).toBe(1009);
+  // Near the footnote or on a short wall, the track bottom caps the height.
+  expect(
+    stickySidebarMaxHeight({
+      shellTop: 0,
+      shellClientHeight: 900,
+      stickyTopOffset: 48,
+      trackTop: 168,
+      trackBottom: 840,
+    }),
+  ).toBe(672);
+  // Extreme compression keeps a usable minimum scroll height.
+  expect(
+    stickySidebarMaxHeight({
+      shellTop: 0,
+      shellClientHeight: 220,
+      stickyTopOffset: 48,
+      trackTop: 168,
+      trackBottom: 200,
+    }),
+  ).toBe(120);
 });
