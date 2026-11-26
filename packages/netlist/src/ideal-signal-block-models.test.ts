@@ -83,6 +83,7 @@ describe("generated block bodies", () => {
         !IDEAL_LOGIC_TARGETS.includes(target) &&
         !IDEAL_SIGNAL_TARGETS.includes(target) &&
         builtInModelContract(target)?.family !== "passive" &&
+        builtInModelContract(target)?.family !== "amplifier" &&
         // A generic block is a call of the reader's own subcircuit.
         builtInModelContract(target)?.family !== "generic",
     );

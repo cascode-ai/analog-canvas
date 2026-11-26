@@ -16,6 +16,7 @@ export * from "./adder.js";
 export * from "./ideal-comparator.js";
 export * from "./ideal-opamp.js";
 export * from "./differential-opamp.js";
+export * from "./optional-port-bodies.js";
 export * from "./drawn-magnetic.js";
 export * from "./drawn-switch-control.js";
 export * from "./gate-cell.js";

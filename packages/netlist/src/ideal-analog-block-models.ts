@@ -127,7 +127,10 @@ export function idealAnalogBlockCell(
   const parameters = adderSigns ? [] : model.parameters;
   if (!adderSigns && parameters.length === 0)
     throw new Error(`Ideal analog model has no parameter: ${name}`);
-  const differential = model.implementation === "opamp_differential";
+  const differential =
+    model.implementation === "opamp_differential" ||
+    model.implementation === "single_to_diff_amplifier" ||
+    model.implementation === "differential_video_amplifier";
 
   const e = (
     reference: string,
@@ -143,8 +146,50 @@ export function idealAnalogBlockCell(
       expression,
       format,
     );
-  const g = (nodes: readonly [string, string, string, string]) =>
-    controlledSource(target, "GCORE", "vccs", nodes, "gm", "gm", format);
+  const g = (
+    nodes: readonly [string, string, string, string],
+    reference = "GCORE",
+    expression = "gm",
+  ) =>
+    controlledSource(
+      target,
+      reference,
+      "vccs",
+      nodes,
+      "gm",
+      expression,
+      format,
+    );
+  const resistor = (
+    reference: string,
+    nodes: readonly [string, string],
+    value: string,
+  ): DesignNetlistInstance => ({
+    id: deriveStableId("netlist-ideal-block-source", target, reference),
+    reference,
+    invocationKind: "primitive",
+    deviceClass: "resistor",
+    target: null,
+    nodes: nodes.map((netName, index) => ({
+      pinName: String(index + 1),
+      netName,
+    })),
+    parameters: [{ name: "value", rawValue: value }],
+  });
+  const vcmSource: DesignNetlistInstance = {
+    id: deriveStableId("netlist-ideal-block-source", target, "VCM"),
+    reference: "VCM",
+    invocationKind: "primitive",
+    deviceClass: "voltage-source",
+    target: null,
+    nodes: [
+      { pinName: "+", netName: "ncm" },
+      { pinName: "-", netName: "0" },
+    ],
+    parameters: [
+      { name: "dc", rawValue: format === "spice" ? "{vocm}" : "vocm" },
+    ],
+  };
   const gain = (sign: InputSign) => (sign === "-" ? "-1" : "1");
   const instances: DesignNetlistInstance[] = adderSigns
     ? // Two sources stacked through nsum: V(Y) = ±V(A) ± V(B).
@@ -152,30 +197,36 @@ export function idealAnalogBlockCell(
         e("ESUMA", ["Y", "nsum", "A", "0"], gain(adderSigns[0])),
         e("ESUMB", ["nsum", "0", "B", "0"], gain(adderSigns[1])),
       ]
-    : differential
+    : model.implementation === "single_to_diff_amplifier"
       ? [
-          {
-            id: deriveStableId("netlist-ideal-block-source", target, "VCM"),
-            reference: "VCM",
-            invocationKind: "primitive",
-            deviceClass: "voltage-source",
-            target: null,
-            nodes: [
-              { pinName: "+", netName: "ncm" },
-              { pinName: "-", netName: "0" },
-            ],
-            parameters: [
-              { name: "dc", rawValue: format === "spice" ? "{vocm}" : "vocm" },
-            ],
-          },
-          e("EPLUS", ["VOP", "ncm", "VIP", "VIN"], "gain/2"),
-          e("EMINUS", ["VON", "ncm", "VIN", "VIP"], "gain/2"),
+          vcmSource,
+          e("EPLUS", ["VOP", "ncm", "VIN", "0"], "gain/2"),
+          e("EMINUS", ["VON", "ncm", "0", "VIN"], "gain/2"),
         ]
-      : model.implementation === "voltage_amplifier"
-        ? [e("ECORE", ["VOUT", "0", "VIN", "0"])]
-        : model.implementation === "transconductance"
-          ? [g(["0", "VOUT", "VIN", "0"])]
-          : [g(["0", "VOUT", "VIP", "VIN"])];
+      : model.implementation === "differential_video_amplifier"
+        ? [
+            vcmSource,
+            e("EPLUS", ["VOP", "ncm", "VIP", "VIN"], "gain/2"),
+            e("EMINUS", ["VON", "ncm", "VIN", "VIP"], "gain/2"),
+            resistor("RG1", ["G1", "0"], "1G"),
+            resistor("RG2", ["G2", "0"], "1G"),
+          ]
+        : differential
+          ? [
+              vcmSource,
+              e("EPLUS", ["VOP", "ncm", "VIP", "VIN"], "gain/2"),
+              e("EMINUS", ["VON", "ncm", "VIN", "VIP"], "gain/2"),
+            ]
+          : model.implementation === "voltage_amplifier"
+            ? [e("ECORE", ["VOUT", "0", "VIN", "0"])]
+            : model.implementation === "transconductance"
+              ? [g(["0", "VOUT", "VIN", "0"])]
+              : model.implementation === "fully_differential_transconductance"
+                ? [
+                    g(["0", "VOP", "VIP", "VIN"], "GPLUS", "gm/2"),
+                    g(["0", "VON", "VIN", "VIP"], "GMINUS", "gm/2"),
+                  ]
+                : [g(["0", "VOUT", "VIP", "VIN"])];
 
   return {
     origin: "generated-model",

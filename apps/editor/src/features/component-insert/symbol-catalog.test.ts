@@ -60,6 +60,19 @@ describe("component insertion catalog", () => {
     expect(symbolCategory("capacitor")).toBe("Passives");
     expect(symbolCategory("tcoil")).toBe("Extended Devices");
     expect(symbolCategory("xfmr")).toBe("Extended Devices");
+    expect(symbolCategory("center-tap-xfmr")).toBe("Extended Devices");
+    expect(symbolCategory("relay")).toBe("Extended Devices");
+    expect(symbolCategory("opamp-compensated")).toBe("Analog Blocks");
+    expect(symbolCategory("opamp-enable")).toBe("Analog Blocks");
+    expect(symbolCategory("opamp-bias")).toBe("Analog Blocks");
+    expect(symbolCategory("single-to-diff-amplifier")).toBe("Analog Blocks");
+    expect(symbolCategory("fully-differential-transconductance")).toBe(
+      "Analog Blocks",
+    );
+    expect(symbolCategory("differential-video-amplifier")).toBe(
+      "Analog Blocks",
+    );
+    expect(symbolCategory("differential-line-driver")).toBe("Analog Blocks");
     expect(symbolCategory("variable-resistor")).toBe("Extended Devices");
     expect(symbolCategory("variable-capacitor")).toBe("Extended Devices");
     expect(symbolCategory("variable-inductor")).toBe("Extended Devices");

@@ -5,6 +5,9 @@ import {
   idealOpampBodyContract,
   isIdealComparatorBody,
   isIdealOpampBody,
+  isOptionalPortBehavioralBody,
+  optionalPortBodyPorts,
+  optionalPortBodySpec,
   type IdealComparatorBody,
   type IdealOpampBody,
 } from "@icm/devices";
@@ -16,6 +19,7 @@ import {
 } from "./ideal-switch-model.js";
 import { idealSignalModel } from "./ideal-signal-block-models.js";
 import {
+  current,
   passive,
   voltage,
   printSpiceBehavioralModel,
@@ -201,6 +205,162 @@ function transmissionLineModel(target: string): BehavioralModel {
 }
 
 /**
+ * SPDT electromagnetic relay (#2444): coil resistance `rcoil` between COILP
+ * and COILN; when |V(COILP, COILN)| rises past `von`, COM smoothly transfers
+ * from NC to NO via conductance switching between `ron` and `roff`.
+ */
+function relayModel(target: string): BehavioralModel {
+  const model = builtInModelContract(target)!;
+  const ports = model.ports.map((port) => port.name);
+  return {
+    name: target,
+    ports,
+    comment:
+      "Relay (SPDT): coil rcoil; COM switches from NC to NO when |V(COIL+,COIL-)| > von",
+    parameters: Object.entries(builtInModelDefaults(target)).map(
+      ([name, defaultValue]) => ({ name, defaultValue }),
+    ),
+    elements: [
+      passive("resistor", "Rcoil", "COILP", "COILN", "rcoil", true),
+      voltage(
+        "Bact",
+        "nact",
+        "0",
+        "0.5*(1+tanh((sqrt((V(COILP)-V(COILN))*(V(COILP)-V(COILN))+1e-12)-von)/(0.05*von+1m)))",
+      ),
+      current(
+        "Bno",
+        "COM",
+        "NO",
+        "(V(COM)-V(NO))*(V(nact)/ron+(1-V(nact))/roff)",
+      ),
+      current(
+        "Bnc",
+        "COM",
+        "NC",
+        "(V(COM)-V(NC))*((1-V(nact))/ron+V(nact)/roff)",
+      ),
+    ],
+  };
+}
+
+/**
+ * Behavioral amplifier and driver variants (#2443): smooth rail-limited
+ * op-amps with compensation, enable/mute, or bias pins, plus the tri-state
+ * differential line driver.
+ */
+function amplifierVariantModel(target: string): BehavioralModel {
+  const optionalSpec = optionalPortBodySpec(target);
+  const contractTarget = optionalSpec?.target ?? target;
+  const model = builtInModelContract(contractTarget)!;
+  const ports = (
+    optionalSpec ? optionalPortBodyPorts(target)! : model.ports
+  ).map((port) => port.name);
+  const parameters = Object.entries(builtInModelDefaults(contractTarget)).map(
+    ([name, defaultValue]) => ({ name, defaultValue }),
+  );
+  const corner = "(1e-4*(vhigh-vlow))*(1e-4*(vhigh-vlow))+1e-12";
+  const above = `(0.5*(vlow+V(nlin)+sqrt((V(nlin)-vlow)*(V(nlin)-vlow)+${corner})))`;
+  const clamp = `0.5*(vhigh+${above}-sqrt((vhigh-${above})*(vhigh-${above})+${corner}))`;
+
+  if (model.implementation === "opamp_compensated") {
+    return {
+      name: target,
+      ports,
+      comment:
+        "Compensated op-amp: smooth rail-limited gain with high-Z DC reference on COMP pin(s)",
+      parameters,
+      elements: [
+        voltage("Blin", "nlin", "0", "gain*(V(VIP)-V(VIN))"),
+        voltage("Bcore", "VOUT", "0", clamp),
+        passive("resistor", "Rcomp1", "COMP1", "0", "1G", false),
+        ...(optionalSpec?.optionalPort === "COMP2"
+          ? [passive("resistor", "Rcomp2", "COMP2", "0", "1G", false)]
+          : []),
+      ],
+    };
+  }
+  if (model.implementation === "opamp_enable") {
+    return {
+      name: target,
+      ports,
+      comment:
+        "Enable/mute op-amp: drives VOUT through ron when V(EN) > vt, mutes to roff below vt",
+      parameters,
+      elements: [
+        voltage("Ben", "nen", "0", "0.5*(1+tanh((V(EN)-vt)/50m))"),
+        voltage("Blin", "nlin", "0", "gain*V(nen)*(V(VIP)-V(VIN))"),
+        voltage("Bcore", "nclamp", "0", clamp),
+        current(
+          "Bout",
+          "nclamp",
+          "VOUT",
+          "(V(nclamp)-V(VOUT))*(V(nen)/ron+(1-V(nen))/roff)",
+        ),
+        ...(optionalSpec?.optionalPort === "GND"
+          ? [passive("resistor", "Rgnd", "GND", "0", "1G", false)]
+          : []),
+      ],
+    };
+  }
+  if (model.implementation === "opamp_bias") {
+    const gated = optionalSpec?.optionalPort === "EN";
+    return {
+      name: target,
+      ports,
+      comment:
+        "Biased op-amp: rail-limited op-amp with VBIAS output (and optional EN mute)",
+      parameters,
+      elements: [
+        ...(gated
+          ? [
+              voltage("Ben", "nen", "0", "0.5*(1+tanh((V(EN)-vt)/50m))"),
+              voltage("Blin", "nlin", "0", "gain*V(nen)*(V(VIP)-V(VIN))"),
+              voltage("Bcore", "nclamp", "0", clamp),
+              current(
+                "Bout",
+                "nclamp",
+                "VOUT",
+                "(V(nclamp)-V(VOUT))*(V(nen)/10+(1-V(nen))/1e9)",
+              ),
+            ]
+          : [
+              voltage("Blin", "nlin", "0", "gain*(V(VIP)-V(VIN))"),
+              voltage("Bcore", "VOUT", "0", clamp),
+            ]),
+        voltage("Bbias", "nbias", "0", "vbias"),
+        passive("resistor", "Rbias", "nbias", "VBIAS", "100", false),
+      ],
+    };
+  }
+  return {
+    name: target,
+    ports,
+    comment:
+      "Differential line driver: complementary OUT+/OUT- driven through ron when V(EN) > ven, tri-stated below ven",
+    parameters,
+    elements: [
+      voltage("Bstate", "ns", "0", "0.5*(1+tanh((V(VIN)-vt)/10m))"),
+      voltage("Ben", "nen", "0", "0.5*(1+tanh((V(EN)-ven)/10m))"),
+      voltage("Bvp", "nvp", "0", "vlow+(vhigh-vlow)*V(ns)"),
+      voltage("Bvn", "nvn", "0", "vlow+(vhigh-vlow)*(1-V(ns))"),
+      current(
+        "Bop",
+        "nvp",
+        "VOP",
+        "(V(nvp)-V(VOP))*(V(nen)/ron+(1-V(nen))/roff)",
+      ),
+      current(
+        "Bon",
+        "nvn",
+        "VON",
+        "(V(nvn)-V(VON))*(V(nen)/ron+(1-V(nen))/roff)",
+      ),
+    ],
+  };
+}
+
+/**
  * One family dispatch; printers never own model equations or defaults.
  * `ports` prints the same body with its ports in another order (see
  * `withBodyPortOrder`); its elements name ports, never positions. `name`
@@ -225,15 +385,20 @@ function familyDefinition(target: string): BehavioralModel {
     return clockedSwitchBehavioralDefinition(target);
   if (isIdealComparatorBody(target)) return idealComparatorModel(target);
   if (isIdealOpampBody(target)) return idealOpampModel(target);
+  if (isOptionalPortBehavioralBody(target))
+    return amplifierVariantModel(target);
   const model = builtInModelContract(target);
   if (model?.family === "logic") return idealLogicModel(target);
   if (model?.family === "signal") return idealSignalModel(target);
+  if (model?.family === "amplifier") return amplifierVariantModel(target);
   if (model?.family === "passive")
     return model.implementation === "crystal"
       ? crystalModel(target)
       : model.implementation === "transmission-line"
         ? transmissionLineModel(target)
-        : potentiometerModel(target);
+        : model.implementation === "relay"
+          ? relayModel(target)
+          : potentiometerModel(target);
   throw new Error(`No generated behavioral model: ${target}`);
 }
 

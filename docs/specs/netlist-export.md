@@ -180,6 +180,23 @@ fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
   `icm_opamp_differential_vocm`), while setting either selects the matching
   `_gbw` / `_rout` / `_gbw_rout` body variant; no call carries `vhigh=VDD`.
   Errors: `INVALID_IDEAL_OPAMP_LIMIT`, `INVALID_IDEAL_OPAMP_PARAMETER`.
+- Extended amplifier variants (#2443): `single_to_diff_amplifier` (`gain` 10,
+  `vocm` 0), `fully_differential_transconductance` (`gm` 1m S) and
+  `differential_video_amplifier` (`gain` 100, `vocm` 0; 1 GΩ DC reference on
+  `G1`/`G2`) are linear E/G-source bodies. `opamp_compensated` (1 GΩ on `COMP1`
+  and optional `COMP2` via `icm_opamp_compensated_2`), `opamp_enable` (enabled
+  through `ron` when `V(EN) > vt`, muted to `roff` below; optional `GND` via
+  `icm_opamp_enable_gnd`), `opamp_bias` (`VBIAS` driven at `vbias` via 100 Ω;
+  optional `EN` mute via `icm_opamp_bias_en`) and `differential_line_driver`
+  (complementary `OUT+`/`OUT-` driven through `ron` when `V(EN) > ven`,
+  tri-stated to `roff` below) are smooth behavioral bodies included in SPICE,
+  Spectre and VACASK.
+- Board/magnetic subcircuits (#2444): `relay` prints as behavioral
+  `spdt_relay` (coil `rcoil` 150 Ω; `COM` transfers smoothly from `NC` to `NO`
+  above `|V(COIL+,COIL-)| = von`). `center-tap-xfmr` prints as coupled-inductor
+  `center_tap_xfmr` (`LP`, `LS1`, `LS2` with `ls/4` halves and `abs(k)`
+  intra-winding coupling) or 4-winding `icm_center_tap_xfmr_dual` when optional
+  primary center tap `PC` is wired.
 - Logic (SPICE): gates, buffer, inverter and D flip-flops print once ahead of the
   Cells; inputs are high above V(VDD,VSS)/2 via a `tanh` step `vt` (10 mV);
   outputs swing VSS→VDD through a one-pole delay `td` (10 ps); flip-flops sample D

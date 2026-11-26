@@ -1,0 +1,298 @@
+{
+  "schemaVersion": 1,
+  "symbol": {
+    "schemaVersion": 1,
+    "id": "single-to-diff-amplifier",
+    "name": "Single-to-Diff Amplifier",
+    "viewBox": {
+      "x": -44,
+      "y": -34,
+      "width": 88,
+      "height": 68
+    },
+    "pins": [
+      {
+        "name": "IN",
+        "role": "input",
+        "at": {
+          "x": -40,
+          "y": 0
+        },
+        "direction": "west",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "OUT+",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": -10
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 25
+        }
+      },
+      {
+        "name": "OUT-",
+        "role": "output",
+        "at": {
+          "x": 30,
+          "y": 10
+        },
+        "direction": "east",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 25
+        }
+      },
+      {
+        "name": "VDD",
+        "role": "positive-supply",
+        "at": {
+          "x": -10,
+          "y": -30
+        },
+        "direction": "north",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      },
+      {
+        "name": "VSS",
+        "role": "negative-supply",
+        "at": {
+          "x": -10,
+          "y": 30
+        },
+        "direction": "south",
+        "presentation": {
+          "visibility": "visible",
+          "leadLength": 10
+        }
+      }
+    ],
+    "primitives": [
+      {
+        "kind": "line",
+        "part": "input-lead",
+        "from": {
+          "x": -40,
+          "y": 0
+        },
+        "to": {
+          "x": -30,
+          "y": 0
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "output-lead",
+        "from": {
+          "x": 4.641016,
+          "y": -10
+        },
+        "to": {
+          "x": 30,
+          "y": -10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "part": "output-lead",
+        "from": {
+          "x": 4.641016,
+          "y": 10
+        },
+        "to": {
+          "x": 30,
+          "y": 10
+        },
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "path",
+        "data": "M -30 -30 L -30 30 L 21.961524 0 Z",
+        "bounds": {
+          "x": -30,
+          "y": -30,
+          "width": 51.961524,
+          "height": 60
+        },
+        "fillableBody": true,
+        "style": {
+          "strokeRole": "emphasis",
+          "lineCap": "butt",
+          "lineJoin": "miter",
+          "miterLimit": 4
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -13.538476,
+          "y": -11
+        },
+        "to": {
+          "x": -13.538476,
+          "y": -17
+        },
+        "part": "output-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -16.538476,
+          "y": -14
+        },
+        "to": {
+          "x": -10.538476,
+          "y": -14
+        },
+        "part": "output-polarity",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -16.538476,
+          "y": 14
+        },
+        "to": {
+          "x": -10.538476,
+          "y": 14
+        },
+        "part": "upright-output-polarity-negative",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "round",
+          "lineJoin": "round"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -10,
+          "y": -18.452995
+        },
+        "to": {
+          "x": -10,
+          "y": -30
+        },
+        "part": "vdd-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      },
+      {
+        "kind": "line",
+        "from": {
+          "x": -10,
+          "y": 18.452995
+        },
+        "to": {
+          "x": -10,
+          "y": 30
+        },
+        "part": "vss-lead",
+        "style": {
+          "strokeRole": "normal",
+          "lineCap": "butt",
+          "lineJoin": "miter"
+        }
+      }
+    ],
+    "variants": [
+      {
+        "id": "signal-pins",
+        "hiddenPinNames": ["VDD", "VSS"],
+        "hiddenPrimitiveParts": ["vdd-lead", "vss-lead"],
+        "additionalPrimitives": []
+      },
+      {
+        "id": "supply-pins",
+        "hiddenPinNames": [],
+        "hiddenPrimitiveParts": [],
+        "additionalPrimitives": []
+      }
+    ],
+    "defaultVariantId": "signal-pins"
+  },
+  "electrical": null,
+  "subcircuit": {
+    "id": "single-to-diff-amplifier",
+    "symbolId": "single-to-diff-amplifier",
+    "target": "single_to_diff_amplifier",
+    "ports": [
+      {
+        "name": "VDD",
+        "direction": "inout",
+        "supply": "VDD"
+      },
+      {
+        "name": "VSS",
+        "direction": "inout",
+        "supply": "VSS"
+      },
+      {
+        "name": "VIN",
+        "direction": "input",
+        "pinName": "IN"
+      },
+      {
+        "name": "VOP",
+        "direction": "output",
+        "pinName": "OUT+"
+      },
+      {
+        "name": "VON",
+        "direction": "output",
+        "pinName": "OUT-"
+      }
+    ]
+  },
+  "catalog": {
+    "library": "razavi",
+    "symbolId": "single-to-diff-amplifier",
+    "name": "Single-to-Diff Amplifier",
+    "category": "analog-block",
+    "reviewStatus": "reviewed",
+    "provenance": "house",
+    "houseReason": "A single-ended-input, differential-output amplifier does not appear on the reviewed page; it combines the reviewed equilateral amplifier triangle, centered IN lead, and differential OUT+/OUT- leads with output polarity marks.",
+    "pinOrder": ["IN", "OUT+", "OUT-", "VDD", "VSS"],
+    "palette": true,
+    "automaticMappings": [],
+    "manualOnlyReason": "Ideal single-ended-to-differential voltage amplifier; prints as a call of the generated linear subcircuit driving OUT+ and OUT- symmetrically about vocm.",
+    "assetPath": "single-to-diff-amplifier.json"
+  }
+}

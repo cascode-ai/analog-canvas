@@ -2093,6 +2093,112 @@ export const agentRazaviAuthoringCatalog = {
       variants: [],
     },
     {
+      symbolId: "fully-differential-transconductance",
+      name: "Fully Differential Transconductance (gₘ)",
+      category: "analog-block",
+      defaultVariantId: "signal-pins",
+      labelVisibility: "shown",
+      formula: true,
+      coefficient: true,
+      parameters: [
+        {
+          name: "gm",
+          default: "1m",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -30,
+        y: -35,
+        width: 60,
+        height: 70,
+      },
+      pins: [
+        {
+          name: "IN+",
+          role: "non-inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -30,
+            y: 10,
+          },
+        },
+        {
+          name: "IN-",
+          role: "inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -30,
+            y: -10,
+          },
+        },
+        {
+          name: "OUT+",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: -10,
+          },
+        },
+        {
+          name: "OUT-",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 10,
+          },
+        },
+        {
+          name: "VDD",
+          role: "positive-supply",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -40,
+          },
+        },
+        {
+          name: "VSS",
+          role: "negative-supply",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 40,
+          },
+        },
+      ],
+      variants: [
+        {
+          id: "signal-pins",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -30,
+            y: -35,
+            width: 60,
+            height: 70,
+          },
+        },
+        {
+          id: "supply-pins",
+          hiddenPinNames: [],
+          bounds: {
+            x: -30,
+            y: -40,
+            width: 60,
+            height: 80,
+          },
+        },
+      ],
+    },
+    {
       symbolId: "diode",
       name: "Diode",
       category: "passive",
@@ -2796,6 +2902,120 @@ export const agentRazaviAuthoringCatalog = {
         },
       ],
       variants: [],
+    },
+    {
+      symbolId: "center-tap-xfmr",
+      name: "Center-Tap Transformer",
+      category: "passive",
+      defaultVariantId: "secondary-tap",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "lp",
+          default: "1m",
+        },
+        {
+          name: "ls",
+          default: "1m",
+        },
+        {
+          name: "k",
+          default: "0.99",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 40,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "P+",
+          role: "passive",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: -20,
+          },
+        },
+        {
+          name: "P-",
+          role: "passive",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 20,
+          },
+        },
+        {
+          name: "S+",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: -20,
+          },
+        },
+        {
+          name: "SC",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+        {
+          name: "S-",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 20,
+          },
+        },
+        {
+          name: "PC",
+          role: "passive",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 0,
+          },
+        },
+      ],
+      variants: [
+        {
+          id: "secondary-tap",
+          hiddenPinNames: ["PC"],
+          bounds: {
+            x: -20,
+            y: -20,
+            width: 40,
+            height: 40,
+          },
+        },
+        {
+          id: "dual-tap",
+          hiddenPinNames: [],
+          bounds: {
+            x: -20,
+            y: -20,
+            width: 40,
+            height: 40,
+          },
+        },
+      ],
     },
     {
       symbolId: "transmission-line",
@@ -4652,6 +4872,814 @@ export const agentRazaviAuthoringCatalog = {
       ],
     },
     {
+      symbolId: "opamp-compensated",
+      name: "Compensated Op Amp",
+      category: "analog-block",
+      defaultVariantId: "signal-pins",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1e6",
+        },
+        {
+          name: "vhigh",
+          default: "5",
+        },
+        {
+          name: "vlow",
+          default: "-5",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
+      pins: [
+        {
+          name: "IN+",
+          role: "non-inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: 10,
+          },
+        },
+        {
+          name: "IN-",
+          role: "inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: -10,
+          },
+        },
+        {
+          name: "OUT",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
+        },
+        {
+          name: "COMP1",
+          role: "compensation",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -30,
+          },
+        },
+        {
+          name: "COMP2",
+          role: "compensation",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 10,
+            y: -30,
+          },
+        },
+        {
+          name: "VDD",
+          role: "positive-supply",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: -10,
+            y: -30,
+          },
+        },
+        {
+          name: "VSS",
+          role: "negative-supply",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: -10,
+            y: 30,
+          },
+        },
+      ],
+      variants: [
+        {
+          id: "signal-pins",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-pins",
+          hiddenPinNames: [],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "single-comp",
+          hiddenPinNames: ["VDD", "VSS", "COMP2"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-single-comp",
+          hiddenPinNames: ["COMP2"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+      ],
+    },
+    {
+      symbolId: "opamp-enable",
+      name: "Enable / Mute Op Amp",
+      category: "analog-block",
+      defaultVariantId: "signal-pins",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1e6",
+        },
+        {
+          name: "vhigh",
+          default: "5",
+        },
+        {
+          name: "vlow",
+          default: "-5",
+        },
+        {
+          name: "vt",
+          default: "0.5",
+        },
+        {
+          name: "ron",
+          default: "10",
+        },
+        {
+          name: "roff",
+          default: "1e9",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
+      pins: [
+        {
+          name: "IN+",
+          role: "non-inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: 10,
+          },
+        },
+        {
+          name: "IN-",
+          role: "inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: -10,
+          },
+        },
+        {
+          name: "OUT",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
+        },
+        {
+          name: "EN",
+          role: "input",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 10,
+            y: 30,
+          },
+        },
+        {
+          name: "GND",
+          role: "ground",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 30,
+          },
+        },
+        {
+          name: "VDD",
+          role: "positive-supply",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: -10,
+            y: -30,
+          },
+        },
+        {
+          name: "VSS",
+          role: "negative-supply",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: -10,
+            y: 30,
+          },
+        },
+      ],
+      variants: [
+        {
+          id: "signal-pins",
+          hiddenPinNames: ["VDD", "VSS", "GND"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-pins",
+          hiddenPinNames: ["GND"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "gnd-pin",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-gnd-pins",
+          hiddenPinNames: [],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+      ],
+    },
+    {
+      symbolId: "opamp-bias",
+      name: "Biased Op Amp",
+      category: "analog-block",
+      defaultVariantId: "signal-pins",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "1e6",
+        },
+        {
+          name: "vhigh",
+          default: "5",
+        },
+        {
+          name: "vlow",
+          default: "-5",
+        },
+        {
+          name: "vbias",
+          default: "0.7",
+        },
+        {
+          name: "vt",
+          default: "0.5",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
+      pins: [
+        {
+          name: "IN+",
+          role: "non-inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: 10,
+          },
+        },
+        {
+          name: "IN-",
+          role: "inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: -10,
+          },
+        },
+        {
+          name: "OUT",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 0,
+          },
+        },
+        {
+          name: "VBIAS",
+          role: "output",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: -30,
+          },
+        },
+        {
+          name: "EN",
+          role: "input",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 30,
+          },
+        },
+        {
+          name: "VDD",
+          role: "positive-supply",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: -10,
+            y: -30,
+          },
+        },
+        {
+          name: "VSS",
+          role: "negative-supply",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: -10,
+            y: 30,
+          },
+        },
+      ],
+      variants: [
+        {
+          id: "signal-pins",
+          hiddenPinNames: ["VDD", "VSS", "EN"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-pins",
+          hiddenPinNames: ["EN"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "en-pin",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-en-pins",
+          hiddenPinNames: [],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+      ],
+    },
+    {
+      symbolId: "single-to-diff-amplifier",
+      name: "Single-to-Diff Amplifier",
+      category: "analog-block",
+      defaultVariantId: "signal-pins",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "10",
+        },
+        {
+          name: "vocm",
+          default: "0",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
+      pins: [
+        {
+          name: "IN",
+          role: "input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: 0,
+          },
+        },
+        {
+          name: "OUT+",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: -10,
+          },
+        },
+        {
+          name: "OUT-",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 10,
+          },
+        },
+        {
+          name: "VDD",
+          role: "positive-supply",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: -10,
+            y: -30,
+          },
+        },
+        {
+          name: "VSS",
+          role: "negative-supply",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: -10,
+            y: 30,
+          },
+        },
+      ],
+      variants: [
+        {
+          id: "signal-pins",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-pins",
+          hiddenPinNames: [],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+      ],
+    },
+    {
+      symbolId: "differential-video-amplifier",
+      name: "Differential Video Amplifier",
+      category: "analog-block",
+      defaultVariantId: "signal-pins",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "gain",
+          default: "100",
+        },
+        {
+          name: "vocm",
+          default: "0",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
+      pins: [
+        {
+          name: "IN+",
+          role: "non-inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: 10,
+          },
+        },
+        {
+          name: "IN-",
+          role: "inverting-input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: -10,
+          },
+        },
+        {
+          name: "OUT+",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: -10,
+          },
+        },
+        {
+          name: "OUT-",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 10,
+          },
+        },
+        {
+          name: "G1",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: -10,
+            y: 30,
+          },
+        },
+        {
+          name: "G2",
+          role: "passive",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 30,
+          },
+        },
+        {
+          name: "VDD",
+          role: "positive-supply",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: -30,
+          },
+        },
+        {
+          name: "VSS",
+          role: "negative-supply",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 30,
+          },
+        },
+      ],
+      variants: [
+        {
+          id: "signal-pins",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-pins",
+          hiddenPinNames: [],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+      ],
+    },
+    {
+      symbolId: "differential-line-driver",
+      name: "Differential Line Driver",
+      category: "analog-block",
+      defaultVariantId: "signal-pins",
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "vhigh",
+          default: "3.3",
+        },
+        {
+          name: "vlow",
+          default: "0",
+        },
+        {
+          name: "vt",
+          default: "1.5",
+        },
+        {
+          name: "ven",
+          default: "0.5",
+        },
+        {
+          name: "ron",
+          default: "50",
+        },
+        {
+          name: "roff",
+          default: "1e12",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -40,
+        y: -30,
+        width: 70,
+        height: 60,
+      },
+      pins: [
+        {
+          name: "IN",
+          role: "input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -40,
+            y: 0,
+          },
+        },
+        {
+          name: "OUT+",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: -10,
+          },
+        },
+        {
+          name: "OUT-",
+          role: "output",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 30,
+            y: 10,
+          },
+        },
+        {
+          name: "EN",
+          role: "input",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: 0,
+            y: 30,
+          },
+        },
+        {
+          name: "VDD",
+          role: "positive-supply",
+          direction: "north",
+          visibility: "visible",
+          at: {
+            x: -10,
+            y: -30,
+          },
+        },
+        {
+          name: "VSS",
+          role: "negative-supply",
+          direction: "south",
+          visibility: "visible",
+          at: {
+            x: -10,
+            y: 30,
+          },
+        },
+      ],
+      variants: [
+        {
+          id: "signal-pins",
+          hiddenPinNames: ["VDD", "VSS"],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+        {
+          id: "supply-pins",
+          hiddenPinNames: [],
+          bounds: {
+            x: -40,
+            y: -30,
+            width: 70,
+            height: 60,
+          },
+        },
+      ],
+    },
+    {
       symbolId: "or-gate",
       name: "OR Gate",
       category: "logic",
@@ -5557,6 +6585,93 @@ export const agentRazaviAuthoringCatalog = {
           at: {
             x: 20,
             y: 10,
+          },
+        },
+      ],
+      variants: [],
+    },
+    {
+      symbolId: "relay",
+      name: "Relay (SPDT)",
+      category: "switch",
+      defaultVariantId: null,
+      labelVisibility: "shown",
+      formula: false,
+      coefficient: false,
+      parameters: [
+        {
+          name: "rcoil",
+          default: "150",
+        },
+        {
+          name: "von",
+          default: "5",
+        },
+        {
+          name: "ron",
+          default: "1",
+        },
+        {
+          name: "roff",
+          default: "1e12",
+        },
+      ],
+      parametersOpen: true,
+      bounds: {
+        x: -20,
+        y: -20,
+        width: 40,
+        height: 40,
+      },
+      pins: [
+        {
+          name: "COIL+",
+          role: "input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: -20,
+          },
+        },
+        {
+          name: "COIL-",
+          role: "input",
+          direction: "west",
+          visibility: "visible",
+          at: {
+            x: -20,
+            y: 20,
+          },
+        },
+        {
+          name: "COM",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 0,
+          },
+        },
+        {
+          name: "NO",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: 10,
+          },
+        },
+        {
+          name: "NC",
+          role: "passive",
+          direction: "east",
+          visibility: "visible",
+          at: {
+            x: 20,
+            y: -10,
           },
         },
       ],
