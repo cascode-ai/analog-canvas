@@ -18,6 +18,7 @@ import {
 import { isLocalScalarConnection } from "./local-scalar-connection.js";
 import type { SchematicEdit } from "./edit-schema.js";
 import {
+  prepareCanvasTransaction,
   prepareTransaction,
   type PreparedTransaction,
 } from "./prepared-transaction.js";
@@ -643,8 +644,9 @@ function prepareRoutingOperation(
   plan: RoutingOperationPlan,
   context: EditExecutionContext,
   routing?: Parameters<typeof prepareTransaction>[3],
+  prepare = prepareTransaction,
 ) {
-  const preparation = prepareTransaction(
+  const preparation = prepare(
     document,
     {
       transactionId: `evaluate-routing-${document.revision}`,
@@ -781,11 +783,41 @@ function supportsScalarDeclaration(
   return true;
 }
 
-/** A Canvas commit consumes the validated document; only full-report callers need an actual-effect diff. */
+/** Evaluate a Canvas edit with a detached preview for callers that inspect it. */
 export function gateCanvasRoutingOperation(
   document: SchematicDocument,
   plan: RoutingOperationPlan,
   context: EditExecutionContext = {},
+): CanvasRoutingGate {
+  return gateCanvasOperation(document, plan, context, prepareTransaction);
+}
+
+/** Gate a Wire commit without exposing a mutable preview of its candidate. */
+export function gateCanvasWireCommit(
+  document: SchematicDocument,
+  plan: RoutingOperationPlan,
+  context: EditExecutionContext,
+) {
+  const gate = gateCanvasOperation(
+    document,
+    plan,
+    context,
+    prepareCanvasTransaction,
+  );
+  return gate.ok
+    ? {
+        ok: true as const,
+        edits: gate.edits,
+        preparedTransaction: gate.evaluated.preparedTransaction,
+      }
+    : gate;
+}
+
+function gateCanvasOperation(
+  document: SchematicDocument,
+  plan: RoutingOperationPlan,
+  context: EditExecutionContext,
+  prepare: typeof prepareTransaction,
 ): CanvasRoutingGate {
   const refusal = routingPlanRefusal(document, plan);
   if (refusal) return refusal;
@@ -804,21 +836,27 @@ export function gateCanvasRoutingOperation(
 
   const memberships = new Map<string, string | undefined>();
   const changedNetIds = new Set<string>();
-  const preparation = prepareRoutingOperation(document, plan, context, {
-    changedNetIds,
-    readMembership:
-      expected.kind !== "merge"
-        ? undefined
-        : (read) => {
-            for (const group of expected.endpointGroups) {
-              for (const key of group) {
-                if (memberships.has(key)) continue;
-                const endpoint = scalarEndpointFromKey(key);
-                if (endpoint) memberships.set(key, read(endpoint));
+  const preparation = prepareRoutingOperation(
+    document,
+    plan,
+    context,
+    {
+      changedNetIds,
+      readMembership:
+        expected.kind !== "merge"
+          ? undefined
+          : (read) => {
+              for (const group of expected.endpointGroups) {
+                for (const key of group) {
+                  if (memberships.has(key)) continue;
+                  const endpoint = scalarEndpointFromKey(key);
+                  if (endpoint) memberships.set(key, read(endpoint));
+                }
               }
-            }
-          },
-  });
+            },
+    },
+    prepare,
+  );
   if (!preparation.ok) return preparation;
   const { result } = preparation;
   // A missing or retired endpoint may need the original source-Net witness
