@@ -1,5 +1,6 @@
 import canvas from "./index";
 import { browserSessionNamespace } from "./regional-browser-session";
+import { regionalGalleryGzip } from "./regional-gallery-gzip";
 import {
   collectRegionalGarbage,
   regionalMemoryStatus,
@@ -148,6 +149,7 @@ export default {
     }
     const env: Env = {
       ...base,
+      encodePublishedGalleryBody: regionalGalleryGzip,
       ...(dispatchCreate
         ? { regionalProjectCreateTicket: incoming.headers.get(ticketHeader)! }
         : {}),

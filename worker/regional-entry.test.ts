@@ -1,19 +1,114 @@
 import { afterEach, expect, it, vi } from "vitest";
+import { gunzipSync } from "node:zlib";
 import entry from "./regional-entry";
 import { regionalRuntimeBindings } from "./regional-entry.test-support";
 import { RegionalProjectDO } from "./regional-projects";
 import { RegionalSessionDO } from "./regional-session";
 import {
   environment,
+  adminOf,
   makerOf,
   route,
   saveRequest,
   sqliteState,
   ORIGIN,
   projectText,
+  submitOne,
+  wiredProjectText,
 } from "./gallery.test-support";
 
 afterEach(() => vi.unstubAllGlobals());
+
+async function publishedRegionalCircuit() {
+  const origin = "https://cn.test";
+  const source = environment();
+  const cookie = await adminOf(source);
+  const id = await submitOne(source, "Published circuit", {
+    cookie,
+    text: wiredProjectText(),
+  });
+  const target = {
+    ...source,
+    AUTH: source.AUTH!,
+    ...regionalRuntimeBindings(),
+    AUTH_REGIONAL_CLIENT: JSON.stringify({
+      origin: ORIGIN,
+      clientOrigin: origin,
+      secret: "isolated-gallery-compression-service-secret",
+    }),
+  };
+  return { source, cookie, id, origin, target };
+}
+
+it("compresses a public preview after checking its current visibility", async () => {
+  const { source, cookie, id, origin, target } =
+    await publishedRegionalCircuit();
+  const detail = await entry.fetch(
+    new Request(`${origin}/api/gallery/${id}?summary=1`),
+    target,
+  );
+  const { entry: published } = await detail.json();
+  const preview = `${origin}/api/gallery/${id}/preview.svg?v=${published.previewRevision}`;
+  const read = (encoding: string) =>
+    entry.fetch(
+      new Request(preview, { headers: { "accept-encoding": encoding } }),
+      target,
+    );
+  const plain = await read("identity");
+  const compressed = await read("gzip");
+  expect(compressed.status).toBe(200);
+  expect(compressed.headers.get("content-encoding")).toBe("gzip");
+  expect(compressed.headers.get("vary")).toBe("Accept-Encoding");
+  expect(compressed.headers.get("cache-control")).toBe(
+    plain.headers.get("cache-control"),
+  );
+  expect(
+    gunzipSync(new Uint8Array(await compressed.arrayBuffer())).toString(),
+  ).toBe(await plain.text());
+
+  const withdrawal = await route(
+    source,
+    new Request(`${ORIGIN}/api/gallery/${id}/recycle`, {
+      method: "POST",
+      headers: { origin: ORIGIN, cookie },
+    }),
+  );
+  expect(withdrawal.status).toBe(200);
+  const withdrawn = await read("gzip");
+  expect(withdrawn.status).toBe(404);
+  expect(withdrawn.headers.has("content-encoding")).toBe(false);
+});
+
+it("negotiates public bulk downloads and preserves the curator's private response", async () => {
+  const { cookie, id, origin, target } = await publishedRegionalCircuit();
+  const path = `${origin}/api/gallery/${id}?download=1`;
+  const download = (headers: HeadersInit) =>
+    entry.fetch(new Request(path, { headers }), target);
+  const identity = await download({ "accept-encoding": "*;q=1, gzip;q=0" });
+  const raw = await identity.text();
+  expect(identity.headers.has("content-encoding")).toBe(false);
+  expect(JSON.parse(raw)).not.toHaveProperty("submitterEmail");
+  const preferredIdentity = await download({
+    "accept-encoding": "gzip;q=0.1, identity;q=1",
+  });
+  expect(preferredIdentity.headers.has("content-encoding")).toBe(false);
+  expect(await preferredIdentity.text()).toBe(raw);
+
+  const gzip = await download({ "accept-encoding": "br, gzip" });
+  const bytes = new Uint8Array(await gzip.arrayBuffer());
+  expect(gzip.status).toBe(200);
+  expect(gzip.headers.get("content-encoding")).toBe("gzip");
+  expect(gzip.headers.get("content-type")).toBe("application/json");
+  expect(gzip.headers.get("cache-control")).toBe("no-store");
+  expect(gunzipSync(bytes).toString()).toBe(raw);
+  expect(bytes.length).toBeLessThan(Buffer.byteLength(raw));
+
+  const curator = await download({ "accept-encoding": "gzip", cookie });
+  expect(curator.status).toBe(200);
+  expect(curator.headers.has("content-encoding")).toBe(false);
+  expect(await curator.json()).toHaveProperty("submitterEmail");
+});
+
 it("authorizes the formal Project HTTP entry using a real regional handoff and reads/saves locally", async () => {
   const origin = "https://cn.test",
     secret = "regional-service-secret-for-isolated-http-tests";
