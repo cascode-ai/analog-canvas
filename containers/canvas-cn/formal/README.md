@@ -246,6 +246,12 @@ removes the public listener. Run these commands under the formal release lock
 and keep public settings on the host. A release from before the public
 template serves only the private listener.
 
+The installer stages smaller gzip copies of verified, content-hashed JavaScript
+and CSS before switching the release. Nginx serves a gzip copy when the client
+accepts it, with the original available for byte ranges and clients without
+gzip support. If backup admission needs the space used by these copies, discard
+them and check backup admission again before switching.
+
 When upgrading an already open IPv4-only host, reapply `--public-mode open`
 with the current release runner and the existing filing number before adding
 Hangzhou to mainland AAAA answers. Before removing the IPv6 listener, restore
