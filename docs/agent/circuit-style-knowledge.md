@@ -63,6 +63,10 @@ A drawing that only matches its netlist is not done.
   least 10 grid units clear of unrelated wires, symbols and other text; aim for 20 beside
   supply rails. Move a label to a clear side or widen the local pitch in 10–20-unit steps
   until it fits. Do not shrink text or add a long label lead to meet a pitch target.
+- **Names between facing columns:** a pair drawn gate to gate (common-gate or cascode
+  devices of the two halves, an inner mirror pair) puts both names in the gap between the
+  inner columns. At 80 the two names sit on the gates; use 120, or move the names to the
+  outer sides.
 - **Long wires:** feedback and long returns run 30–40 outside the outermost part, never
   around an empty frame. Bring connected blocks together (stage to stage 100–140) instead
   of bridging a gap with wire. A connection that would still run more than about four
@@ -258,7 +262,16 @@ reporting:
 - names typeset like the source;
 - the source's arrangement is recognisable at a glance;
 - nothing is parked far away, and no wire crosses empty sheet;
-- no two same-named Ports sit within a few pitches of each other on one side.
+- no two same-named Ports sit within a few pitches of each other on one side;
+- the editor's default name and multiplier (`×2`) labels, which in stacked columns often
+  land on the drain or source wire of their own device, are moved to the open side;
+- node-voltage or operating-point annotations sit beside their node, one per node, with
+  the same clearance as names.
+
+For a document figure that needs the circuit in parts (for example the main amplifier
+and its bias and CMFB), draw the parts as separate Cells, or as separate groups joined by
+matching Net labels and export each with `bounds`; do not cut one rendered image along
+empty rows, which splits labels and leaves orphaned wire ends.
 
 Fix what you see and re-render, at most two rounds. If a collision or supply-connection
 ambiguity remains, report it as unresolved rather than calling the drawing finished.

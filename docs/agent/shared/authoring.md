@@ -551,6 +551,10 @@ does not override import-reference shorts/scope conflicts. Several
 `route-net` actions share a batch, each planned on the previous result.
 Contract: `describe_tool({tool:"apply_actions",operations:["route-net"]})`.
 
+Every `via` point, like every position, is on the 10-unit grid. A branch point computed
+as a midpoint (`(x1 + x2) / 2` gives 365 between columns at 330 and 400) must be
+rounded to the grid before it is sent; an off-grid point refuses the whole wire.
+
 Where a Net cannot cross the drawing (a cascode bias to both halves), name it
 at each end: `connect` the pin to an open `{kind:"point"}` a grid step or two
 out, then `add-label` with the Net's name and target
