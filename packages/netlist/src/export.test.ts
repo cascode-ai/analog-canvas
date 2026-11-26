@@ -1738,4 +1738,126 @@ describe("netlist extractability", () => {
     };
     expect(designExtractsNetlist(portOnly)).toBe(false);
   });
+
+  it("refuses a drawing whose reachable child subcircuit Cell has no extracted devices", () => {
+    const project = createEmptyProject("empty-child", "Top");
+    const top = project.documents[0]!;
+    const child = createEmptyDocument("doc-child", "BlackBox");
+    child.instances.push(
+      {
+        id: "CP1",
+        symbolId: "port",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      },
+      {
+        id: "CP2",
+        symbolId: "port",
+        placement: {
+          position: { x: 80, y: 0 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    child.nets.push(
+      { id: "cnet-a", terminals: [{ instanceId: "CP1", pinName: "P" }] },
+      { id: "cnet-b", terminals: [{ instanceId: "CP2", pinName: "P" }] },
+    );
+    child.netlist = {
+      name: "BlackBox",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "cterm-a",
+          name: "A",
+          netId: "cnet-a",
+          direction: "inout",
+          interfaceInstanceIds: ["CP1"],
+        },
+        {
+          id: "cterm-b",
+          name: "B",
+          netId: "cnet-b",
+          direction: "inout",
+          interfaceInstanceIds: ["CP2"],
+        },
+      ],
+    };
+    project.documents.push(child);
+    top.instances.push(
+      {
+        id: "P1",
+        symbolId: "port",
+        placement: { position: { x: -100, y: 0 }, rotation: 0, mirror: "none" },
+      },
+      {
+        id: "P2",
+        symbolId: "port",
+        placement: { position: { x: 100, y: 0 }, rotation: 0, mirror: "none" },
+      },
+      {
+        id: "X1",
+        symbolId: "cell-symbol",
+        reference: "X1",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+        netlist: {
+          binding: { kind: "subcircuit", childDocumentId: "doc-child" },
+          parameters: {},
+        },
+      },
+    );
+    top.nets.push(
+      {
+        id: "tnet-a",
+        terminals: [
+          { instanceId: "P1", pinName: "P" },
+          { instanceId: "X1", pinName: "A" },
+        ],
+      },
+      {
+        id: "tnet-b",
+        terminals: [
+          { instanceId: "P2", pinName: "P" },
+          { instanceId: "X1", pinName: "B" },
+        ],
+      },
+    );
+    top.netlist = {
+      name: "Top",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "tterm-a",
+          name: "IN",
+          netId: "tnet-a",
+          direction: "input",
+          interfaceInstanceIds: ["P1"],
+        },
+        {
+          id: "tterm-b",
+          name: "OUT",
+          netId: "tnet-b",
+          direction: "output",
+          interfaceInstanceIds: ["P2"],
+        },
+      ],
+    };
+
+    expect(createDesignNetlistExport(project, { format: "spice" }).status).toBe(
+      "ready",
+    );
+    expect(designExtractsNetlist(project)).toBe(false);
+
+    // Populating the referenced child Cell with a real device restores the mark.
+    child.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      reference: "R1",
+      placement: { position: { x: 40, y: 0 }, rotation: 0, mirror: "none" },
+      netlist: { parameters: { value: "1k" } },
+    });
+    child.nets[0]!.terminals.push({ instanceId: "R1", pinName: "1" });
+    child.nets[1]!.terminals.push({ instanceId: "R1", pinName: "2" });
+    expect(designExtractsNetlist(project)).toBe(true);
+  });
 });
