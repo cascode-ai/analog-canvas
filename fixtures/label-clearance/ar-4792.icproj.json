@@ -1,0 +1,3282 @@
+{
+  "schemaVersion": 78,
+  "id": "project-31cf9c67-44f2-4fdf-9466-0c0167ec9c28",
+  "name": "AnalogRetriever #4792 · Three-stage divider-biased CE amplifier",
+  "topDocumentId": "main",
+  "defaults": {
+    "instance": {
+      "mirror": "none",
+      "rotation": 0
+    },
+    "instancesByType": {
+      "capacitor": {
+        "parameters": {
+          "value": "1p"
+        },
+        "target": {
+          "deviceClass": "capacitor",
+          "kind": "primitive"
+        }
+      },
+      "npn": {
+        "parameters": {
+          "m": "1"
+        },
+        "target": {
+          "definitionId": "external-subcircuit-7d0be3612881c765",
+          "kind": "external-subcircuit"
+        }
+      },
+      "resistor": {
+        "target": {
+          "deviceClass": "resistor",
+          "kind": "primitive"
+        }
+      }
+    },
+    "label": {
+      "alignment": "middle",
+      "locked": false,
+      "rotation": 0
+    },
+    "routeLeg": {
+      "mode": "manual"
+    }
+  },
+  "documents": [
+    {
+      "id": "main",
+      "name": "dut",
+      "netlist": {
+        "formalParameters": [],
+        "name": "dut",
+        "terminals": [
+          {
+            "direction": "passive",
+            "id": "terminal-751af4ccdbd0d30d",
+            "interfaceInstanceIds": [
+              "instance-cbd7b8bd-9891-4fff-ae31-239985a6c8c1"
+            ],
+            "name": "vin",
+            "netId": "net-cell-pin-751af4ccdbd0d30d",
+            "signal": {
+              "expression": "vin",
+              "members": [
+                {
+                  "id": "signal-member-c806922238bf7765",
+                  "name": "vin",
+                  "netId": "net-cell-pin-751af4ccdbd0d30d"
+                }
+              ]
+            }
+          },
+          {
+            "direction": "passive",
+            "id": "terminal-ed01e259904ec76a",
+            "interfaceInstanceIds": [
+              "instance-659f73c7-19d0-4a4a-be6e-afb8c629c976"
+            ],
+            "name": "vout",
+            "netId": "net-cell-pin-ed01e259904ec76a",
+            "signal": {
+              "expression": "vout",
+              "members": [
+                {
+                  "id": "signal-member-11571e6fbd91fea2",
+                  "name": "vout",
+                  "netId": "net-cell-pin-ed01e259904ec76a"
+                }
+              ]
+            }
+          },
+          {
+            "direction": "inout",
+            "id": "cell-terminal-c47f04a6453efc6b",
+            "interfaceAnnotationId": "label-agent-rail-37c6ae1bd54c4073",
+            "interfaceInstanceIds": [],
+            "name": "VCC",
+            "netId": "net-power-agent-rail-37c6ae1bd54c4073"
+          }
+        ]
+      },
+      "presentation": {
+        "cellSymbol": {
+          "pinPlacements": [
+            {
+              "offset": 0,
+              "side": "north",
+              "terminalId": "cell-terminal-c47f04a6453efc6b"
+            }
+          ]
+        },
+        "compactness": "normal",
+        "grid": 10,
+        "labelSubscriptAfterFirst": false,
+        "labelSubscriptItalic": false,
+        "styleProfileId": "razavi-textbook-v1"
+      },
+      "instances": [
+        {
+          "type": "port",
+          "id": "instance-cbd7b8bd-9891-4fff-ae31-239985a6c8c1",
+          "coordinate": [
+            0,
+            100
+          ],
+          "labels": [
+            {
+              "alignment": "end",
+              "anchor": {
+                "fallback": [
+                  -20,
+                  105
+                ],
+                "offset": [
+                  -20,
+                  5
+                ]
+              },
+              "bind": {
+                "kind": "cell-terminal-name",
+                "terminalId": "terminal-751af4ccdbd0d30d"
+              },
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "v"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "in"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-cbd7b8bd-9891-4fff-ae31-239985a6c8c1",
+              "kind": "instance-label",
+              "order": 0
+            }
+          ]
+        },
+        {
+          "type": "npn",
+          "name": "Q1",
+          "id": "instance-4e1aaf36-10b6-43e0-93b6-5c56222c0246",
+          "coordinate": [
+            170,
+            140
+          ],
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  174,
+                  145
+                ],
+                "offset": [
+                  4,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "Q"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "1"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-4e1aaf36-10b6-43e0-93b6-5c56222c0246",
+              "kind": "instance-label",
+              "order": 1
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  170,
+                  140
+                ],
+                "offset": [
+                  0,
+                  0
+                ]
+              },
+              "bind": {
+                "kind": "net-name",
+                "netId": "process-net-8b24475c79461c4d"
+              },
+              "id": "process-supply-618c3b1eb546bad6",
+              "kind": "net-label",
+              "netId": "process-net-8b24475c79461c4d",
+              "order": 33,
+              "visible": false
+            }
+          ]
+        },
+        {
+          "type": "resistor",
+          "name": "R1",
+          "id": "instance-8a972c8e-8173-4150-9703-5ebfb81d5b7f",
+          "coordinate": [
+            100,
+            50
+          ],
+          "parameters": {
+            "value": "1.8kΩ"
+          },
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  109,
+                  55
+                ],
+                "offset": [
+                  9,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "R"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "1"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-8a972c8e-8173-4150-9703-5ebfb81d5b7f",
+              "kind": "instance-label",
+              "order": 2
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  109,
+                  75
+                ],
+                "offset": [
+                  9,
+                  25
+                ]
+              },
+              "bind": "value",
+              "id": "instance-value-instance-8a972c8e-8173-4150-9703-5ebfb81d5b7f",
+              "kind": "instance-value",
+              "order": 3
+            }
+          ]
+        },
+        {
+          "type": "resistor",
+          "name": "R2",
+          "id": "instance-68ecf31b-a57a-4b5f-bdb4-525c4d16a746",
+          "coordinate": [
+            100,
+            200
+          ],
+          "parameters": {
+            "value": "300Ω"
+          },
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  109,
+                  205
+                ],
+                "offset": [
+                  9,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "R"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "2"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-68ecf31b-a57a-4b5f-bdb4-525c4d16a746",
+              "kind": "instance-label",
+              "order": 4
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  109,
+                  225
+                ],
+                "offset": [
+                  9,
+                  25
+                ]
+              },
+              "bind": "value",
+              "id": "instance-value-instance-68ecf31b-a57a-4b5f-bdb4-525c4d16a746",
+              "kind": "instance-value",
+              "order": 5
+            }
+          ]
+        },
+        {
+          "type": "resistor",
+          "name": "R3",
+          "id": "instance-fa68ce43-000f-4335-a944-f44ee4285d5f",
+          "coordinate": [
+            170,
+            50
+          ],
+          "parameters": {
+            "value": "1kΩ"
+          },
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  179,
+                  55
+                ],
+                "offset": [
+                  9,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "R"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "3"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-fa68ce43-000f-4335-a944-f44ee4285d5f",
+              "kind": "instance-label",
+              "order": 6
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  179,
+                  75
+                ],
+                "offset": [
+                  9,
+                  25
+                ]
+              },
+              "bind": "value",
+              "id": "instance-value-instance-fa68ce43-000f-4335-a944-f44ee4285d5f",
+              "kind": "instance-value",
+              "order": 7
+            }
+          ]
+        },
+        {
+          "type": "resistor",
+          "name": "R4",
+          "id": "instance-03069fb8-2f34-4d63-a9f2-6675543fe97a",
+          "coordinate": [
+            170,
+            200
+          ],
+          "parameters": {
+            "value": "240Ω"
+          },
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  179,
+                  205
+                ],
+                "offset": [
+                  9,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "R"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "4"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-03069fb8-2f34-4d63-a9f2-6675543fe97a",
+              "kind": "instance-label",
+              "order": 8
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  179,
+                  225
+                ],
+                "offset": [
+                  9,
+                  25
+                ]
+              },
+              "bind": "value",
+              "id": "instance-value-instance-03069fb8-2f34-4d63-a9f2-6675543fe97a",
+              "kind": "instance-value",
+              "order": 9
+            }
+          ]
+        },
+        {
+          "type": "npn",
+          "name": "Q2",
+          "id": "instance-c4782a27-188d-400c-8d58-7a5a404f23af",
+          "coordinate": [
+            320,
+            140
+          ],
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  324,
+                  145
+                ],
+                "offset": [
+                  4,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "Q"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "2"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-c4782a27-188d-400c-8d58-7a5a404f23af",
+              "kind": "instance-label",
+              "order": 10
+            }
+          ]
+        },
+        {
+          "type": "resistor",
+          "name": "R5",
+          "id": "instance-cd0a0ea1-fc16-489d-b8c1-d5aeb97b63c5",
+          "coordinate": [
+            250,
+            50
+          ],
+          "parameters": {
+            "value": "910Ω"
+          },
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  259,
+                  55
+                ],
+                "offset": [
+                  9,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "R"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "5"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-cd0a0ea1-fc16-489d-b8c1-d5aeb97b63c5",
+              "kind": "instance-label",
+              "order": 11
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  259,
+                  75
+                ],
+                "offset": [
+                  9,
+                  25
+                ]
+              },
+              "bind": "value",
+              "id": "instance-value-instance-cd0a0ea1-fc16-489d-b8c1-d5aeb97b63c5",
+              "kind": "instance-value",
+              "order": 12
+            }
+          ]
+        },
+        {
+          "type": "resistor",
+          "name": "R6",
+          "id": "instance-4a909d99-c4cb-4440-8e6e-f119247f966e",
+          "coordinate": [
+            250,
+            200
+          ],
+          "parameters": {
+            "value": "150Ω"
+          },
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  259,
+                  205
+                ],
+                "offset": [
+                  9,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "R"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "6"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-4a909d99-c4cb-4440-8e6e-f119247f966e",
+              "kind": "instance-label",
+              "order": 13
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  259,
+                  225
+                ],
+                "offset": [
+                  9,
+                  25
+                ]
+              },
+              "bind": "value",
+              "id": "instance-value-instance-4a909d99-c4cb-4440-8e6e-f119247f966e",
+              "kind": "instance-value",
+              "order": 14
+            }
+          ]
+        },
+        {
+          "type": "resistor",
+          "name": "R7",
+          "id": "instance-d4e8ead9-1db3-4af7-9a63-9f0d08da95ca",
+          "coordinate": [
+            320,
+            50
+          ],
+          "parameters": {
+            "value": "510Ω"
+          },
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  329,
+                  55
+                ],
+                "offset": [
+                  9,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "R"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "7"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-d4e8ead9-1db3-4af7-9a63-9f0d08da95ca",
+              "kind": "instance-label",
+              "order": 15
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  329,
+                  75
+                ],
+                "offset": [
+                  9,
+                  25
+                ]
+              },
+              "bind": "value",
+              "id": "instance-value-instance-d4e8ead9-1db3-4af7-9a63-9f0d08da95ca",
+              "kind": "instance-value",
+              "order": 16
+            }
+          ]
+        },
+        {
+          "type": "resistor",
+          "name": "R8",
+          "id": "instance-55a8b156-eefc-4329-a177-616488e7883d",
+          "coordinate": [
+            320,
+            200
+          ],
+          "parameters": {
+            "value": "120Ω"
+          },
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  329,
+                  205
+                ],
+                "offset": [
+                  9,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "R"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "8"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-55a8b156-eefc-4329-a177-616488e7883d",
+              "kind": "instance-label",
+              "order": 17
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  329,
+                  225
+                ],
+                "offset": [
+                  9,
+                  25
+                ]
+              },
+              "bind": "value",
+              "id": "instance-value-instance-55a8b156-eefc-4329-a177-616488e7883d",
+              "kind": "instance-value",
+              "order": 18
+            }
+          ]
+        },
+        {
+          "type": "npn",
+          "name": "Q3",
+          "id": "instance-82724005-9eef-4923-ac0e-ee395f9ec941",
+          "coordinate": [
+            470,
+            140
+          ],
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  474,
+                  145
+                ],
+                "offset": [
+                  4,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "Q"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "3"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-82724005-9eef-4923-ac0e-ee395f9ec941",
+              "kind": "instance-label",
+              "order": 19
+            }
+          ]
+        },
+        {
+          "type": "resistor",
+          "name": "R9",
+          "id": "instance-773beefa-ba19-4b02-ae2e-02da9ecf3014",
+          "coordinate": [
+            400,
+            50
+          ],
+          "parameters": {
+            "value": "1kΩ"
+          },
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  409,
+                  55
+                ],
+                "offset": [
+                  9,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "R"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "9"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-773beefa-ba19-4b02-ae2e-02da9ecf3014",
+              "kind": "instance-label",
+              "order": 20
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  409,
+                  75
+                ],
+                "offset": [
+                  9,
+                  25
+                ]
+              },
+              "bind": "value",
+              "id": "instance-value-instance-773beefa-ba19-4b02-ae2e-02da9ecf3014",
+              "kind": "instance-value",
+              "order": 21
+            }
+          ]
+        },
+        {
+          "type": "resistor",
+          "name": "R10",
+          "id": "instance-f0ff9734-d016-47d9-beac-fc86bdaceb30",
+          "coordinate": [
+            400,
+            200
+          ],
+          "parameters": {
+            "value": "180Ω"
+          },
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  409,
+                  205
+                ],
+                "offset": [
+                  9,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "R"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "10"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-f0ff9734-d016-47d9-beac-fc86bdaceb30",
+              "kind": "instance-label",
+              "order": 22
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  409,
+                  225
+                ],
+                "offset": [
+                  9,
+                  25
+                ]
+              },
+              "bind": "value",
+              "id": "instance-value-instance-f0ff9734-d016-47d9-beac-fc86bdaceb30",
+              "kind": "instance-value",
+              "order": 23
+            }
+          ]
+        },
+        {
+          "type": "resistor",
+          "name": "R11",
+          "id": "instance-f4f7922e-cff6-4ed0-92d5-4ed50c644563",
+          "coordinate": [
+            470,
+            50
+          ],
+          "parameters": {
+            "value": "620Ω"
+          },
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  479,
+                  55
+                ],
+                "offset": [
+                  9,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "R"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "11"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-f4f7922e-cff6-4ed0-92d5-4ed50c644563",
+              "kind": "instance-label",
+              "order": 24
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  479,
+                  75
+                ],
+                "offset": [
+                  9,
+                  25
+                ]
+              },
+              "bind": "value",
+              "id": "instance-value-instance-f4f7922e-cff6-4ed0-92d5-4ed50c644563",
+              "kind": "instance-value",
+              "order": 25
+            }
+          ]
+        },
+        {
+          "type": "resistor",
+          "name": "R12",
+          "id": "instance-2795d63a-0cfc-437b-88ce-1159b9b3c909",
+          "coordinate": [
+            470,
+            200
+          ],
+          "parameters": {
+            "value": "150Ω"
+          },
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  479,
+                  205
+                ],
+                "offset": [
+                  9,
+                  5
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "R"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "12"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-2795d63a-0cfc-437b-88ce-1159b9b3c909",
+              "kind": "instance-label",
+              "order": 26
+            },
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  479,
+                  225
+                ],
+                "offset": [
+                  9,
+                  25
+                ]
+              },
+              "bind": "value",
+              "id": "instance-value-instance-2795d63a-0cfc-437b-88ce-1159b9b3c909",
+              "kind": "instance-value",
+              "order": 27
+            }
+          ]
+        },
+        {
+          "type": "capacitor",
+          "name": "C1",
+          "id": "instance-4d87ba72-1fc3-41ef-a2b7-607c0661c44f",
+          "coordinate": [
+            60,
+            100
+          ],
+          "rotation": 270,
+          "labels": [
+            {
+              "anchor": {
+                "fallback": [
+                  60,
+                  83
+                ],
+                "offset": [
+                  0,
+                  -17
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "C"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "1"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-4d87ba72-1fc3-41ef-a2b7-607c0661c44f",
+              "kind": "instance-label",
+              "order": 28
+            }
+          ]
+        },
+        {
+          "type": "capacitor",
+          "name": "C2",
+          "id": "instance-0490925d-995c-4187-8aed-95b9663f9620",
+          "coordinate": [
+            210,
+            100
+          ],
+          "rotation": 270,
+          "labels": [
+            {
+              "anchor": {
+                "fallback": [
+                  210,
+                  123
+                ],
+                "offset": [
+                  0,
+                  23
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "C"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "2"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-0490925d-995c-4187-8aed-95b9663f9620",
+              "kind": "instance-label",
+              "order": 29
+            }
+          ]
+        },
+        {
+          "type": "capacitor",
+          "name": "C3",
+          "id": "instance-69ce9a05-5764-4d36-807d-5124ab3c6e93",
+          "coordinate": [
+            360,
+            100
+          ],
+          "rotation": 270,
+          "labels": [
+            {
+              "anchor": {
+                "fallback": [
+                  360,
+                  123
+                ],
+                "offset": [
+                  0,
+                  23
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "C"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "3"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-69ce9a05-5764-4d36-807d-5124ab3c6e93",
+              "kind": "instance-label",
+              "order": 30
+            }
+          ]
+        },
+        {
+          "type": "capacitor",
+          "name": "C4",
+          "id": "instance-23b79eca-66c6-4270-b9ad-388cc8a409fe",
+          "coordinate": [
+            510,
+            100
+          ],
+          "rotation": 270,
+          "labels": [
+            {
+              "anchor": {
+                "fallback": [
+                  510,
+                  123
+                ],
+                "offset": [
+                  0,
+                  23
+                ]
+              },
+              "bind": "name",
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "C"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "4"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-23b79eca-66c6-4270-b9ad-388cc8a409fe",
+              "kind": "instance-label",
+              "order": 31
+            }
+          ]
+        },
+        {
+          "type": "port",
+          "id": "instance-659f73c7-19d0-4a4a-be6e-afb8c629c976",
+          "coordinate": [
+            560,
+            100
+          ],
+          "mirror": "horizontal",
+          "labels": [
+            {
+              "alignment": "start",
+              "anchor": {
+                "fallback": [
+                  580,
+                  105
+                ],
+                "offset": [
+                  20,
+                  5
+                ]
+              },
+              "bind": {
+                "kind": "cell-terminal-name",
+                "terminalId": "terminal-ed01e259904ec76a"
+              },
+              "format": {
+                "runs": [
+                  {
+                    "children": [
+                      "v"
+                    ],
+                    "styles": [
+                      "italic",
+                      "bold"
+                    ]
+                  },
+                  {
+                    "children": [
+                      "out"
+                    ],
+                    "styles": [
+                      "subscript",
+                      "bold"
+                    ]
+                  }
+                ]
+              },
+              "id": "instance-label-instance-659f73c7-19d0-4a4a-be6e-afb8c629c976",
+              "kind": "instance-label",
+              "order": 32
+            }
+          ]
+        },
+        {
+          "type": "ground",
+          "id": "g0",
+          "coordinate": [
+            100,
+            230
+          ]
+        },
+        {
+          "type": "ground",
+          "id": "g1",
+          "coordinate": [
+            250,
+            230
+          ]
+        },
+        {
+          "type": "ground",
+          "id": "g2",
+          "coordinate": [
+            400,
+            230
+          ]
+        },
+        {
+          "type": "ground",
+          "id": "g3",
+          "coordinate": [
+            170,
+            230
+          ]
+        },
+        {
+          "type": "ground",
+          "id": "g4",
+          "coordinate": [
+            320,
+            230
+          ]
+        },
+        {
+          "type": "ground",
+          "id": "g5",
+          "coordinate": [
+            470,
+            230
+          ]
+        }
+      ],
+      "routes": [
+        {
+          "end": {
+            "junction": "wire-85c2737c-208e-47e1-91e2-c72f11030c37-to-junction"
+          },
+          "id": "route-agent-rail-37c6ae1bd54c4073-rail-a-wire-85c2737c-208e-47e1-91e2-c72f11030c37-to",
+          "legId": "route-leg-0295cadacb31f6e5",
+          "presentation": "power-rail",
+          "start": {
+            "junction": "junction-agent-rail-37c6ae1bd54c4073-start"
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-32ca8535-dc2c-4df3-b797-c3542eb7874a-to-junction"
+          },
+          "id": "route-6685dfdeee8783a8",
+          "legId": "route-leg-7367840ede05aaa8",
+          "presentation": "power-rail",
+          "start": {
+            "junction": "wire-85c2737c-208e-47e1-91e2-c72f11030c37-to-junction"
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-92187b24-3994-4d01-a292-977013c5234f-to-junction"
+          },
+          "id": "route-6ef47b9c37a6e6fd-a-wire-92187b24-3994-4d01-a292-977013c5234f-to",
+          "legId": "route-leg-e0740b429c0979a2",
+          "presentation": "power-rail",
+          "start": {
+            "junction": "wire-32ca8535-dc2c-4df3-b797-c3542eb7874a-to-junction"
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-b269d4cb-7a29-4e79-a3b6-51fd0e5ac94d-to-junction"
+          },
+          "id": "route-6ef47b9c37a6e6fd-b-wire-92187b24-3994-4d01-a292-977013c5234f-to-a-wire-b269d4cb-7a29-4e79-a3b6-51fd0e5ac94d-to",
+          "legId": "route-leg-778988046d243834",
+          "presentation": "power-rail",
+          "start": {
+            "junction": "wire-92187b24-3994-4d01-a292-977013c5234f-to-junction"
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-e662781f-ef2d-4966-ada6-33339ad6850e-to-junction"
+          },
+          "id": "route-8a8cd980bf826f20",
+          "legId": "route-leg-023d1be27aa34b78",
+          "presentation": "power-rail",
+          "start": {
+            "junction": "wire-b269d4cb-7a29-4e79-a3b6-51fd0e5ac94d-to-junction"
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-b0cbf8b1-995d-437a-b39c-1753ccd60741-to-junction"
+          },
+          "id": "route-d16fbb26054297a9-a-wire-b0cbf8b1-995d-437a-b39c-1753ccd60741-to",
+          "legId": "route-leg-5c37a1ecd2d77f78",
+          "presentation": "power-rail",
+          "start": {
+            "junction": "wire-e662781f-ef2d-4966-ada6-33339ad6850e-to-junction"
+          }
+        },
+        {
+          "end": {
+            "junction": "junction-agent-rail-37c6ae1bd54c4073-end"
+          },
+          "id": "route-d16fbb26054297a9-b-wire-b0cbf8b1-995d-437a-b39c-1753ccd60741-to",
+          "legId": "route-leg-c2d7b7ab6a38ec4e",
+          "presentation": "power-rail",
+          "start": {
+            "junction": "wire-b0cbf8b1-995d-437a-b39c-1753ccd60741-to-junction"
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-0a980d12-4237-4def-9ad9-9ea2fbd41839-to-junction"
+          },
+          "id": "route-13677f47a54a7484",
+          "legId": "route-leg-89c872a159cd7a1e",
+          "start": {
+            "terminal": [
+              "instance-8a972c8e-8173-4150-9703-5ebfb81d5b7f",
+              "2"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-daffe908-a26d-4640-b021-24b75c5239c3-to-junction"
+          },
+          "id": "route-9228f28b27b16be1",
+          "legId": "route-leg-38265962cdbb4ac7",
+          "start": {
+            "junction": "wire-0a980d12-4237-4def-9ad9-9ea2fbd41839-to-junction"
+          }
+        },
+        {
+          "end": {
+            "terminal": [
+              "instance-68ecf31b-a57a-4b5f-bdb4-525c4d16a746",
+              "1"
+            ]
+          },
+          "id": "wire-32aa65ef-e499-4244-ae36-15764c25be31-route-b-wire-daffe908-a26d-4640-b021-24b75c5239c3-to",
+          "legId": "route-leg-36fd07c3522e6a0b",
+          "start": {
+            "junction": "wire-daffe908-a26d-4640-b021-24b75c5239c3-to-junction"
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-daffe908-a26d-4640-b021-24b75c5239c3-to-junction"
+          },
+          "id": "wire-daffe908-a26d-4640-b021-24b75c5239c3-route",
+          "legId": "route-leg-fcbff412805d9486",
+          "start": {
+            "terminal": [
+              "instance-4e1aaf36-10b6-43e0-93b6-5c56222c0246",
+              "B"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-bcf15c20-5494-417c-9512-1919acd4b96e-to-junction"
+          },
+          "id": "wire-35f18d12-d5a0-4656-a6ff-6d31bd9b37fe-route-a-wire-bcf15c20-5494-417c-9512-1919acd4b96e-to",
+          "legId": "route-leg-c51fb7ec4bafe353",
+          "start": {
+            "terminal": [
+              "instance-fa68ce43-000f-4335-a944-f44ee4285d5f",
+              "2"
+            ]
+          }
+        },
+        {
+          "end": {
+            "terminal": [
+              "instance-4e1aaf36-10b6-43e0-93b6-5c56222c0246",
+              "C"
+            ]
+          },
+          "id": "wire-35f18d12-d5a0-4656-a6ff-6d31bd9b37fe-route-b-wire-bcf15c20-5494-417c-9512-1919acd4b96e-to",
+          "legId": "route-leg-db4ba1f69791e509",
+          "start": {
+            "junction": "wire-bcf15c20-5494-417c-9512-1919acd4b96e-to-junction"
+          }
+        },
+        {
+          "end": {
+            "terminal": [
+              "instance-03069fb8-2f34-4d63-a9f2-6675543fe97a",
+              "1"
+            ]
+          },
+          "id": "wire-cb9af508-f5e4-46ec-b7e1-df4ddb8b343a-route",
+          "legId": "route-leg-e4d9d24046f11575",
+          "start": {
+            "terminal": [
+              "instance-4e1aaf36-10b6-43e0-93b6-5c56222c0246",
+              "E"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-85c2737c-208e-47e1-91e2-c72f11030c37-to-junction"
+          },
+          "id": "wire-85c2737c-208e-47e1-91e2-c72f11030c37-route",
+          "legId": "route-leg-ebcc24a0385fdd88",
+          "start": {
+            "terminal": [
+              "instance-8a972c8e-8173-4150-9703-5ebfb81d5b7f",
+              "1"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-32ca8535-dc2c-4df3-b797-c3542eb7874a-to-junction"
+          },
+          "id": "wire-32ca8535-dc2c-4df3-b797-c3542eb7874a-route",
+          "legId": "route-leg-a65e527d068a5746",
+          "start": {
+            "terminal": [
+              "instance-fa68ce43-000f-4335-a944-f44ee4285d5f",
+              "1"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-bc2e20f9-e89e-4b18-a749-afea1b2b1111-to-junction"
+          },
+          "id": "route-db344078ea81aede",
+          "legId": "route-leg-8fbc7cca6e0d3805",
+          "start": {
+            "terminal": [
+              "instance-cd0a0ea1-fc16-489d-b8c1-d5aeb97b63c5",
+              "2"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-fe101b14-f04a-4a80-80c5-4e44b0ab84fa-to-junction"
+          },
+          "id": "route-bac3d6bfd761977f",
+          "legId": "route-leg-45d2734b7a9b6638",
+          "start": {
+            "junction": "wire-bc2e20f9-e89e-4b18-a749-afea1b2b1111-to-junction"
+          }
+        },
+        {
+          "end": {
+            "terminal": [
+              "instance-4a909d99-c4cb-4440-8e6e-f119247f966e",
+              "1"
+            ]
+          },
+          "id": "wire-210c43fb-ea88-48bb-943f-d8fc516d51c9-route-b-wire-fe101b14-f04a-4a80-80c5-4e44b0ab84fa-to",
+          "legId": "route-leg-29ce2505c73e4e52",
+          "start": {
+            "junction": "wire-fe101b14-f04a-4a80-80c5-4e44b0ab84fa-to-junction"
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-fe101b14-f04a-4a80-80c5-4e44b0ab84fa-to-junction"
+          },
+          "id": "wire-fe101b14-f04a-4a80-80c5-4e44b0ab84fa-route",
+          "legId": "route-leg-126ad0cdc6b694de",
+          "start": {
+            "terminal": [
+              "instance-c4782a27-188d-400c-8d58-7a5a404f23af",
+              "B"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-140df51a-288f-4bc7-a291-ee1cdfab27fc-to-junction"
+          },
+          "id": "wire-448aa268-aea2-40b5-ba96-0e9fdd974228-route-a-wire-140df51a-288f-4bc7-a291-ee1cdfab27fc-to",
+          "legId": "route-leg-8623bd56092cc62d",
+          "start": {
+            "terminal": [
+              "instance-d4e8ead9-1db3-4af7-9a63-9f0d08da95ca",
+              "2"
+            ]
+          }
+        },
+        {
+          "end": {
+            "terminal": [
+              "instance-c4782a27-188d-400c-8d58-7a5a404f23af",
+              "C"
+            ]
+          },
+          "id": "wire-448aa268-aea2-40b5-ba96-0e9fdd974228-route-b-wire-140df51a-288f-4bc7-a291-ee1cdfab27fc-to",
+          "legId": "route-leg-574bf3552600d59b",
+          "start": {
+            "junction": "wire-140df51a-288f-4bc7-a291-ee1cdfab27fc-to-junction"
+          }
+        },
+        {
+          "end": {
+            "terminal": [
+              "instance-55a8b156-eefc-4329-a177-616488e7883d",
+              "1"
+            ]
+          },
+          "id": "wire-536fd2d1-8920-47d6-8f9b-1f5f676a7137-route",
+          "legId": "route-leg-c4b68d3e47d5f1ed",
+          "start": {
+            "terminal": [
+              "instance-c4782a27-188d-400c-8d58-7a5a404f23af",
+              "E"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-92187b24-3994-4d01-a292-977013c5234f-to-junction"
+          },
+          "id": "wire-92187b24-3994-4d01-a292-977013c5234f-route",
+          "legId": "route-leg-dcf7bc78821fa240",
+          "start": {
+            "terminal": [
+              "instance-cd0a0ea1-fc16-489d-b8c1-d5aeb97b63c5",
+              "1"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-b269d4cb-7a29-4e79-a3b6-51fd0e5ac94d-to-junction"
+          },
+          "id": "wire-b269d4cb-7a29-4e79-a3b6-51fd0e5ac94d-route",
+          "legId": "route-leg-a35f34341268a9de",
+          "start": {
+            "terminal": [
+              "instance-d4e8ead9-1db3-4af7-9a63-9f0d08da95ca",
+              "1"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-c86d4817-c334-488e-8dce-9955ae6715e6-to-junction"
+          },
+          "id": "route-3be72dc1a0dee023",
+          "legId": "route-leg-29d2b8b551d3e6be",
+          "start": {
+            "terminal": [
+              "instance-773beefa-ba19-4b02-ae2e-02da9ecf3014",
+              "2"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-93eb221b-9a01-4fd3-9905-2edeabd09e6f-to-junction"
+          },
+          "id": "route-e6e7b7a9511c970e",
+          "legId": "route-leg-03e3161759dd4e9b",
+          "start": {
+            "junction": "wire-c86d4817-c334-488e-8dce-9955ae6715e6-to-junction"
+          }
+        },
+        {
+          "end": {
+            "terminal": [
+              "instance-f0ff9734-d016-47d9-beac-fc86bdaceb30",
+              "1"
+            ]
+          },
+          "id": "wire-ea67c22e-2267-4674-a7e9-2dccd9818d73-route-b-wire-93eb221b-9a01-4fd3-9905-2edeabd09e6f-to",
+          "legId": "route-leg-4ef6ab513a684840",
+          "start": {
+            "junction": "wire-93eb221b-9a01-4fd3-9905-2edeabd09e6f-to-junction"
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-93eb221b-9a01-4fd3-9905-2edeabd09e6f-to-junction"
+          },
+          "id": "wire-93eb221b-9a01-4fd3-9905-2edeabd09e6f-route",
+          "legId": "route-leg-55af76ca1feaf18f",
+          "start": {
+            "terminal": [
+              "instance-82724005-9eef-4923-ac0e-ee395f9ec941",
+              "B"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-0c76df1c-e54a-47b2-8403-5ac41f7dfdcb-to-junction"
+          },
+          "id": "wire-b83ee354-4727-415e-870b-95c5d3ecd36b-route-a-wire-0c76df1c-e54a-47b2-8403-5ac41f7dfdcb-to",
+          "legId": "route-leg-b0c5ee2a3379bc68",
+          "start": {
+            "terminal": [
+              "instance-f4f7922e-cff6-4ed0-92d5-4ed50c644563",
+              "2"
+            ]
+          }
+        },
+        {
+          "end": {
+            "terminal": [
+              "instance-82724005-9eef-4923-ac0e-ee395f9ec941",
+              "C"
+            ]
+          },
+          "id": "wire-b83ee354-4727-415e-870b-95c5d3ecd36b-route-b-wire-0c76df1c-e54a-47b2-8403-5ac41f7dfdcb-to",
+          "legId": "route-leg-197d32b63a409015",
+          "start": {
+            "junction": "wire-0c76df1c-e54a-47b2-8403-5ac41f7dfdcb-to-junction"
+          }
+        },
+        {
+          "end": {
+            "terminal": [
+              "instance-2795d63a-0cfc-437b-88ce-1159b9b3c909",
+              "1"
+            ]
+          },
+          "id": "wire-1937a8cc-7205-445c-8d5c-a3cc17f33cd4-route",
+          "legId": "route-leg-7afa43cedb0a6db5",
+          "start": {
+            "terminal": [
+              "instance-82724005-9eef-4923-ac0e-ee395f9ec941",
+              "E"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-e662781f-ef2d-4966-ada6-33339ad6850e-to-junction"
+          },
+          "id": "wire-e662781f-ef2d-4966-ada6-33339ad6850e-route",
+          "legId": "route-leg-74bb276842c58e56",
+          "start": {
+            "terminal": [
+              "instance-773beefa-ba19-4b02-ae2e-02da9ecf3014",
+              "1"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-b0cbf8b1-995d-437a-b39c-1753ccd60741-to-junction"
+          },
+          "id": "wire-b0cbf8b1-995d-437a-b39c-1753ccd60741-route",
+          "legId": "route-leg-d67812281fc26ed4",
+          "start": {
+            "terminal": [
+              "instance-f4f7922e-cff6-4ed0-92d5-4ed50c644563",
+              "1"
+            ]
+          }
+        },
+        {
+          "end": {
+            "terminal": [
+              "instance-4d87ba72-1fc3-41ef-a2b7-607c0661c44f",
+              "1"
+            ]
+          },
+          "id": "wire-4fb4315a-7941-42d9-8cea-cc4f52119bf4-route",
+          "legId": "route-leg-a5c6762b1b75749c",
+          "start": {
+            "terminal": [
+              "instance-cbd7b8bd-9891-4fff-ae31-239985a6c8c1",
+              "P"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-0a980d12-4237-4def-9ad9-9ea2fbd41839-to-junction"
+          },
+          "id": "wire-0a980d12-4237-4def-9ad9-9ea2fbd41839-route",
+          "legId": "route-leg-5669c8ff6fcb16da",
+          "start": {
+            "terminal": [
+              "instance-4d87ba72-1fc3-41ef-a2b7-607c0661c44f",
+              "2"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-bcf15c20-5494-417c-9512-1919acd4b96e-to-junction"
+          },
+          "id": "wire-bcf15c20-5494-417c-9512-1919acd4b96e-route",
+          "legId": "route-leg-cab70b2b5df150a9",
+          "start": {
+            "terminal": [
+              "instance-0490925d-995c-4187-8aed-95b9663f9620",
+              "1"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-bc2e20f9-e89e-4b18-a749-afea1b2b1111-to-junction"
+          },
+          "id": "wire-bc2e20f9-e89e-4b18-a749-afea1b2b1111-route",
+          "legId": "route-leg-2cc6db1fc96c9faf",
+          "start": {
+            "terminal": [
+              "instance-0490925d-995c-4187-8aed-95b9663f9620",
+              "2"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-140df51a-288f-4bc7-a291-ee1cdfab27fc-to-junction"
+          },
+          "id": "wire-140df51a-288f-4bc7-a291-ee1cdfab27fc-route",
+          "legId": "route-leg-c09280175c7680d1",
+          "start": {
+            "terminal": [
+              "instance-69ce9a05-5764-4d36-807d-5124ab3c6e93",
+              "1"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-c86d4817-c334-488e-8dce-9955ae6715e6-to-junction"
+          },
+          "id": "wire-c86d4817-c334-488e-8dce-9955ae6715e6-route",
+          "legId": "route-leg-8eff06f1e72becf2",
+          "start": {
+            "terminal": [
+              "instance-69ce9a05-5764-4d36-807d-5124ab3c6e93",
+              "2"
+            ]
+          }
+        },
+        {
+          "end": {
+            "junction": "wire-0c76df1c-e54a-47b2-8403-5ac41f7dfdcb-to-junction"
+          },
+          "id": "wire-0c76df1c-e54a-47b2-8403-5ac41f7dfdcb-route",
+          "legId": "route-leg-3c46c7d960d8bf9a",
+          "start": {
+            "terminal": [
+              "instance-23b79eca-66c6-4270-b9ad-388cc8a409fe",
+              "1"
+            ]
+          }
+        },
+        {
+          "end": {
+            "terminal": [
+              "instance-659f73c7-19d0-4a4a-be6e-afb8c629c976",
+              "P"
+            ]
+          },
+          "id": "wire-06a7f85c-d4f3-4b47-8233-9170630a0189-route",
+          "legId": "route-leg-d3154cf3a3b0a338",
+          "start": {
+            "terminal": [
+              "instance-23b79eca-66c6-4270-b9ad-388cc8a409fe",
+              "2"
+            ]
+          }
+        }
+      ],
+      "connections": {
+        "contacts": [
+          [
+            {
+              "terminal": [
+                "g0",
+                "0"
+              ]
+            },
+            {
+              "terminal": [
+                "instance-68ecf31b-a57a-4b5f-bdb4-525c4d16a746",
+                "2"
+              ]
+            }
+          ],
+          [
+            {
+              "terminal": [
+                "g1",
+                "0"
+              ]
+            },
+            {
+              "terminal": [
+                "instance-4a909d99-c4cb-4440-8e6e-f119247f966e",
+                "2"
+              ]
+            }
+          ],
+          [
+            {
+              "terminal": [
+                "g2",
+                "0"
+              ]
+            },
+            {
+              "terminal": [
+                "instance-f0ff9734-d016-47d9-beac-fc86bdaceb30",
+                "2"
+              ]
+            }
+          ],
+          [
+            {
+              "terminal": [
+                "g3",
+                "0"
+              ]
+            },
+            {
+              "terminal": [
+                "instance-03069fb8-2f34-4d63-a9f2-6675543fe97a",
+                "2"
+              ]
+            }
+          ],
+          [
+            {
+              "terminal": [
+                "g4",
+                "0"
+              ]
+            },
+            {
+              "terminal": [
+                "instance-55a8b156-eefc-4329-a177-616488e7883d",
+                "2"
+              ]
+            }
+          ],
+          [
+            {
+              "terminal": [
+                "g5",
+                "0"
+              ]
+            },
+            {
+              "terminal": [
+                "instance-2795d63a-0cfc-437b-88ce-1159b9b3c909",
+                "2"
+              ]
+            }
+          ]
+        ],
+        "unrouted": [
+          [
+            {
+              "terminal": [
+                "instance-4e1aaf36-10b6-43e0-93b6-5c56222c0246",
+                "S"
+              ]
+            },
+            {
+              "terminal": [
+                "instance-82724005-9eef-4923-ac0e-ee395f9ec941",
+                "S"
+              ]
+            },
+            {
+              "terminal": [
+                "instance-c4782a27-188d-400c-8d58-7a5a404f23af",
+                "S"
+              ]
+            }
+          ]
+        ]
+      },
+      "nets": [
+        {
+          "at": {
+            "terminal": [
+              "instance-4d87ba72-1fc3-41ef-a2b7-607c0661c44f",
+              "1"
+            ]
+          },
+          "id": "net-cell-pin-751af4ccdbd0d30d"
+        },
+        {
+          "at": {
+            "terminal": [
+              "instance-23b79eca-66c6-4270-b9ad-388cc8a409fe",
+              "2"
+            ]
+          },
+          "id": "net-cell-pin-ed01e259904ec76a"
+        },
+        {
+          "at": {
+            "terminal": [
+              "instance-4e1aaf36-10b6-43e0-93b6-5c56222c0246",
+              "S"
+            ]
+          },
+          "id": "process-net-8b24475c79461c4d"
+        },
+        {
+          "at": {
+            "terminal": [
+              "g0",
+              "0"
+            ]
+          },
+          "id": "net-power-g0"
+        },
+        {
+          "at": {
+            "terminal": [
+              "g1",
+              "0"
+            ]
+          },
+          "id": "net-power-g1"
+        },
+        {
+          "at": {
+            "terminal": [
+              "g2",
+              "0"
+            ]
+          },
+          "id": "net-power-g2"
+        },
+        {
+          "at": {
+            "terminal": [
+              "g3",
+              "0"
+            ]
+          },
+          "id": "net-power-g3"
+        },
+        {
+          "at": {
+            "terminal": [
+              "g4",
+              "0"
+            ]
+          },
+          "id": "net-power-g4"
+        },
+        {
+          "at": {
+            "terminal": [
+              "g5",
+              "0"
+            ]
+          },
+          "id": "net-power-g5"
+        },
+        {
+          "at": {
+            "terminal": [
+              "instance-773beefa-ba19-4b02-ae2e-02da9ecf3014",
+              "1"
+            ]
+          },
+          "id": "net-power-agent-rail-37c6ae1bd54c4073"
+        },
+        {
+          "at": {
+            "terminal": [
+              "instance-4d87ba72-1fc3-41ef-a2b7-607c0661c44f",
+              "2"
+            ]
+          },
+          "id": "wire-32aa65ef-e499-4244-ae36-15764c25be31-net"
+        },
+        {
+          "at": {
+            "terminal": [
+              "instance-0490925d-995c-4187-8aed-95b9663f9620",
+              "2"
+            ]
+          },
+          "id": "wire-210c43fb-ea88-48bb-943f-d8fc516d51c9-net"
+        },
+        {
+          "at": {
+            "terminal": [
+              "instance-69ce9a05-5764-4d36-807d-5124ab3c6e93",
+              "2"
+            ]
+          },
+          "id": "wire-ea67c22e-2267-4674-a7e9-2dccd9818d73-net"
+        },
+        {
+          "at": {
+            "terminal": [
+              "instance-0490925d-995c-4187-8aed-95b9663f9620",
+              "1"
+            ]
+          },
+          "id": "wire-35f18d12-d5a0-4656-a6ff-6d31bd9b37fe-net"
+        },
+        {
+          "at": {
+            "terminal": [
+              "instance-69ce9a05-5764-4d36-807d-5124ab3c6e93",
+              "1"
+            ]
+          },
+          "id": "wire-448aa268-aea2-40b5-ba96-0e9fdd974228-net"
+        },
+        {
+          "at": {
+            "terminal": [
+              "instance-23b79eca-66c6-4270-b9ad-388cc8a409fe",
+              "1"
+            ]
+          },
+          "id": "wire-b83ee354-4727-415e-870b-95c5d3ecd36b-net"
+        },
+        {
+          "at": {
+            "terminal": [
+              "instance-03069fb8-2f34-4d63-a9f2-6675543fe97a",
+              "1"
+            ]
+          },
+          "id": "wire-cb9af508-f5e4-46ec-b7e1-df4ddb8b343a-net"
+        },
+        {
+          "at": {
+            "terminal": [
+              "instance-55a8b156-eefc-4329-a177-616488e7883d",
+              "1"
+            ]
+          },
+          "id": "wire-536fd2d1-8920-47d6-8f9b-1f5f676a7137-net"
+        },
+        {
+          "at": {
+            "terminal": [
+              "instance-2795d63a-0cfc-437b-88ce-1159b9b3c909",
+              "1"
+            ]
+          },
+          "id": "wire-1937a8cc-7205-445c-8d5c-a3cc17f33cd4-net"
+        }
+      ],
+      "junctions": [
+        {
+          "coordinate": [
+            80,
+            10
+          ],
+          "id": "junction-agent-rail-37c6ae1bd54c4073-start",
+          "role": "route-anchor"
+        },
+        {
+          "coordinate": [
+            490,
+            10
+          ],
+          "id": "junction-agent-rail-37c6ae1bd54c4073-end",
+          "role": "route-anchor"
+        },
+        {
+          "coordinate": [
+            100,
+            140
+          ],
+          "id": "wire-daffe908-a26d-4640-b021-24b75c5239c3-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            100,
+            10
+          ],
+          "id": "wire-85c2737c-208e-47e1-91e2-c72f11030c37-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            170,
+            10
+          ],
+          "id": "wire-32ca8535-dc2c-4df3-b797-c3542eb7874a-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            250,
+            140
+          ],
+          "id": "wire-fe101b14-f04a-4a80-80c5-4e44b0ab84fa-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            250,
+            10
+          ],
+          "id": "wire-92187b24-3994-4d01-a292-977013c5234f-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            320,
+            10
+          ],
+          "id": "wire-b269d4cb-7a29-4e79-a3b6-51fd0e5ac94d-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            400,
+            140
+          ],
+          "id": "wire-93eb221b-9a01-4fd3-9905-2edeabd09e6f-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            400,
+            10
+          ],
+          "id": "wire-e662781f-ef2d-4966-ada6-33339ad6850e-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            470,
+            10
+          ],
+          "id": "wire-b0cbf8b1-995d-437a-b39c-1753ccd60741-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            100,
+            100
+          ],
+          "id": "wire-0a980d12-4237-4def-9ad9-9ea2fbd41839-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            170,
+            100
+          ],
+          "id": "wire-bcf15c20-5494-417c-9512-1919acd4b96e-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            250,
+            100
+          ],
+          "id": "wire-bc2e20f9-e89e-4b18-a749-afea1b2b1111-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            320,
+            100
+          ],
+          "id": "wire-140df51a-288f-4bc7-a291-ee1cdfab27fc-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            400,
+            100
+          ],
+          "id": "wire-c86d4817-c334-488e-8dce-9955ae6715e6-to-junction",
+          "role": "branch"
+        },
+        {
+          "coordinate": [
+            470,
+            100
+          ],
+          "id": "wire-0c76df1c-e54a-47b2-8403-5ac41f7dfdcb-to-junction",
+          "role": "branch"
+        }
+      ],
+      "annotations": [
+        {
+          "alignment": "start",
+          "anchor": {
+            "fallbackPosition": {
+              "x": 500,
+              "y": 20
+            },
+            "kind": "object",
+            "localOffset": {
+              "x": 10,
+              "y": 10
+            },
+            "objectId": "junction-agent-rail-37c6ae1bd54c4073-end"
+          },
+          "bind": {
+            "kind": "cell-terminal-name",
+            "terminalId": "cell-terminal-c47f04a6453efc6b"
+          },
+          "format": {
+            "runs": [
+              {
+                "children": [
+                  "V"
+                ],
+                "styles": [
+                  "italic",
+                  "bold"
+                ]
+              },
+              {
+                "children": [
+                  "CC"
+                ],
+                "styles": [
+                  "subscript",
+                  "bold"
+                ]
+              }
+            ]
+          },
+          "id": "label-agent-rail-37c6ae1bd54c4073",
+          "kind": "power-label",
+          "netId": "net-power-agent-rail-37c6ae1bd54c4073",
+          "order": 34
+        }
+      ],
+      "drafting": {
+        "objects": []
+      },
+      "mosBulkDefaults": {
+        "nmosNetId": "net-power-g0",
+        "pmosNetId": "net-power-agent-rail-37c6ae1bd54c4073"
+      },
+      "connectivityEvidence": [
+        {
+          "id": "process-supply-618c3b1eb546bad6-name",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "process-net-8b24475c79461c4d",
+          "owner": {
+            "annotationId": "process-supply-618c3b1eb546bad6",
+            "kind": "net-label"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-de9261582c9b2960",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-power-g0",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "g0"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-80a62870f6b6e5a4",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-power-g1",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "g1"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-79d054059852e000",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-power-g2",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "g2"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-c1712322ce34c864",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-power-g3",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "g3"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-fd45d0ebfb526b90",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-power-g4",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "g4"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-170695d9c513539c",
+          "kind": "name-claim",
+          "name": "0",
+          "netId": "net-power-g5",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "g5"
+          },
+          "powerDomain": "ground",
+          "scope": "global"
+        },
+        {
+          "id": "connectivity-evidence-d007f6fd8d124fa6",
+          "kind": "name-claim",
+          "name": "VCC",
+          "netId": "net-power-agent-rail-37c6ae1bd54c4073",
+          "owner": {
+            "kind": "power-marker",
+            "objectId": "label-agent-rail-37c6ae1bd54c4073"
+          },
+          "powerDomain": "vdd",
+          "scope": "local"
+        }
+      ],
+      "layoutGroups": [],
+      "constraints": [],
+      "sourceStatus": "connectivity-modified",
+      "revision": 5,
+      "noConnects": []
+    }
+  ],
+  "componentDefinitions": [
+    {
+      "electrical": {
+        "capabilities": {
+          "supportsBulkBinding": false,
+          "supportsModel": false,
+          "supportsValueAnnotation": true
+        },
+        "deviceClass": "capacitor",
+        "dialects": [
+          "spice",
+          "spectre"
+        ],
+        "id": "capacitor",
+        "parameters": [
+          {
+            "defaultValue": "1p",
+            "displayRole": "value",
+            "editor": "text",
+            "help": "Capacitance",
+            "label": "Value",
+            "name": "value",
+            "placeholder": "1p",
+            "required": true,
+            "unitHint": "F"
+          }
+        ],
+        "pinOrder": [
+          "1",
+          "2"
+        ],
+        "pinSemantics": [
+          {
+            "pinName": "1",
+            "role": "capacitor-top-plate"
+          },
+          {
+            "pinName": "2",
+            "role": "capacitor-bottom-plate"
+          }
+        ],
+        "referencePrefix": "C",
+        "symbolId": "capacitor",
+        "targetPolicy": "builtin"
+      },
+      "symbol": {
+        "id": "capacitor",
+        "name": "Capacitor",
+        "pins": [
+          {
+            "at": {
+              "x": 0,
+              "y": -20
+            },
+            "direction": "north",
+            "name": "1",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "passive"
+          },
+          {
+            "at": {
+              "x": 0,
+              "y": 20
+            },
+            "direction": "south",
+            "name": "2",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "passive"
+          }
+        ],
+        "primitives": [
+          {
+            "from": {
+              "x": 8.05064,
+              "y": -3.233605
+            },
+            "kind": "line",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "emphasis"
+            },
+            "to": {
+              "x": -8.05064,
+              "y": -3.233605
+            }
+          },
+          {
+            "from": {
+              "x": 8.05064,
+              "y": 3.233605
+            },
+            "kind": "line",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "emphasis"
+            },
+            "to": {
+              "x": -8.05064,
+              "y": 3.233605
+            }
+          },
+          {
+            "from": {
+              "x": 0,
+              "y": -3.233605
+            },
+            "kind": "line",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            },
+            "to": {
+              "x": 0,
+              "y": -20
+            }
+          },
+          {
+            "from": {
+              "x": 0,
+              "y": 3.233605
+            },
+            "kind": "line",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            },
+            "to": {
+              "x": 0,
+              "y": 20
+            }
+          }
+        ],
+        "schemaVersion": 1,
+        "variants": [],
+        "viewBox": {
+          "height": 48,
+          "width": 24,
+          "x": -12,
+          "y": -24
+        }
+      }
+    },
+    {
+      "electrical": {
+        "capabilities": {
+          "supportsBulkBinding": false,
+          "supportsModel": false,
+          "supportsValueAnnotation": false
+        },
+        "deviceClass": "net-marker",
+        "dialects": [
+          "spice",
+          "spectre"
+        ],
+        "id": "ground",
+        "parameters": [],
+        "pinOrder": [
+          "0"
+        ],
+        "referencePrefix": null,
+        "symbolId": "ground",
+        "targetPolicy": "none"
+      },
+      "symbol": {
+        "id": "ground",
+        "labelVisibility": "hidden",
+        "name": "Ground",
+        "pins": [
+          {
+            "at": {
+              "x": 0,
+              "y": -10
+            },
+            "direction": "north",
+            "name": "0",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "ground"
+          }
+        ],
+        "primitives": [
+          {
+            "from": {
+              "x": 0,
+              "y": -10
+            },
+            "kind": "line",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            },
+            "to": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "from": {
+              "x": -6.395349,
+              "y": 0
+            },
+            "kind": "line",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "ground"
+            },
+            "to": {
+              "x": 6.395349,
+              "y": 0
+            }
+          },
+          {
+            "from": {
+              "x": -4.069767,
+              "y": 5.813953
+            },
+            "kind": "line",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "ground"
+            },
+            "to": {
+              "x": 4.069767,
+              "y": 5.813953
+            }
+          },
+          {
+            "from": {
+              "x": -2.325581,
+              "y": 11.046512
+            },
+            "kind": "line",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "ground"
+            },
+            "to": {
+              "x": 2.325581,
+              "y": 11.046512
+            }
+          }
+        ],
+        "schemaVersion": 1,
+        "variants": [],
+        "viewBox": {
+          "height": 31,
+          "width": 24,
+          "x": -12,
+          "y": -14
+        }
+      }
+    },
+    {
+      "electrical": {
+        "capabilities": {
+          "supportsBulkBinding": false,
+          "supportsModel": true,
+          "supportsValueAnnotation": true
+        },
+        "deviceClass": "bjt",
+        "dialects": [
+          "spice",
+          "spectre"
+        ],
+        "id": "npn",
+        "parameters": [
+          {
+            "defaultValue": "1",
+            "displayRole": "multiplier",
+            "editor": "decimal",
+            "help": "Parallel multiplier",
+            "label": "M",
+            "name": "m",
+            "placeholder": "1",
+            "required": false
+          }
+        ],
+        "pinOrder": [
+          "C",
+          "B",
+          "E"
+        ],
+        "referencePrefix": "Q",
+        "seriesInsertionPinPair": [
+          "C",
+          "E"
+        ],
+        "symbolId": "npn",
+        "targetPolicy": "required-model"
+      },
+      "symbol": {
+        "id": "npn",
+        "name": "NPN Bipolar Transistor",
+        "pins": [
+          {
+            "at": {
+              "x": 0,
+              "y": -20
+            },
+            "direction": "north",
+            "name": "C",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "collector"
+          },
+          {
+            "at": {
+              "x": -30,
+              "y": 0
+            },
+            "direction": "west",
+            "name": "B",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "base"
+          },
+          {
+            "at": {
+              "x": 0,
+              "y": 20
+            },
+            "direction": "south",
+            "name": "E",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "emitter"
+          }
+        ],
+        "primitives": [
+          {
+            "from": {
+              "x": -30,
+              "y": 0
+            },
+            "kind": "line",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            },
+            "to": {
+              "x": -16.868887,
+              "y": 0
+            }
+          },
+          {
+            "from": {
+              "x": -16.868887,
+              "y": -13.345607
+            },
+            "kind": "line",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "emphasis"
+            },
+            "to": {
+              "x": -16.868887,
+              "y": 13.32954
+            }
+          },
+          {
+            "kind": "polyline",
+            "points": [
+              [
+                -16.868887,
+                -6.401526
+              ],
+              [
+                0,
+                -13.379732
+              ],
+              [
+                0,
+                -20
+              ]
+            ],
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            }
+          },
+          {
+            "from": {
+              "x": -16.868887,
+              "y": 6.403673
+            },
+            "kind": "line",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            },
+            "to": {
+              "x": -7.30071,
+              "y": 10.358712
+            }
+          },
+          {
+            "kind": "polyline",
+            "points": [
+              [
+                -0.936056,
+                12.990761
+              ],
+              [
+                0,
+                13.377859
+              ],
+              [
+                0,
+                20
+              ]
+            ],
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            }
+          },
+          {
+            "fill": "foreground",
+            "kind": "polygon",
+            "points": [
+              [
+                -6.635095,
+                6.792086
+              ],
+              [
+                -9.952643,
+                13.377859
+              ],
+              [
+                0,
+                13.377859
+              ]
+            ],
+            "stroke": "none"
+          }
+        ],
+        "schemaVersion": 1,
+        "variants": [],
+        "viewBox": {
+          "height": 48,
+          "width": 42,
+          "x": -34,
+          "y": -24
+        }
+      }
+    },
+    {
+      "symbol": {
+        "id": "port",
+        "name": "Port",
+        "pins": [
+          {
+            "at": {
+              "x": 0,
+              "y": 0
+            },
+            "direction": "east",
+            "name": "P",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "port"
+          }
+        ],
+        "primitives": [
+          {
+            "center": {
+              "x": -7.086614,
+              "y": 0
+            },
+            "fill": "none",
+            "kind": "circle",
+            "radius": 2.47907,
+            "stroke": "foreground",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            }
+          },
+          {
+            "from": {
+              "x": 0,
+              "y": 0
+            },
+            "kind": "line",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "strokeRole": "normal"
+            },
+            "to": {
+              "x": -4.607544,
+              "y": 0
+            }
+          }
+        ],
+        "schemaVersion": 1,
+        "variants": [],
+        "viewBox": {
+          "height": 14,
+          "width": 18,
+          "x": -14,
+          "y": -7
+        }
+      }
+    },
+    {
+      "electrical": {
+        "capabilities": {
+          "supportsBulkBinding": false,
+          "supportsModel": false,
+          "supportsValueAnnotation": true
+        },
+        "deviceClass": "resistor",
+        "dialects": [
+          "spice",
+          "spectre"
+        ],
+        "id": "resistor",
+        "parameters": [
+          {
+            "defaultValue": "1k",
+            "displayRole": "value",
+            "editor": "text",
+            "help": "Resistance",
+            "label": "Value",
+            "name": "value",
+            "placeholder": "1k",
+            "required": true,
+            "unitHint": "Ohm"
+          }
+        ],
+        "pinOrder": [
+          "1",
+          "2"
+        ],
+        "referencePrefix": "R",
+        "symbolId": "resistor",
+        "targetPolicy": "builtin"
+      },
+      "symbol": {
+        "id": "resistor",
+        "name": "Resistor",
+        "pins": [
+          {
+            "at": {
+              "x": 0,
+              "y": -20
+            },
+            "direction": "north",
+            "name": "1",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "passive"
+          },
+          {
+            "at": {
+              "x": 0,
+              "y": 20
+            },
+            "direction": "south",
+            "name": "2",
+            "presentation": {
+              "leadLength": 10,
+              "visibility": "visible"
+            },
+            "role": "passive"
+          }
+        ],
+        "primitives": [
+          {
+            "bounds": {
+              "height": 40,
+              "width": 10.360465,
+              "x": -4.988372,
+              "y": -20
+            },
+            "data": "M 0 -20 L 0 -8.72093 L 5.372093 -6.395349 L -4.604651 -4.069767 L 5.372093 -1.162791 L -4.988372 1.744186 L 5.372093 4.651163 L -4.604651 7.55814 L 0 8.72093 L 0 20",
+            "kind": "path",
+            "style": {
+              "lineCap": "butt",
+              "lineJoin": "miter",
+              "miterLimit": 12,
+              "strokeRole": "normal"
+            }
+          }
+        ],
+        "schemaVersion": 1,
+        "variants": [],
+        "viewBox": {
+          "height": 48,
+          "width": 20,
+          "x": -10,
+          "y": -24
+        }
+      }
+    }
+  ],
+  "externalSubcircuitDefinitions": [
+    {
+      "formalParameters": [
+        {
+          "defaultValue": "1",
+          "name": "m"
+        }
+      ],
+      "id": "external-subcircuit-7d0be3612881c765",
+      "interfaceStatus": "declared",
+      "name": "sky130_fd_pr__npn_05v5_W1p00L1p00",
+      "terminals": [
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-0777ad4eecd63cb4",
+          "name": "C"
+        },
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-0777ae4eecd63e67",
+          "name": "B"
+        },
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-0777af4eecd6401a",
+          "name": "E"
+        },
+        {
+          "direction": "passive",
+          "id": "external-subcircuit-terminal-0777b04eecd641cd",
+          "name": "S"
+        }
+      ]
+    }
+  ],
+  "simulationFolders": [],
+  "source": {
+    "dialect": "none",
+    "entry": null,
+    "files": [],
+    "sourcePolicy": "copy"
+  },
+  "symbolLibrary": {
+    "hash": "razavi-reference-v1",
+    "id": "razavi-symbols",
+    "version": "1"
+  },
+  "structureRevision": 1
+}

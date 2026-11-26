@@ -161,6 +161,31 @@ export function arrangeInstanceLabelsReport(
   instanceIds: readonly string[],
   options: ArrangeInstanceLabelsOptions,
 ): { edits: SchematicEdit[]; leftInPlace: LabelLeftInPlace[] } {
+  // A repair keeps a row of like parts' labels in their row and a mirrored
+  // pair's labels mirrored: a part whose repair broke one stays as it was,
+  // and the rest are planned again around it (#2619). Each round leaves one
+  // more part, so the rounds end.
+  const frozen = new Set<string>();
+  for (;;) {
+    const pass = arrangePass(document, resolver, instanceIds, options, frozen);
+    if (!pass.broken.length)
+      return { edits: pass.edits, leftInPlace: pass.leftInPlace };
+    for (const id of pass.broken) frozen.add(id);
+  }
+}
+
+function arrangePass(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  instanceIds: readonly string[],
+  options: ArrangeInstanceLabelsOptions,
+  frozen: ReadonlySet<string>,
+): {
+  edits: SchematicEdit[];
+  leftInPlace: LabelLeftInPlace[];
+  /** Parts whose repair broke a row or a mirror of like parts' labels. */
+  broken: string[];
+} {
   const left: LabelLeftInPlace[] = [];
   const ids = new Set(instanceIds);
   for (const id of ids)
@@ -285,6 +310,7 @@ export function arrangeInstanceLabelsReport(
   // run an includeManual pass moved 3,555 labels of parts nothing reported,
   // in 1,287 drawings (#2619).
   const repairOnly = options.includeManual === true;
+  let supplyWays: { over: number; beside: number } | undefined;
   const reportedLabel = (label: Annotation) => !context.clearAt(label);
   const reportedIds = new Set(
     repairOnly
@@ -294,8 +320,69 @@ export function arrangeInstanceLabelsReport(
   const reportedParts = new Set(
     [...reportedIds].flatMap((id) => {
       const part = partLabels.get(id);
-      return part ? [part.instanceId] : [];
+      return part && !frozen.has(part.instanceId) ? [part.instanceId] : [];
     }),
+  );
+  /**
+   * Whether a wire, another part or another label is drawn over a label, or
+   * it runs on into a neighbour's: worse than one only crowded or over its
+   * own part's outline, which holds the empty corners beside its drawing.
+   */
+  const findings = new Map<string, ReturnType<typeof context.findingsAt>>();
+  const findingsOf = (label: Annotation) => {
+    let found = findings.get(label.id);
+    if (!found) findings.set(label.id, (found = context.findingsAt(label)));
+    return found;
+  };
+  const struckByOther = (label: Annotation) => {
+    const found = findingsOf(label);
+    const own = owners.get(label.id);
+    return (
+      found.overlapped.length > 0 ||
+      found.runsOn.length > 0 ||
+      found.struck.some((id) => id !== own)
+    );
+  };
+  /**
+   * How far a repair may move a label: two grid steps for one drawn over,
+   * one for one only crowded, and back to its part for one far from it. A
+   * repair had moved labels up to four steps to a free spot by a ground or
+   * the next transistor (#2619).
+   */
+  const repairReach = (label: Annotation) =>
+    findingsOf(label).ownerGap !== undefined
+      ? Number.POSITIVE_INFINITY
+      : findingsOf(label).struck.length || struckByOther(label)
+        ? grid * 2
+        : grid;
+  /**
+   * Parts a repair leaves rather than break their row or mirror: those with
+   * no label worse than crowded or over its own outline. One struck by a
+   * wire moves clear all the same.
+   */
+  const lightlyReported = new Set(reportedParts);
+  for (const label of context.visible)
+    if (reportedIds.has(label.id) && struckByOther(label))
+      lightlyReported.delete(partLabels.get(label.id)?.instanceId ?? "");
+  // Every drawn Pin end of every part: a label a repair moves keeps clear
+  // of other parts' ends as it was.
+  const pinEnds = document.instances.flatMap((instance) =>
+    repairOnly && instance.placement
+      ? (
+          resolver.resolve(instance.symbolId, instance.symbolVariantId)
+            ?.definition.pins ?? []
+        ).flatMap((pin) => {
+          const endpoint = {
+            kind: "terminal" as const,
+            instanceId: instance.id,
+            pinName: pin.name,
+          };
+          const at =
+            isVisibleEndpoint(document, resolver, endpoint) &&
+            resolveEndpointPoint(document, resolver, endpoint);
+          return at ? [{ instanceId: instance.id, at }] : [];
+        })
+      : [],
   );
 
   // Every visible Reference and value of the parts, eligible or not: a
@@ -421,6 +508,9 @@ export function arrangeInstanceLabelsReport(
     // author put it stays there.
     const repairs =
       options.includeManual === true || options.repairManual === true;
+    // A part left to keep its row or mirror stays, its labels named.
+    if (repairOnly && frozen.has(ownerId))
+      return reportedIds.has(original.id) ? leave("crowded") : null;
     if (repairOnly && !reportedParts.has(ownerId))
       return placed || inReferenceSlot || inSideRows ? null : leave("clear");
     // A repair moves a reported part's labels as one group, hand-moved
@@ -928,6 +1018,20 @@ export function arrangeInstanceLabelsReport(
       const from = originals.map((label) => context.measure(label).position);
       const fromBoxes = originals.map(box);
       const fixedBoxes = fixed.map(box);
+      // A label far from its part goes back to it: where it stood says
+      // nothing of which side, or what neighbours, it should keep.
+      const homing = group.some(
+        (label) =>
+          reportedIds.has(label.original.id) &&
+          findingsOf(label.original).ownerGap !== undefined,
+      );
+      // How far the group may move: as far as its worst-reported label.
+      const groupReach = Math.max(
+        grid,
+        ...group
+          .filter((label) => reportedIds.has(label.original.id))
+          .map((label) => repairReach(label.original)),
+      );
       // How far apart the part's labels may stand: a row's reach, or as far
       // as they already were.
       const reach = (a: Rect, b: Rect) => Math.max(grid, rectangleGap(a, b));
@@ -949,8 +1053,144 @@ export function arrangeInstanceLabelsReport(
           )
         );
       };
+      /** The sides of its part a label stands wholly beyond. */
+      const sidesOf = (ink: Rect) =>
+        owner && {
+          left: ink.x + ink.width <= owner.x,
+          right: ink.x >= owner.x + owner.width,
+          above: ink.y + ink.height <= owner.y,
+          below: ink.y >= owner.y + owner.height,
+        };
+      const fromSides = fromBoxes.map(sidesOf);
+      // A label never crosses to its part's far side: a switch's M3, M5
+      // and M7 had been moved from beside it to across it, out of the
+      // column of their row-mates (#2619).
+      const keepsSide = (ink: Rect, index: number) => {
+        const was = fromSides[index];
+        const now = sidesOf(ink);
+        return (
+          !was ||
+          !now ||
+          !(
+            (was.left && now.right) ||
+            (was.right && now.left) ||
+            (was.above && now.below) ||
+            (was.below && now.above)
+          )
+        );
+      };
+      // What stands near: other parts, their labels, their Pin ends and
+      // wires. A moved label comes no nearer one within half a grid step
+      // than it was, and meets no wire there it did not; repairs had put
+      // names beside a ground, a neighbour's Pin, a return wire and the
+      // next transistor's name (#2619).
+      const near = grid / 2;
+      const span = union(fromBoxes);
+      const around = grid * 2 + near;
+      const nearbySymbols = context.symbols.filter(
+        (symbol) =>
+          symbol.id !== instance.id &&
+          rectangleGap(span, symbol.bounds) <= around + span.width,
+      );
+      const nearbyEnds = pinEnds.filter(
+        ({ instanceId, at }) =>
+          instanceId !== instance.id &&
+          pointGap(at, span) <= around + span.width,
+      );
+      const ownEnds = pinEnds.filter(
+        ({ instanceId }) => instanceId === instance.id,
+      );
+      const nearWires = fromBoxes.map(
+        (ink) => new Set(context.wiresAt(grown(ink, near))),
+      );
+      const keepsNeighbours = (ink: Rect, index: number, label: Annotation) => {
+        const was = fromBoxes[index]!;
+        const nearer = (now: number, before: number) =>
+          now < near && now < before;
+        return (
+          !nearbySymbols.some((symbol) =>
+            nearer(
+              rectangleGap(ink, symbol.bounds),
+              rectangleGap(was, symbol.bounds),
+            ),
+          ) &&
+          !nearbyEnds.some(({ at }) =>
+            nearer(pointGap(at, ink), pointGap(at, was)),
+          ) &&
+          !context
+            .wiresAt(grown(ink, near))
+            .some((id) => !nearWires[index]!.has(id)) &&
+          !context.labelsWithin(ink, label.id, near).some((id) => {
+            if (groupIds.has(id) || owners.get(id) === instance.id)
+              return false;
+            const theirs = context.labelBounds(id)!;
+            return nearer(rectangleGap(ink, theirs), rectangleGap(was, theirs));
+          })
+        );
+      };
+      // A name and its value read as one block: the name before its value,
+      // above it or ahead of it on its line, both on one side of their part.
+      // A repair had put a capacitor's C_L on its far side from its 0.1pF,
+      // and turned a CSp under its 1pF (#2619).
+      const kindOf = (label: Annotation) => partLabels.get(label.id)?.kind;
+      const allOriginals = [...originals, ...fixed];
+      const nameAt = allOriginals.findIndex(
+        (label) => kindOf(label) === "instance-reference",
+      );
+      const valueAt = allOriginals.findIndex(
+        (label) => kindOf(label) === "instance-value",
+      );
+      const allFrom = [...fromBoxes, ...fixedBoxes];
+      const paired = nameAt >= 0 && valueAt >= 0;
+      /** Stacked or on one line, and whether the name reads first. */
+      const readOrder = (name: Rect, value: Rect) => {
+        const dx = centre(value).x - centre(name).x;
+        const dy = centre(value).y - centre(name).y;
+        const stacked = Math.abs(dy) >= Math.abs(dx);
+        return { stacked, nameFirst: (stacked ? dy : dx) > 0 };
+      };
+      const was = paired && readOrder(allFrom[nameAt]!, allFrom[valueAt]!);
+      // Labels drawn over each other had no order to keep.
+      const tangled = paired && overlap(allFrom[nameAt]!, allFrom[valueAt]!);
+      const straddled =
+        paired && owner
+          ? overlap(union([allFrom[nameAt]!, allFrom[valueAt]!]), owner)
+          : true;
+      const readsAsOne = (boxes: readonly Rect[]) => {
+        if (!paired || !was || !owner) return true;
+        const all = [...boxes, ...fixedBoxes];
+        const name = all[nameAt]!;
+        const value = all[valueAt]!;
+        const now = readOrder(name, value);
+        return (
+          now.nameFirst &&
+          (homing ||
+            tangled ||
+            !was.nameFirst ||
+            now.stacked === was.stacked) &&
+          (straddled || !overlap(union([name, value]), owner))
+        );
+      };
+      /** Whether the group stands on a side of its part a lead leaves. */
+      const onWiredSide = (boxes: readonly Rect[]) => {
+        if (!owner) return false;
+        const sides = sidesOf(union(boxes))!;
+        return ownEnds.some(
+          ({ at }) =>
+            (sides.left && at.x <= owner.x + 1) ||
+            (sides.right && at.x >= owner.x + owner.width - 1) ||
+            (sides.above && at.y <= owner.y + 1) ||
+            (sides.below && at.y >= owner.y + owner.height - 1),
+        );
+      };
       const accepts = (boxes: readonly Rect[], labels: readonly Annotation[]) =>
         boxes.every(owned) &&
+        (homing ||
+          (boxes.every(keepsSide) &&
+            boxes.every((ink, index) =>
+              keepsNeighbours(ink, index, labels[index]!),
+            ))) &&
+        readsAsOne(boxes) &&
         boxes.every((ink, index) =>
           fixedBoxes.every(
             (f, other) => rectangleGap(ink, f) <= allowed[index]![other]!,
@@ -973,38 +1213,74 @@ export function arrangeInstanceLabelsReport(
           );
         }) &&
         !between(boxes);
+      // Other sides' rows only on a side no lead of the part leaves, as a
+      // capacitor's labels stand beside its plates.
+      const sideBases = fixed.length
+        ? []
+        : INSTANCE_LABEL_SIDES.flatMap((side) => {
+            const arrangement = onSide(side);
+            return arrangement && !onWiredSide(arrangement.map(box))
+              ? [{ arrangement, shifts: nearbyShifts(grid, 5) }]
+              : [];
+          });
+      // Only its reported labels to their default rows, the rest kept.
+      const reportedHome = group.map((label, index) =>
+        reportedIds.has(label.original.id)
+          ? preferred[index]!
+          : originals[index]!,
+      );
       const bases = [
-        { arrangement: originals, shifts: nearbyShifts(grid) },
+        { arrangement: originals, shifts: nearbyShifts(grid, 10) },
+        { arrangement: reportedHome, shifts: nearbyShifts(grid, 5) },
         { arrangement: preferred, shifts: nearbyShifts(grid, 5) },
-        ...(fixed.length
-          ? []
-          : INSTANCE_LABEL_SIDES.flatMap((side) => {
-              const arrangement = onSide(side);
-              return arrangement
-                ? [{ arrangement, shifts: nearbyShifts(grid, 5) }]
-                : [];
-            })),
+        ...sideBases,
       ];
       // Nearest first: how far the arrangement stands from the labels, and
       // then how far it is shifted, so a name in its default row is not
       // dragged toward a value moved far off.
-      const candidates = bases.flatMap(({ arrangement, shifts }, base) => {
-        const away = Math.max(
-          ...arrangement.map((label, index) => {
-            const p = context.measure(label).position;
-            return Math.hypot(p.x - from[index]!.x, p.y - from[index]!.y);
-          }),
-        );
-        return [{ x: 0, y: 0 }, ...shifts].map((shift) => ({
-          base,
-          shift,
-          distance: away + Math.hypot(shift.x, shift.y),
-        }));
-      });
-      candidates.sort((a, b) => a.distance - b.distance || a.base - b.base);
       const baseBoxes = bases.map(({ arrangement }) => arrangement.map(box));
-      for (const { base, shift, distance } of candidates) {
-        if (distance === 0) continue;
+      const kept = group.map((label) => !reportedIds.has(label.original.id));
+      const candidates = bases.flatMap(({ arrangement, shifts }, base) => {
+        const offsets = arrangement.map((label, index) => {
+          const p = context.measure(label).position;
+          return { x: p.x - from[index]!.x, y: p.y - from[index]!.y };
+        });
+        return [{ x: 0, y: 0 }, ...shifts].flatMap((shift) => {
+          const moves = offsets.map((o) =>
+            Math.hypot(o.x + shift.x, o.y + shift.y),
+          );
+          if (!moves.every((move) => move <= groupReach)) return [];
+          // The least move that clears. A label far from its part goes
+          // back beside the labels it left, which move least.
+          const moved = Math.max(...moves);
+          if (!homing) return [{ base, shift, moved, distance: moved, by: 0 }];
+          const stay = moves.filter((_, index) => kept[index]);
+          const boxes = baseBoxes[base]!.map((b) => ({
+            ...b,
+            x: b.x + shift.x,
+            y: b.y + shift.y,
+          }));
+          const stayed = boxes.filter((_, index) => kept[index]);
+          const by = stayed.length
+            ? boxes.reduce(
+                (sum, ink, index) =>
+                  kept[index]
+                    ? sum
+                    : sum +
+                      Math.min(
+                        ...stayed.map((other) => rectangleGap(ink, other)),
+                      ),
+                0,
+              )
+            : 0;
+          return [{ base, shift, moved, distance: Math.max(0, ...stay), by }];
+        });
+      });
+      candidates.sort(
+        (a, b) => a.distance - b.distance || a.by - b.by || a.base - b.base,
+      );
+      for (const { base, shift, moved } of candidates) {
+        if (moved === 0) continue;
         const boxes = baseBoxes[base]!.map((b) => ({
           ...b,
           x: b.x + shift.x,
@@ -1278,10 +1554,100 @@ export function arrangeInstanceLabelsReport(
           : null;
       if (owner !== null && !ids.has(owner)) continue;
       if (!reportedLabel(label)) continue;
-      left.push({ labelId: label.id, instanceId: owner, reason: "unarranged" });
+      left.push({
+        labelId: label.id,
+        instanceId: owner,
+        reason: owner !== null && frozen.has(owner) ? "crowded" : "unarranged",
+      });
     }
   }
-  return { edits, leftInPlace: left };
+  return {
+    edits,
+    leftInPlace: left,
+    broken: repairOnly ? brokenAlignments() : [],
+  };
+
+  /**
+   * Parts whose repaired labels left a row or a mirror they stood in with
+   * like parts' labels: parts of one kind level with each other and their
+   * same labels the same way beside them, or mirrored about the pair. Of
+   * two, the one moved further. A repair had lifted five of a row of six
+   * resistors' values, and moved one of a mirrored pair's names under its
+   * transistor (#2619).
+   */
+  function brokenAlignments(): string[] {
+    // Labels within half a grid step of alike stand in a row; one kept
+    // there stays within a quarter step, or as near as it was.
+    const tolerance = grid / 4;
+    const alikeWithin = grid / 2;
+    const bodies = new Map(context.symbols.map((s) => [s.id, s.bounds]));
+    const instances = new Map(document.instances.map((i) => [i.id, i]));
+    const byKind = new Map<
+      string,
+      { instanceId: string; c: Point; was: Point; now: Point; moved: number }[]
+    >();
+    for (const label of context.visible) {
+      const part = partLabels.get(label.id);
+      const instance = part && instances.get(part.instanceId);
+      const body = part && bodies.get(part.instanceId);
+      if (!part || !instance || !body) continue;
+      const before = context.measure(label).inkBounds;
+      const after = context.labelBounds(label.id) ?? before;
+      const c = centre(body);
+      const b = centre(before);
+      const a = centre(after);
+      const key = `${instance.symbolId}\n${part.kind}`;
+      const entries = byKind.get(key) ?? [];
+      byKind.set(key, entries);
+      entries.push({
+        instanceId: part.instanceId,
+        c,
+        was: { x: b.x - c.x, y: b.y - c.y },
+        now: { x: a.x - c.x, y: a.y - c.y },
+        moved: Math.hypot(a.x - b.x, a.y - b.y),
+      });
+    }
+    const same = (u: number, v: number) => Math.abs(u - v) <= alikeWithin;
+    const kept = (now: number, was: number) =>
+      Math.abs(now) <= Math.max(tolerance, Math.abs(was));
+    const broken = new Set<string>();
+    for (const entries of byKind.values())
+      for (const [index, p] of entries.entries())
+        for (const q of entries.slice(index + 1)) {
+          if (!p.moved && !q.moved) continue;
+          const level = same(p.c.y, q.c.y);
+          const column = same(p.c.x, q.c.x);
+          const alike = same(p.was.x, q.was.x) && same(p.was.y, q.was.y);
+          // A row's or a column's labels keep the same place by their parts.
+          const lineKept =
+            !((level || column) && alike) ||
+            (kept(p.now.x - q.now.x, p.was.x - q.was.x) &&
+              kept(p.now.y - q.now.y, p.was.y - q.was.y));
+          const mirroredX =
+            level &&
+            Math.abs(p.was.x) > tolerance &&
+            same(p.was.x, -q.was.x) &&
+            same(p.was.y, q.was.y);
+          const mirroredY =
+            column &&
+            Math.abs(p.was.y) > tolerance &&
+            same(p.was.y, -q.was.y) &&
+            same(p.was.x, q.was.x);
+          const mirrorKept =
+            (!mirroredX ||
+              (kept(p.now.x + q.now.x, p.was.x + q.was.x) &&
+                kept(p.now.y - q.now.y, p.was.y - q.was.y))) &&
+            (!mirroredY ||
+              (kept(p.now.y + q.now.y, p.was.y + q.was.y) &&
+                kept(p.now.x - q.now.x, p.was.x - q.was.x)));
+          if (lineKept && mirrorKept) continue;
+          if (p.moved >= q.moved) broken.add(p.instanceId);
+          if (q.moved >= p.moved) broken.add(q.instanceId);
+        }
+    return [...broken].filter(
+      (id) => !frozen.has(id) && lightlyReported.has(id),
+    );
+  }
 
   /**
    * A VDD marker's supply name, asked for with `side:"top"`, centred over
@@ -1360,6 +1726,36 @@ export function arrangeInstanceLabelsReport(
    * beside it, whichever is wholly clear, or stays; it is never turned. A
    * repair had moved VDD names across a neighbour's labels (#2619).
    */
+  /** Whether a supply name stands over its bar rather than beside it. */
+  function isOverBar(name: Annotation, bar: Rect): boolean {
+    const ink = box(name);
+    return (
+      ink.y + ink.height <= bar.y + 1 &&
+      ink.x < bar.x + bar.width &&
+      ink.x + ink.width > bar.x
+    );
+  }
+
+  /** How many of the drawing's VDD names stand over their bar, or beside. */
+  function supplyNamesOver(): { over: number; beside: number } {
+    if (supplyWays) return supplyWays;
+    const ways = { over: 0, beside: 0 };
+    for (const instance of document.instances) {
+      if (instance.symbolId !== "vdd-port") continue;
+      const bar = context.symbols.find((s) => s.id === instance.id)?.bounds;
+      const name = context.visible.find(
+        (a) =>
+          a.kind === "power-label" &&
+          a.anchor.kind === "object" &&
+          a.anchor.objectId === instance.id,
+      );
+      if (!bar || !name) continue;
+      if (isOverBar(name, bar)) ways.over += 1;
+      else ways.beside += 1;
+    }
+    return (supplyWays = ways);
+  }
+
   function repairSupplyName(
     instance: SchematicDocument["instances"][number],
     resolved: NonNullable<ReturnType<SymbolResolver["resolve"]>>,
@@ -1382,21 +1778,41 @@ export function arrangeInstanceLabelsReport(
       alignment: "middle",
     });
     const overInk = context.measure(over).inkBounds;
-    const places = [
-      annotationAt(over, {
-        position: {
-          x: bar.x + bar.width / 2,
-          y: clearOfBar - (overInk.y + overInk.height - clearOfBar),
-        },
-        alignment: "middle",
-      }),
-      ...(beside ? [annotationAt(found, beside)] : []),
-    ];
+    const overBar = annotationAt(over, {
+      position: {
+        x: bar.x + bar.width / 2,
+        y: clearOfBar - (overInk.y + overInk.height - clearOfBar),
+      },
+      alignment: "middle",
+    });
+    // Only the way most of the drawing's VDD names stand, over their bar
+    // or beside it, or this one's own on a tie: a repair had turned one
+    // row's VDD over its bar, every other beside its own (#2619).
+    const overs = supplyNamesOver();
+    const way =
+      overs.over === overs.beside
+        ? isOverBar(found, bar)
+        : overs.over > overs.beside;
+    const places = way
+      ? [overBar]
+      : beside
+        ? [annotationAt(found, beside)]
+        : [];
+    // Nearer its own bar than any other part, as a part's labels stand.
+    const owned = (place: Annotation) => {
+      const ink = box(place);
+      const own = rectangleGap(ink, bar);
+      return context.symbols.every(
+        (symbol) =>
+          symbol.id === instance.id || rectangleGap(ink, symbol.bounds) > own,
+      );
+    };
     const next = places.find(
       (place) =>
         JSON.stringify(place) !== JSON.stringify(found) &&
         !context.conflicts(place).length &&
-        context.clearAt(place),
+        context.clearAt(place) &&
+        owned(place),
     );
     if (!next) return [];
     context.accept(next);
@@ -1802,5 +2218,39 @@ function overlap(a: Rect, b: Rect): boolean {
     a.x + a.width > b.x &&
     a.y < b.y + b.height &&
     a.y + a.height > b.y
+  );
+}
+
+/** The box around every one of `boxes`. */
+function union(boxes: readonly Rect[]): Rect {
+  const x = Math.min(...boxes.map((b) => b.x));
+  const y = Math.min(...boxes.map((b) => b.y));
+  return {
+    x,
+    y,
+    width: Math.max(...boxes.map((b) => b.x + b.width)) - x,
+    height: Math.max(...boxes.map((b) => b.y + b.height)) - y,
+  };
+}
+
+function centre(box: Rect): Point {
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+/** `box` grown by `by` on every side. */
+function grown(box: Rect, by: number): Rect {
+  return {
+    x: box.x - by,
+    y: box.y - by,
+    width: box.width + 2 * by,
+    height: box.height + 2 * by,
+  };
+}
+
+/** Gap between a point and a box, 0 inside it. */
+function pointGap(point: Point, box: Rect): number {
+  return Math.hypot(
+    Math.max(0, box.x - point.x, point.x - box.x - box.width),
+    Math.max(0, box.y - point.y, point.y - box.y - box.height),
   );
 }

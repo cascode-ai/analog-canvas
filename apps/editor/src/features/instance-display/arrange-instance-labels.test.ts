@@ -21,7 +21,10 @@ import {
   resolveDocumentStyleProfile,
 } from "@icm/derived";
 import { defaultInstanceDisplayAnnotations } from "./default-instance-display";
-import { arrangeInstanceLabels } from "./arrange-instance-labels";
+import {
+  arrangeInstanceLabels,
+  arrangeInstanceLabelsReport,
+} from "./arrange-instance-labels";
 import { instanceParameterVisibilityEdits } from "@icm/edit-engine";
 import { vddPowerLabelAnnotation } from "../component-insert/vdd-power-label";
 
@@ -1818,10 +1821,23 @@ describe("opt-in label arrangement", () => {
         ).ok,
       ).toBe(true);
     }
-    // includeManual takes one moved by hand along too.
+    // A repair (includeManual) moves the group only within two grid steps:
+    // the name's one clear place is across the part, so it stays with its
+    // hand-moved ×m and is named crowded (#2619).
     const manual = hiddenMultiplier();
     nudge(manual.label("times"), 40, 40);
-    apply(manual.doc, manual.arranged({ includeManual: true }));
-    expect(manual.at("times")).toMatchObject(manual.underName());
+    const report = arrangeInstanceLabelsReport(
+      manual.doc,
+      resolver,
+      [manual.doc.instances[0]!.id],
+      { includeManual: true },
+    );
+    expect(report.edits).toEqual([]);
+    expect(report.leftInPlace).toContainEqual(
+      expect.objectContaining({
+        labelId: manual.label("name").id,
+        reason: "crowded",
+      }),
+    );
   });
 });
