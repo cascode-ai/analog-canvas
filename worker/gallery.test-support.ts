@@ -543,6 +543,83 @@ export async function signIn(
     .split(";")[0]!;
 }
 
+export function extractableProjectText(name = "Extractable"): string {
+  const project = createEmptyProject("g-extract", name);
+  const document = project.documents[0]!;
+  document.instances = [
+    {
+      id: "R1",
+      symbolId: "resistor",
+      placement: {
+        position: { x: 0, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      },
+      reference: "R1",
+      netlist: { parameters: { value: "1k" } },
+    },
+    {
+      id: "P1",
+      symbolId: "port",
+      placement: {
+        position: { x: -40, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      },
+    },
+    {
+      id: "G1",
+      symbolId: "ground",
+      placement: {
+        position: { x: 40, y: 0 },
+        rotation: 0,
+        mirror: "none",
+      },
+    },
+  ];
+  document.nets = [
+    {
+      id: "net-in",
+      terminals: [
+        { instanceId: "P1", pinName: "P" },
+        { instanceId: "R1", pinName: "1" },
+      ],
+    },
+    {
+      id: "net-0",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "G1", pinName: "0" },
+      ],
+    },
+  ];
+  document.netlist = {
+    name: "dut",
+    formalParameters: [],
+    terminals: [
+      {
+        id: "term-in",
+        name: "IN",
+        netId: "net-in",
+        direction: "input",
+        interfaceInstanceIds: ["P1"],
+      },
+    ],
+  };
+  document.connectivityEvidence = [
+    {
+      id: "claim-gnd",
+      kind: "name-claim",
+      netId: "net-0",
+      name: "0",
+      scope: "global",
+      powerDomain: "ground",
+      owner: { kind: "power-marker", objectId: "G1" },
+    },
+  ];
+  return serializeProject(project);
+}
+
 export function wiredProjectText(
   name = "Wired",
   secondResistorX = 200,

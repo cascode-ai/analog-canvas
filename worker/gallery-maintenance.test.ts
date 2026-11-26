@@ -17,6 +17,7 @@ import {
   adminOf,
   cookieHeaders,
   environment,
+  extractableProjectText,
   makerOf,
   ownerAccountOf,
   pagedStoreBackup,
@@ -433,7 +434,10 @@ describe("Gallery netlist read", () => {
       cookie,
       text: serializeProject(sketch),
     });
-    const ready = await submitOne(env, "Extractable", { cookie });
+    const ready = await submitOne(env, "Extractable", {
+      cookie,
+      text: extractableProjectText("Extractable"),
+    });
     const withdrawn = await submitOne(env, "Withdrawn", { cookie });
     env.gallerySql.exec(
       "UPDATE gallery_entries SET status = 'recycled' WHERE id = ?",

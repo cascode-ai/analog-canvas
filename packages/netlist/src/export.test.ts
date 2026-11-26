@@ -1704,4 +1704,38 @@ describe("netlist extractability", () => {
     expect(unfinishedDrawingDiagnostics(result.diagnostics)).toEqual([]);
     expect(designExtractsNetlist(project)).toBe(true);
   });
+
+  it("refuses an empty or port-only drawing with no devices in the top Cell (#2644)", () => {
+    const empty = createEmptyProject("empty", "Empty");
+    expect(createDesignNetlistExport(empty, { format: "spice" }).status).toBe(
+      "ready",
+    );
+    expect(designExtractsNetlist(empty)).toBe(false);
+
+    const portOnly = createEmptyProject("port-only", "PortOnly");
+    const doc = portOnly.documents[0]!;
+    doc.instances.push({
+      id: "P1",
+      symbolId: "port",
+      placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+    });
+    doc.nets.push({
+      id: "net-in",
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
+    doc.netlist = {
+      name: "PortOnly",
+      formalParameters: [],
+      terminals: [
+        {
+          id: "term-in",
+          name: "IN",
+          netId: "net-in",
+          direction: "input",
+          interfaceInstanceIds: ["P1"],
+        },
+      ],
+    };
+    expect(designExtractsNetlist(portOnly)).toBe(false);
+  });
 });
