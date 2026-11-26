@@ -127,15 +127,26 @@ redraws seen drawings), whether the name was typed, connected or generated:
   labels. `includeManual` is a repair (#2619): only parts with a label the
   label findings report (struck, crowded, overlapping, far, run on) are
   arranged, hand-moved labels included, and every other label stays and is
-  in the way. A repaired part's labels move as one group, nearest where they
-  stand first (then its default rows, then each side, each shifted up to a
-  grid step), only to a place none of them is reported or meets another
-  label, within two grid steps of their own part and nearer it than any
-  other part, the name no further from its value than a row or than it was;
-  failing that the group stays (`crowded`). A block's name stays where it is
+  in the way. A repaired part's labels move as one group by the least move
+  that clears (from where they stand, its default rows, or a side no lead of
+  the part leaves, each shifted a little), at most two grid steps when a
+  wire, another part or another label is drawn over one of them or it runs
+  on, one step when only crowded or over its own part's outline (a label far
+  from its part goes back to its rows, beside the labels it left); only to a
+  place none of them is reported or meets another label, within two grid
+  steps of their own part and nearer it than any other part, never across
+  to the part's far side, no nearer than it was to another part, its labels,
+  its Pin ends or a wire within half a grid step; the name no further from
+  its value than a row or than it was, read before it (above it, or ahead of
+  it on its line) and both on one side of the part. A part whose labels are
+  only crowded or over its own outline stays rather than leave a row or a
+  mirror of like parts' labels (level or one above another, the same labels
+  within half a grid step of alike or mirrored, kept within a quarter step).
+  Failing all that the group stays (`crowded`). A block's name stays where it is
   (a name inside its own block's box is not reported); a Pin's name only
   turns to a clear side of its end and a VDD name only goes over its bar or
-  beside it, neither turned. Every label still reported is named in
+  beside it, as most of the drawing's VDD names stand (its own way on a
+  tie), nearer its bar than any other part, neither turned. Every label still reported is named in
   `LABELS_LEFT_IN_PLACE`: hand-moved clear ones `clear`, unrepairable ones
   `crowded`, Net labels, free text and names a repair does not move
   `unarranged`. A group an earlier arrangement left clear in another side's rows
