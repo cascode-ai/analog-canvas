@@ -46,7 +46,7 @@ export interface DraftingHandlePreview {
 type TransactionResult = { ok: boolean };
 
 export function createDraftingDragController({
-  document,
+  getDocument,
   annotationGrid,
   resolver,
   visibleEndpoints,
@@ -64,7 +64,8 @@ export function createDraftingDragController({
   transact,
   setStatus,
 }: {
-  document: SchematicDocument;
+  /** Read the live committed Document so same-tick commits (e.g. text-edit blur) are never overwritten by a stale closure. */
+  getDocument: () => SchematicDocument;
   /** Rounding pitch for dragged drafting objects. */
   annotationGrid: number;
   resolver: SymbolResolver;
@@ -102,44 +103,52 @@ export function createDraftingDragController({
     object: DraftingObject,
     hitTarget: SVGElement = event.currentTarget,
   ): void => {
-    if (event.button !== 0 || object.locked) return;
+    const startDocument = getDocument();
+    const liveObject = startDocument.drafting?.objects.find(
+      (item) => item.id === object.id,
+    );
+    if (event.button !== 0 || !liveObject || liveObject.locked) return;
     if (onCompositeMove(event, hitTarget)) return;
     const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
-    const origin = draftingMoveOrigin(document, resolver, object);
+    const origin = draftingMoveOrigin(startDocument, resolver, liveObject);
     if (!origin) {
-      selectDraftingObject(object.id, additiveSelection);
+      selectDraftingObject(liveObject.id, additiveSelection);
       setStatus("This anchored drawing moves with its attachment");
       return;
     }
     event.stopPropagation();
     if (additiveSelection) {
-      selectDraftingObject(object.id, true);
-      setStatus(`Selected drawing ${object.id}`);
+      selectDraftingObject(liveObject.id, true);
+      setStatus(`Selected drawing ${liveObject.id}`);
       return;
     }
     dragSessionRef.current?.cancel();
     const svg = hitTarget.ownerSVGElement!;
     const start = pointFromClient(event.clientX, event.clientY, svg, false);
     const original = { ...origin };
-    const movePlan = planSelectionMove(document, {
+    const movePlan = planSelectionMove(startDocument, {
       ...EMPTY_VISUAL_SELECTION,
-      draftingIds: [object.id],
+      draftingIds: [liveObject.id],
     });
-    selectDraftingObject(object.id);
+    selectDraftingObject(liveObject.id);
     let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
     const dragVisual = () =>
       (visual ??= startCanvasDragVisual(svg, movePlan.previewObjectIds));
     const tolerance = logicalRadiusForPixels(svg, snapCaptureRadiusPx);
     const movingAnchors = [
       {
-        id: `drafting:${object.id}:origin`,
+        id: `drafting:${liveObject.id}:origin`,
         point: original,
         kind: "drafting" as const,
       },
-      ...buildDraftingAnchors(document, resolver, new Set([object.id])),
+      ...buildDraftingAnchors(
+        startDocument,
+        resolver,
+        new Set([liveObject.id]),
+      ),
     ];
     const targetAnchors = buildSceneSnapTargets(
-      document,
+      startDocument,
       resolver,
       visibleEndpoints,
       new Set(movePlan.previewObjectIds),
@@ -160,11 +169,11 @@ export function createDraftingDragController({
               rawDelta,
               movingAnchors,
               targetAnchors,
-              primaryAnchorId: `drafting:${object.id}:origin`,
+              primaryAnchorId: `drafting:${liveObject.id}:origin`,
               grid: draftingPlacementGrid(
-                object.kind,
+                liveObject.kind,
                 annotationGrid,
-                document.presentation.grid,
+                startDocument.presentation.grid,
               ),
               tolerance,
               profile: SNAP_PROFILES.draftingMove,
@@ -212,17 +221,19 @@ export function createDraftingDragController({
           Boolean(client.altKey),
           lastSnap,
         ).position;
-        const latest = document.drafting?.objects.find(
-          (item) => item.id === object.id,
+        const liveDocument = getDocument();
+        const latest = liveDocument.drafting?.objects.find(
+          (item) => item.id === liveObject.id,
         );
         if (
           latest &&
+          !latest.locked &&
           (position.x !== original.x || position.y !== original.y)
         ) {
           transact([
             {
               kind: "upsert_drafting_object",
-              object: translateDraftingMove(document, resolver, latest, {
+              object: translateDraftingMove(liveDocument, resolver, latest, {
                 x: position.x - original.x,
                 y: position.y - original.y,
               }),
@@ -243,20 +254,24 @@ export function createDraftingDragController({
     object: DraftingObject,
     handle: DraftingHandle,
   ): void => {
-    if (event.button !== 0 || object.locked) return;
+    const startDocument = getDocument();
+    const liveObject = startDocument.drafting?.objects.find(
+      (item) => item.id === object.id,
+    );
+    if (event.button !== 0 || !liveObject || liveObject.locked) return;
     event.stopPropagation();
     dragSessionRef.current?.cancel();
     const hitTarget = event.currentTarget;
     const svg = hitTarget.ownerSVGElement!;
     const originalGeometry = resolveDraftingObjectGeometry(
-      document,
+      startDocument,
       resolver,
-      object,
+      liveObject,
     );
     if (handle.kind === "curve") {
-      setInspectorSegment({ objectId: object.id, index: handle.index });
+      setInspectorSegment({ objectId: liveObject.id, index: handle.index });
     }
-    selectDraftingObject(object.id);
+    selectDraftingObject(liveObject.id);
 
     const pointAt = (clientX: number, clientY: number, altKey: boolean) =>
       snapDraftingPoint(
@@ -275,16 +290,16 @@ export function createDraftingDragController({
         const snapped = pointAt(client.x, client.y, Boolean(client.altKey));
         paintSnapGuides(snapped.guides);
         setHandlePreview({
-          objectId: object.id,
+          objectId: liveObject.id,
           object: applyDraftingHandle(
-            object,
+            liveObject,
             handle,
             snapped.point,
             originalGeometry,
             draftingPlacementGrid(
-              object.kind,
+              liveObject.kind,
               annotationGrid,
-              document.presentation.grid,
+              startDocument.presentation.grid,
             ),
           ),
         });
@@ -298,10 +313,11 @@ export function createDraftingDragController({
             client.y,
             Boolean(client.altKey),
           ).point;
-          const latest = document.drafting?.objects.find(
-            (item) => item.id === object.id,
+          const liveDocument = getDocument();
+          const latest = liveDocument.drafting?.objects.find(
+            (item) => item.id === liveObject.id,
           );
-          if (latest) {
+          if (latest && !latest.locked) {
             const next = applyDraftingHandle(
               latest,
               handle,
@@ -310,7 +326,7 @@ export function createDraftingDragController({
               draftingPlacementGrid(
                 latest.kind,
                 annotationGrid,
-                document.presentation.grid,
+                liveDocument.presentation.grid,
               ),
             );
             if (next !== latest) {

@@ -25,6 +25,7 @@ import type {
 import type { SymbolResolver } from "@icm/symbols";
 import {
   createRoutePath,
+  draftingIsBackground,
   isFrozenSnapshot,
   controlledSourceExpressionDocument,
   controlledSourceExpressionSource,
@@ -1061,7 +1062,12 @@ export function proposePaste(
     const copiedPlanes = new Set<
       Exclude<DrawingOrderEntry, { id: string }>["kind"]
     >();
-    if (clipboard.routes.length > 0 || clipboard.junctions.length > 0)
+    if (
+      clipboard.routes.length > 0 ||
+      clipboard.junctions.length > 0 ||
+      clipboard.drawingOrder !== undefined ||
+      clipboard.draftingObjects.some(draftingIsBackground)
+    )
       copiedPlanes.add("electrical");
     if (clipboard.noConnects.length > 0 || clipboard.inductorCouplings?.length)
       copiedPlanes.add("circuit-marks");

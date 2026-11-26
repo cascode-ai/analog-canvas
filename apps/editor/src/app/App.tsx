@@ -247,6 +247,9 @@ import {
   endpointTestId,
   instanceLabelAnnotationFor,
   maxRoutingCounter,
+  nextDocumentObjectId,
+  nextDocumentUniqueSuffix,
+  nextProjectUniqueSuffix,
 } from "./editor-document-helpers";
 import {
   compactLayoutMatches,
@@ -951,6 +954,22 @@ function WorkspaceEditor({
     [document],
   );
   const uniqueSuffixCounter = useRef(0);
+  const nextDocumentId = (prefix: string): string =>
+    nextDocumentObjectId(
+      editorDocumentController.document,
+      prefix,
+      uniqueSuffixCounter,
+    );
+  const nextDocumentSuffix = (): number =>
+    nextDocumentUniqueSuffix(
+      editorDocumentController.document,
+      uniqueSuffixCounter,
+    );
+  const nextProjectSuffix = (): number =>
+    nextProjectUniqueSuffix(
+      editorDocumentController.project,
+      uniqueSuffixCounter,
+    );
   const [viewBox, setRawViewBox] = useState<GridRect>(DEFAULT_VIEWBOX);
   const cameraRuntimeRef = useRef<CameraRuntime | null>(null);
   if (!cameraRuntimeRef.current) {
@@ -1762,10 +1781,7 @@ function WorkspaceEditor({
     resolver,
     commitStructure,
     setStatus,
-    nextSequence: () => {
-      uniqueSuffixCounter.current += 1;
-      return uniqueSuffixCounter.current;
-    },
+    nextSequence: nextProjectSuffix,
   });
   const {
     openGalleryEntryById,
@@ -2726,10 +2742,7 @@ function WorkspaceEditor({
     replaceAnnotationSelection: (ids) =>
       replaceSelectionKind("annotation", ids),
     setStatus,
-    nextId: (prefix) => {
-      uniqueSuffixCounter.current += 1;
-      return `${prefix}-${uniqueSuffixCounter.current}`;
-    },
+    nextId: nextDocumentId,
   });
   const {
     setTextDisplayAlias,
@@ -2849,10 +2862,7 @@ function WorkspaceEditor({
         return false;
       }
     },
-    nextId: (prefix) => {
-      uniqueSuffixCounter.current += 1;
-      return `${prefix}-${uniqueSuffixCounter.current}`;
-    },
+    nextId: nextDocumentId,
   });
   function selectedVisualIds(kind: VisualSelectionKind): readonly string[] {
     switch (kind) {
@@ -3291,10 +3301,7 @@ function WorkspaceEditor({
       seedComponentPreviewFromPointer(request.kind);
     },
     beginDraftingTextEditing,
-    nextId: (prefix) => {
-      uniqueSuffixCounter.current += 1;
-      return `${prefix}-${uniqueSuffixCounter.current}`;
-    },
+    nextId: nextDocumentId,
     rotateComponentPlacement,
     mirrorComponentPlacement,
     componentPlacementRotation,
@@ -3468,6 +3475,8 @@ function WorkspaceEditor({
   } = useSelectionInteraction({
     project,
     document,
+    getProject: () => editorDocumentController.project,
+    getDocument: () => editorDocumentController.document,
     resolver,
     visualSelection,
     selectedIds,
@@ -3508,10 +3517,7 @@ function WorkspaceEditor({
     },
     setCopyPreviewPoint,
     advanceCopyPlacement,
-    nextUniqueSuffix: () => {
-      uniqueSuffixCounter.current += 1;
-      return uniqueSuffixCounter.current;
-    },
+    nextUniqueSuffix: nextDocumentSuffix,
     endpointTestId,
     tool,
     canvasDragSessionRef,
@@ -3689,16 +3695,13 @@ function WorkspaceEditor({
     setTool,
     transact,
     setStatus,
-    nextId: (prefix) => {
-      uniqueSuffixCounter.current += 1;
-      return `${prefix}-${uniqueSuffixCounter.current}`;
-    },
+    nextId: nextDocumentId,
   });
   const {
     beginDrag: beginDraftingDrag,
     beginHandleDrag: beginDraftingHandleDrag,
   } = createDraftingDragController({
-    document,
+    getDocument: () => editorDocumentController.document,
     annotationGrid,
     resolver,
     visibleEndpoints,
@@ -3734,7 +3737,7 @@ function WorkspaceEditor({
     setStatus,
   });
   const { beginDrag: beginAnnotationDrag } = createAnnotationDragController({
-    document,
+    getDocument: () => editorDocumentController.document,
     annotationGrid,
     resolver,
     routeGeometryRecords,
@@ -4265,15 +4268,11 @@ function WorkspaceEditor({
     setNewCellMode(mode);
   };
   const beginNewChild = () => beginNewCell("child");
-  const nextRefactorSequence = () => {
-    uniqueSuffixCounter.current += 1;
-    return uniqueSuffixCounter.current;
-  };
   const hierarchyRefactor = createHierarchyRefactorCommands({
     project,
     document,
     createDocumentId: () => createId("document"),
-    nextSequence: nextRefactorSequence,
+    nextSequence: nextProjectSuffix,
     commitStructure: (transactionId, edits) =>
       commitStructure(transactionId, edits),
     setStatus,
@@ -4810,7 +4809,10 @@ function WorkspaceEditor({
 
   function nextRoutingSuffix(): number {
     routeCounter.current =
-      Math.max(routeCounter.current, maxRoutingCounter(document)) + 1;
+      Math.max(
+        routeCounter.current,
+        maxRoutingCounter(editorDocumentController.document),
+      ) + 1;
     return routeCounter.current;
   }
 
@@ -5609,10 +5611,7 @@ function WorkspaceEditor({
       handleCanvasClick: handleDraftingCanvasClick,
       beginAnnotationTextEditing,
       beginTextEditing: beginDraftingTextEditing,
-      nextRectangleLabelId: () => {
-        uniqueSuffixCounter.current += 1;
-        return `note-${uniqueSuffixCounter.current}`;
-      },
+      nextRectangleLabelId: () => nextDocumentId("note"),
       upsertObject: (object) =>
         transact([{ kind: "upsert_drafting_object", object }]).ok,
       finishCreate: finishDraftingCreate,

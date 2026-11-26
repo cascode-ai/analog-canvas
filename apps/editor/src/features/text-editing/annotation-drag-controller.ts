@@ -26,7 +26,7 @@ import {
 type TransactionResult = { ok: boolean };
 
 export function createAnnotationDragController({
-  document,
+  getDocument,
   annotationGrid,
   resolver,
   routeGeometryRecords,
@@ -39,7 +39,8 @@ export function createAnnotationDragController({
   transact,
   setStatus,
 }: {
-  document: SchematicDocument;
+  /** Read the live committed Document so same-tick commits (e.g. text-edit blur) are never overwritten by a stale closure. */
+  getDocument: () => SchematicDocument;
   /** Rounding pitch for dragged labels. */
   annotationGrid: number;
   resolver: SymbolResolver;
@@ -73,22 +74,26 @@ export function createAnnotationDragController({
       onDragStart?: () => void;
     } = {},
   ): void => {
-    if (event.button !== 0) return;
+    const startDocument = getDocument();
+    const liveAnnotation = startDocument.annotations.find(
+      (candidate) => candidate.id === annotation.id,
+    );
+    if (event.button !== 0 || !liveAnnotation) return;
     const deferred = options.onDragStart !== undefined;
     if (!deferred && onCompositeMove(event, hitTarget)) return;
     event.stopPropagation();
     const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
     const select = () => {
-      selectAnnotation(annotation.id, additiveSelection);
+      selectAnnotation(liveAnnotation.id, additiveSelection);
       clearSelectedEndpoint();
     };
-    if (annotation.locked || (!deferred && additiveSelection)) {
+    if (liveAnnotation.locked || (!deferred && additiveSelection)) {
       if (deferred) return;
       select();
       setStatus(
-        annotation.locked
+        liveAnnotation.locked
           ? "Selected locked annotation"
-          : `Selected annotation ${annotation.id}`,
+          : `Selected annotation ${liveAnnotation.id}`,
       );
       return;
     }
@@ -97,14 +102,14 @@ export function createAnnotationDragController({
     const svg = hitTarget.ownerSVGElement!;
     const pointerStart = pointFromClient(event.clientX, event.clientY, svg);
     const geometryContext = {
-      document,
+      document: startDocument,
       annotationGrid,
       resolver,
       routeGeometryRecords,
     };
     const originalPosition = annotationDragPosition(
       geometryContext,
-      annotation,
+      liveAnnotation,
     );
     let visual: ReturnType<typeof startCanvasDragVisual> | null = null;
     const dragVisual = () => {
@@ -112,7 +117,7 @@ export function createAnnotationDragController({
         options.onDragStart!();
         select();
       }
-      return (visual ??= startCanvasDragVisual(svg, [annotation.id]));
+      return (visual ??= startCanvasDragVisual(svg, [liveAnnotation.id]));
     };
     const positionAt = (clientX: number, clientY: number): DerivedPoint => {
       const pointer = pointFromClient(clientX, clientY, svg);
@@ -137,15 +142,16 @@ export function createAnnotationDragController({
         dragSessionRef.current = null;
         visual?.restore();
         if (!dragged) return;
-        const latest = document.annotations.find(
-          (candidate) => candidate.id === annotation.id,
+        const liveDocument = getDocument();
+        const latest = liveDocument.annotations.find(
+          (candidate) => candidate.id === liveAnnotation.id,
         );
-        if (!latest) return;
+        if (!latest || latest.locked) return;
         transact([
           {
             kind: "upsert_schematic_annotation",
             annotation: draggedAnnotationAtPosition(
-              geometryContext,
+              { ...geometryContext, document: liveDocument },
               latest,
               snapGridPoint(positionAt(client.x, client.y), annotationGrid),
             ),
