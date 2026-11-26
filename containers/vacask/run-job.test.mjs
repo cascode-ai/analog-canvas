@@ -125,6 +125,32 @@ describe("native job ownership", () => {
       mounts: [{ mountPath: "models", runtimePath: root }],
     });
   });
+  it("accepts non-empty drawn-circuit netlist and multi-file authored testbench bound to submitted files (#1407)", () => {
+    const entryText = input.files[0].text;
+    const tbText = "model r resistor\nR1 (1 0) r r=1k\n";
+    const circuitText = "subckt dut (a b)\nends\n";
+    const multi = {
+      ...input,
+      files: [
+        { path: "entry/run.sim", text: entryText },
+        { path: "entry/tb.inc", text: tbText },
+        { path: "circuit.inc", text: circuitText },
+      ],
+      netlist: circuitText,
+      testbench: `${entryText}\n${tbText}`,
+      preparedDeck: entryText,
+    };
+    expect(validateVacaskJob(multi, runtime, limits)).toMatchObject({
+      ok: true,
+    });
+    // Entry text alone cannot be claimed as netlist, and testbench must include entry.
+    expect(
+      validateVacaskJob({ ...multi, netlist: entryText }, runtime, limits),
+    ).toMatchObject({ ok: false, error: { code: "prepared-input-changed" } });
+    expect(
+      validateVacaskJob({ ...multi, testbench: tbText }, runtime, limits),
+    ).toMatchObject({ ok: false, error: { code: "prepared-input-changed" } });
+  });
   it("enforces aggregate input bytes, file count and explicit output limits", () => {
     expect(
       validateVacaskJob(input, runtime, { ...limits, maxInputBytes: 1 }).error

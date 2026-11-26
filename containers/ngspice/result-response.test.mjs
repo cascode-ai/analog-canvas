@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   createSimulationEnvironmentMetadata,
+  createSimulationInputMetadata,
   NGSPICE_MAX_RAWFILE_BYTES,
   NGSPICE_MAX_LOG_BYTES,
 } from "@icm/spice-run";
@@ -364,5 +365,106 @@ describe("large ngspice output handoff", () => {
       new Response(reply.body.slice(0, -1), { headers: reply.headers }),
     );
     await expect(short.text()).rejects.toThrow("incomplete");
+  });
+
+  it("accepts raw multi-file authored testbench distinct from the executed entry deck (#1407)", async () => {
+    const entryText = '* multi-file\n.include "tb.spice"\n.include "dut.spice"\n.end\n';
+    const tbText = "* authored testbench\nV1 in 0 1\n";
+    const dutText = "* drawn circuit\nR1 in 0 1k\n";
+    const files = [
+      { path: "tb.spice", text: tbText },
+      { path: "run.cir", text: entryText },
+      { path: "dut.spice", text: dutText },
+    ];
+    const authoredTestbench = `${tbText}\n${entryText}`;
+    const multiInput = {
+      ...outputInput,
+      deck: entryText,
+      entryPath: "run.cir",
+      files,
+      outputContext: {
+        ...outputInput.outputContext,
+        netlist: dutText,
+        testbench: authoredTestbench,
+      },
+    };
+    const reply = await ngspiceResultResponse(multiInput, raw(""), true);
+    expect(reply.status).toBe(200);
+    const expected = await createSimulationInputMetadata({
+      inputRevision: "revision-large",
+      netlist: dutText,
+      testbench: authoredTestbench,
+      deck: entryText,
+    });
+    expect(expected.testbenchSha256).not.toBe(expected.deckSha256);
+    expect(
+      readExecutionReceipt(reply.headers[EXECUTION_RECEIPT_HEADER]).metadata
+        .input,
+    ).toEqual(expected);
+
+    let forwardedBody;
+    const streamed = await routeNgspiceSimulationRequest(
+      new Request("https://canvas.test/api/simulate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mode: "raw",
+          netlist: dutText,
+          testbench: authoredTestbench,
+          preparedDeck: entryText,
+          entryPath: "run.cir",
+          files,
+          inputRevision: "revision-large",
+          collection: outputInput.collection,
+          runToken: outputInput.runToken,
+        }),
+      }),
+      {
+        NGSPICE: {
+          getByName: () => ({
+            fetch: async (_url, init) => {
+              forwardedBody = JSON.parse(String(init?.body));
+              return new Response(reply.body, { headers: reply.headers });
+            },
+          }),
+        },
+      },
+    );
+    expect(streamed.status).toBe(200);
+    expect(forwardedBody.deck).toBe(entryText);
+    expect(forwardedBody.outputContext.testbench).toBe(authoredTestbench);
+    expect(forwardedBody.outputContext.netlist).toBe(dutText);
+
+    // A forged testbench or mismatched preparedDeck is still rejected.
+    await expect(
+      ngspiceResultResponse(
+        {
+          ...multiInput,
+          outputContext: { ...multiInput.outputContext, testbench: "forged" },
+        },
+        raw(""),
+        true,
+      ),
+    ).rejects.toThrow("context");
+    const forged = await throughWorker(new Response(reply.body, { headers: reply.headers }), {
+      netlist: dutText,
+      testbench: "forged",
+      preparedDeck: entryText,
+      entryPath: "run.cir",
+      files,
+    });
+    expect(forged.status).toBe(409);
+
+    // Duplicate file paths must not pass multi-file testbench validation.
+    await expect(
+      ngspiceResultResponse(
+        {
+          ...multiInput,
+          files: [...files, { path: "tb.spice", text: "* overwritten\n" }],
+        },
+        raw(""),
+        true,
+      ),
+    ).rejects.toThrow("context");
   });
 });

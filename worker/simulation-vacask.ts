@@ -489,7 +489,7 @@ export async function routeVacaskSimulationRequest(
       );
       const expected = await createSimulationInputMetadata({
         inputRevision: input.inputRevision,
-        netlist: "",
+        netlist: input.netlist,
         testbench: input.testbench,
         deck: input.preparedDeck!,
       });
@@ -530,7 +530,7 @@ export async function routeVacaskSimulationRequest(
     );
     const expected = await createSimulationInputMetadata({
       inputRevision: input.inputRevision,
-      netlist: "",
+      netlist: input.netlist,
       testbench: input.testbench,
       deck: input.preparedDeck!,
     });

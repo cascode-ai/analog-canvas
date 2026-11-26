@@ -2,6 +2,7 @@ import { createHash, webcrypto } from "node:crypto";
 import {
   assembleNgspiceOutput,
   buildSimulationDeck,
+  isRawMultiFileTestbench,
   SIMULATION_EXECUTOR_RESPONSE_MAX_BYTES,
   SIMULATION_EXECUTOR_STREAM_MAX_BYTES,
 } from "@icm/spice-run";
@@ -32,10 +33,21 @@ export async function ngspiceResultResponse(input, raw, streaming) {
       };
     return { status: 200, body, headers: {} };
   }
+  const files = Array.isArray(input.files) ? input.files : [];
+  const rawMultiFileTestbench =
+    typeof context.testbench === "string" &&
+    context.modelLibrary === null &&
+    isRawMultiFileTestbench(
+      context.testbench,
+      input.deck,
+      files,
+      input.entryPath ?? "deck.cir",
+    );
   if (
     typeof context.netlist !== "string" ||
     typeof context.testbench !== "string" ||
     (context.testbench !== input.deck &&
+      !rawMultiFileTestbench &&
       buildSimulationDeck(context, context.modelLibrary) !== input.deck)
   )
     throw new Error("Output context does not match executed deck");

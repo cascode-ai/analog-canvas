@@ -36,6 +36,106 @@ export async function createSimulationInputMetadata(input: {
   };
 }
 
+function uniqueEntryIndex(
+  files: readonly { readonly path: string; readonly text: string }[],
+  entryPath: string,
+): number {
+  const paths = new Set<string>();
+  let entryIndex = -1;
+  for (let index = 0; index < files.length; index++) {
+    const file = files[index]!;
+    if (paths.has(file.path)) return -1;
+    paths.add(file.path);
+    if (file.path === entryPath) entryIndex = index;
+  }
+  return entryIndex;
+}
+
+function findJoinedExecutionFilesRange(
+  text: string,
+  files: readonly { readonly text: string }[],
+  options?: {
+    readonly requiredIndex?: number;
+    readonly excludeRange?: { readonly start: number; readonly end: number };
+  },
+): { start: number; end: number } | null {
+  const required = options?.requiredIndex;
+  const exclude = options?.excludeRange;
+  if (required !== undefined && (required < 0 || required >= files.length))
+    return null;
+  const maxStart = required ?? files.length - 1;
+  for (let start = 0; start <= maxStart; start++) {
+    if (exclude && start >= exclude.start && start <= exclude.end) continue;
+    let pos = 0;
+    for (let end = start; end < files.length; end++) {
+      if (exclude && end >= exclude.start && end <= exclude.end) break;
+      const piece = files[end]!.text;
+      if (end > start) {
+        if (text[pos] !== "\n") break;
+        pos += 1;
+      }
+      if (!text.startsWith(piece, pos)) break;
+      pos += piece.length;
+      if (pos === text.length && (required === undefined || end >= required))
+        return { start, end };
+    }
+  }
+  return null;
+}
+
+/**
+ * Whether `testbench` and `deck` form a valid raw multi-file pair over
+ * `files`: every file path is unique, `entryPath` names a non-empty file equal
+ * to `deck`, and `testbench` equals a contiguous slice of `files` including
+ * that entry file.
+ */
+export function isRawMultiFileTestbench(
+  testbench: string,
+  deck: string,
+  files: readonly { readonly path: string; readonly text: string }[],
+  entryPath = "deck.cir",
+): boolean {
+  if (!deck || !testbench || files.length === 0) return false;
+  const entryIndex = uniqueEntryIndex(files, entryPath);
+  return (
+    entryIndex >= 0 &&
+    files[entryIndex]!.text === deck &&
+    findJoinedExecutionFilesRange(testbench, files, {
+      requiredIndex: entryIndex,
+    }) !== null
+  );
+}
+
+/**
+ * Validate raw `netlist` and `testbench` metadata texts against submitted
+ * `files` and `entryPath`: every path is unique, `deck` matches the entry file,
+ * `testbench` equals a contiguous slice including `entryPath`, and a non-empty
+ * `netlist` equals a disjoint contiguous slice.
+ */
+export function isValidRawExecutionInputMetadata(
+  input: {
+    readonly netlist: string;
+    readonly testbench: string;
+    readonly deck: string;
+  },
+  files: readonly { readonly path: string; readonly text: string }[],
+  entryPath = "deck.cir",
+): boolean {
+  if (!input.deck || !input.testbench || files.length === 0) return false;
+  const entryIndex = uniqueEntryIndex(files, entryPath);
+  if (entryIndex < 0 || files[entryIndex]!.text !== input.deck) return false;
+  const testbenchRange = findJoinedExecutionFilesRange(input.testbench, files, {
+    requiredIndex: entryIndex,
+  });
+  if (!testbenchRange) return false;
+  if (input.netlist === "") return true;
+  return (
+    findJoinedExecutionFilesRange(input.netlist, files, {
+      excludeRange: testbenchRange,
+    }) !== null
+  );
+}
+
 function canonicalEnvironmentFacts(facts: SimulationEnvironmentFacts): string {
   return JSON.stringify({
     executor: facts.executor,

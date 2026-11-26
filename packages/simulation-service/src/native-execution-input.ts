@@ -4,6 +4,7 @@ import {
   SimulationRawFileSchema,
   SimulationRawDependencySchema,
 } from "@icm/model";
+import { isValidRawExecutionInputMetadata } from "@icm/spice-run";
 import { EnvironmentSchema, type Problem } from "./contract.js";
 import type { ExecutionInput } from "./executor.js";
 
@@ -91,9 +92,18 @@ export function validateNativeExecutionInput(
   const entry = files.find((file) => file.path === entryPath);
   if (
     !entry ||
-    body.preparedDeck !== entry.text ||
-    body.testbench !== entry.text ||
-    body.netlist !== ""
+    typeof body.preparedDeck !== "string" ||
+    typeof body.testbench !== "string" ||
+    typeof body.netlist !== "string" ||
+    !isValidRawExecutionInputMetadata(
+      {
+        netlist: body.netlist,
+        testbench: body.testbench,
+        deck: body.preparedDeck,
+      },
+      files,
+      entryPath,
+    )
   )
     return fail(
       "prepared-input-changed",
@@ -142,8 +152,8 @@ export function validateNativeExecutionInput(
     input: {
       language: "vacask",
       mode: "raw",
-      netlist: "",
-      testbench: entry.text,
+      netlist: body.netlist,
+      testbench: body.testbench,
       preparedDeck: entry.text,
       inputRevision: body.inputRevision,
       environment: environment.data,
