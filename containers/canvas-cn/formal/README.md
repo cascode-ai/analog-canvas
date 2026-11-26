@@ -252,6 +252,10 @@ accepts it, with the original available for byte ranges and clients without
 gzip support. If backup admission needs the space used by these copies, discard
 them and check backup admission again before switching.
 
+Hangzhou negotiates gzip for published Gallery preview SVGs and public
+bulk-download JSON up to 512 KiB. The Gallery checks visibility before
+encoding. Cache policies apply to both encodings.
+
 When upgrading an already open IPv4-only host, reapply `--public-mode open`
 with the current release runner and the existing filing number before adding
 Hangzhou to mainland AAAA answers. Before removing the IPv6 listener, restore

@@ -21,7 +21,7 @@ import {
 import { refuseApiFlood, type ApiRateLimitEnv } from "./api-rate-limit";
 import { serveAsset } from "./static-assets";
 import { isAppPagePath } from "../apps/editor/src/page-routes";
-import { routeGalleryRequest } from "./gallery";
+import { routeGalleryRequest, type GalleryRouteRuntime } from "./gallery";
 import { pumpProjectSync } from "./project-sync";
 import { routeResourceSync, type ResourceSyncEnv } from "./resource-sync";
 import { withResourceReplication } from "./resource-replica";
@@ -116,6 +116,7 @@ type Env = TopologyTaskEnv &
     AGENT_ALLOWED_ORIGIN?: string;
     AGENT_MCP_DOWNLOAD_ORIGIN?: string;
     GALLERY: GalleryNamespaceLike;
+    encodePublishedGalleryBody?: GalleryRouteRuntime["encodePublishedBody"];
     GALLERY_BACKUP_TOKEN?: string;
     STORE_BACKUP_TOKEN?: string;
     /** Made by each deploy for its own simulation check; see simulation.ts. */
@@ -242,6 +243,9 @@ async function route(request: Request, env: Env): Promise<Response> {
 
   const galleryResponse = await routeGalleryRequest(request, env, {
     previewFonts: embedPreviewFonts,
+    ...(env.encodePublishedGalleryBody && {
+      encodePublishedBody: env.encodePublishedGalleryBody,
+    }),
   });
   if (galleryResponse) return galleryResponse;
 

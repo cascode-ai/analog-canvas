@@ -101,6 +101,11 @@ export interface GalleryRouteRuntime {
    * cannot embed is served as stored and not cached.
    */
   previewFonts?: ((svg: string) => Promise<string>) | null;
+  encodePublishedBody?: (
+    request: Request,
+    text: string,
+    init: ResponseInit,
+  ) => Response;
 }
 
 const PREVIEW_POLICY =
@@ -183,12 +188,21 @@ async function emailRejection(
 }
 
 /** A reader's copy of a cacheable response: a browser may keep it, a shared cache may not. */
-function readerCopy(response: Response): Response {
+function readerCopy(
+  response: Response,
+  svg: string,
+  request: Request,
+  runtime: GalleryRouteRuntime,
+): Response {
   const headers = new Headers(response.headers);
   const policy = headers.get("cache-control");
   if (policy?.startsWith("public"))
     headers.set("cache-control", policy.replace(/^public/u, "private"));
-  return new Response(response.body, { status: response.status, headers });
+  const init = { status: response.status, headers };
+  return (
+    runtime.encodePublishedBody?.(request, svg, init) ??
+    new Response(response.body, init)
+  );
 }
 
 /**
@@ -778,7 +792,7 @@ export async function routeGalleryRequest(
       cachedText !== null &&
       !formulaPreviewNeedsRefresh(cachedText) &&
       (await servedPreview(cachedText, runtime)).svg === cachedText;
-    if (cached && cachedCurrent) {
+    if (cached && cachedText !== null && cachedCurrent) {
       // A content URL stays immutable, but publication status does not. Check
       // the tiny access row before serving an edge hit so recycle/reject/delete
       // and a newer current revision retain exactly their existing behavior.
@@ -791,7 +805,7 @@ export async function routeGalleryRequest(
         access.payload.status === "public" &&
         access.payload.previewRevision === requestedRevision
       ) {
-        return readerCopy(cached);
+        return readerCopy(cached, cachedText, request, runtime);
       }
     }
     const { status, payload } = await callGallery<{
@@ -833,7 +847,7 @@ export async function routeGalleryRequest(
       if (immutable && served.embedded) {
         await storePreviewCache(previewCache, request, response.clone());
       }
-      return readerCopy(response);
+      return readerCopy(response, served.svg, request, runtime);
     }
     const allowed =
       (await canReview(request, env)) ||
@@ -887,12 +901,10 @@ export async function routeGalleryRequest(
     ) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
-    if (
-      payload.entry &&
-      !viewer?.isAdmin &&
-      !viewer?.isOwner &&
-      (!viewer || viewer.id !== payload.ownerUserId)
-    ) {
+    const seesAttention =
+      viewer &&
+      (viewer.isAdmin || viewer.isOwner || viewer.id === payload.ownerUserId);
+    if (payload.entry && !seesAttention) {
       delete payload.entry.attention;
       delete payload.entry.assessedPreviewRevision;
     }
@@ -900,13 +912,14 @@ export async function routeGalleryRequest(
     // without the Project Code; with `netlist=spice`, the drawing's netlist
     // alone, as /datasets and Review list it.
     const summary = url.searchParams.get("summary") === "1";
+    const download = url.searchParams.get("download") === "1";
     const netlistAlone = summary && url.searchParams.get("netlist") === "spice";
     // Reading a circuit is free and unlimited; it adds one to the circuit's
     // opens for the day (never who), except for its author and a bulk
     // download (`download=1`), which reads every circuit once.
     if (
       !summary &&
-      url.searchParams.get("download") !== "1" &&
+      !download &&
       payload.status === "public" &&
       (!viewer || viewer.id !== payload.ownerUserId)
     )
@@ -914,47 +927,60 @@ export async function routeGalleryRequest(
         entryId: segments[0],
         day: new Date().toISOString().slice(0, 10),
       });
-    return Response.json(
-      {
-        entry: payload.entry && {
-          ...payload.entry,
-          ...simulationMarkOf(
-            payload.simulationCheck,
-            viewer,
-            held,
-            simulationMarkPublic(runtime.simulationMarkPublicFrom),
-          ),
-        },
-        status: payload.status,
-        ownerUserId: payload.ownerUserId ?? null,
-        // Traceability data, not feed data: a curator sees who submitted an
-        // entry, the public sees only the byline.
-        ...(curator
-          ? {
-              submitterEmail: payload.submitterEmail ?? null,
-              submitterProvider: payload.submitterProvider ?? null,
-            }
-          : {}),
-        ...(netlistAlone
-          ? { netlist: spiceNetlistOf(payload.projectText ?? "") }
-          : {}),
-        ...(summary
-          ? {}
-          : {
-              // Its testbench only for those who read it (#1545); anyone
-              // else opens, inserts or copies the drawing without one.
-              projectText: readsTestbench(viewer, held)
-                ? withTestbench(payload.projectText ?? "", payload.testbench)
-                : withoutTestbench(payload.projectText ?? ""),
-              // Its SPICE netlist on request, for a reader without the
-              // editor: the phone's circuit page (2026-10-14).
-              ...(url.searchParams.get("netlist") === "spice"
-                ? { netlist: spiceNetlistOf(payload.projectText ?? "") }
-                : {}),
-            }),
+    const includeTestbench = !summary && readsTestbench(viewer, held);
+    const detail = {
+      entry: payload.entry && {
+        ...payload.entry,
+        ...simulationMarkOf(
+          payload.simulationCheck,
+          viewer,
+          held,
+          simulationMarkPublic(runtime.simulationMarkPublicFrom),
+        ),
       },
-      { headers: { "cache-control": "no-store" } },
-    );
+      status: payload.status,
+      ownerUserId: payload.ownerUserId ?? null,
+      // Traceability data, not feed data: a curator sees who submitted an
+      // entry, the public sees only the byline.
+      ...(curator
+        ? {
+            submitterEmail: payload.submitterEmail ?? null,
+            submitterProvider: payload.submitterProvider ?? null,
+          }
+        : {}),
+      ...(netlistAlone
+        ? { netlist: spiceNetlistOf(payload.projectText ?? "") }
+        : {}),
+      ...(summary
+        ? {}
+        : {
+            // Its testbench only for those who read it (#1545); anyone
+            // else opens, inserts or copies the drawing without one.
+            projectText: includeTestbench
+              ? withTestbench(payload.projectText ?? "", payload.testbench)
+              : withoutTestbench(payload.projectText ?? ""),
+            // Its SPICE netlist on request, for a reader without the
+            // editor: the phone's circuit page (2026-10-14).
+            ...(url.searchParams.get("netlist") === "spice"
+              ? { netlist: spiceNetlistOf(payload.projectText ?? "") }
+              : {}),
+          }),
+    };
+    const headers = { "cache-control": "no-store" };
+    if (
+      download &&
+      !summary &&
+      payload.status === "public" &&
+      !curator &&
+      !seesAttention &&
+      !includeTestbench &&
+      runtime.encodePublishedBody
+    ) {
+      return runtime.encodePublishedBody(request, JSON.stringify(detail), {
+        headers: { ...headers, "content-type": "application/json" },
+      });
+    }
+    return Response.json(detail, { headers });
   }
   if (
     segments.length === 2 &&
