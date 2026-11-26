@@ -12,6 +12,7 @@ the previous release serving and reports through its monitor file.
 import argparse
 import importlib.util
 import concurrent.futures
+import gzip
 import hashlib
 import http.client
 import json
@@ -20,6 +21,7 @@ import pathlib
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -36,6 +38,7 @@ TRANSPORT_ORIGIN = _source.TRANSPORT_ORIGIN
 read_current, verified_overseas = _source.read_current, _source.verified_overseas
 
 SAFE_PATH = re.compile(r'^(?!.*\.\.)[A-Za-z0-9_@+\-./]+$')
+GZIP_BUILD_ASSET = re.compile(r'assets/assets/[\w.-]+-[\w-]{8,}\.(?:js|css)')
 SWITCHES = {'project-writes-enabled', 'resource-writes-enabled'}
 SYNC_TIMERS = ['canvas-cn-project-sync.timer', 'canvas-cn-resource-sync.timer',
                'canvas-cn-analytics-sync.timer', 'canvas-cn-scheduled.timer']
@@ -165,6 +168,43 @@ def carry_previous_assets(current, target):
         if path.startswith('assets/assets/') and source.is_file() and not destination.exists():
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, destination)
+
+
+def precompress_assets(candidate, files):
+    """Stage optional gzip copies beside the verified build assets."""
+    sidecars = []
+    try:
+        with tempfile.TemporaryDirectory(prefix='.asset-gzip-', dir=candidate) as directory:
+            pending = pathlib.Path(directory) / 'compressed'
+            for path in files:
+                name = path + '.gz'
+                if not GZIP_BUILD_ASSET.fullmatch(path) or name in files:
+                    continue
+                source = candidate / path
+                raw = source.read_bytes()
+                packed = gzip.compress(raw, compresslevel=3, mtime=0)
+                if len(packed) >= len(raw):
+                    continue
+                pending.write_bytes(packed)
+                pending.chmod(0o644)
+                modified = source.stat().st_mtime_ns
+                os.utime(pending, ns=(modified, modified))
+                pending.replace(candidate / name)
+                sidecars.append(name)
+    except OSError:
+        print('Regional asset precompression stopped early.')
+    return sidecars
+
+
+def prepare_release_backup(host, candidate, sidecars):
+    try:
+        host.backup(candidate)
+    except _maintenance.BackupHeadroom:
+        if not sidecars:
+            raise
+        for path in sidecars:
+            (candidate / path).unlink()
+        host.backup(candidate)
 
 
 class Host:
@@ -631,9 +671,11 @@ def tick(args, host=None, fetcher=None, now=None):
     saved_units = {p.name: p.read_bytes() for p in unit_files(unit_dir)}
     nginx_before = site.read_bytes() if site.exists() else None
     changed, added, operator_restarted = [], [], False
+    sidecars = []
     try:
+        sidecars = precompress_assets(target, manifest['files'])
         try:
-            host.backup(target)
+            prepare_release_backup(host, target, sidecars)
         except _maintenance.BackupHeadroom:
             return waiting_for_space
         except Exception as error:
@@ -728,9 +770,14 @@ def tick(args, host=None, fetcher=None, now=None):
                     status='rolled-back', failedCommit=commit, failedReason='release-rolled-back')
     finally:
         try:
-            host.discard_backup()
+            if sidecars and current.resolve() != target:
+                for path in sidecars:
+                    (target / path).unlink(missing_ok=True)
         finally:
-            host.resume_background()
+            try:
+                host.discard_backup()
+            finally:
+                host.resume_background()
 
 
 def prune(releases, keep, count):

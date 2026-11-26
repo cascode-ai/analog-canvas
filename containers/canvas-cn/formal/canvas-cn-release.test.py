@@ -1,5 +1,6 @@
 """Exercise the release runner against an in-memory Production and host."""
 import argparse
+import gzip
 import hashlib
 import importlib.util
 import json
@@ -372,6 +373,60 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(result['status'], 'awaiting-verification')
         self.assertEqual(self.current.resolve().name, OLD)
         self.assertEqual(host.calls, [])
+
+    def test_installs_gzip_siblings_of_the_verified_javascript_and_css(self):
+        paths = {
+            'assets/assets/editor-12345678.js': b'let ready = true;\n' * 128,
+            'assets/assets/editor-87654321.css': b'.ready { display: block; }\n' * 128,
+        }
+        plain = 'assets/assets/plain.css'
+        other = 'assets/assets/editor-12345678.js.gz.part'
+        files = {**self.files, **paths, plain: b'body { margin: 0; }\n' * 128, other: b'verified asset'}
+        result = release.tick(self.args(0), FakeHost(), FakeProduction(files), now=1000)
+        self.assertEqual(result['status'], 'installed')
+        serving = self.current.resolve()
+        for path, expected in paths.items():
+            self.assertEqual((serving / path).read_bytes(), expected)
+            packed = (serving / (path + '.gz')).read_bytes()
+            self.assertEqual(gzip.decompress(packed), expected)
+            self.assertLess(len(packed), len(expected))
+        self.assertFalse((serving / (plain + '.gz')).exists())
+        self.assertEqual((serving / other).read_bytes(), b'verified asset')
+
+    def test_installs_without_gzip_when_its_space_is_needed_for_the_backup(self):
+        path = 'assets/assets/editor-12345678.js'
+        original = b'let ready = true;\n' * 128
+        host = FakeHost()
+        observed = []
+
+        def backup(candidate):
+            has_gzip = (candidate / (path + '.gz')).is_file()
+            observed.append(has_gzip)
+            if has_gzip:
+                raise release._maintenance.BackupHeadroom('backup-headroom')
+
+        with patch.object(host, 'backup', side_effect=backup):
+            result = release.tick(self.args(0), host, FakeProduction({**self.files, path: original}), now=1000)
+        self.assertEqual(result['status'], 'installed')
+        self.assertEqual(observed, [True, False])
+        self.assertEqual((self.current / path).read_bytes(), original)
+        self.assertFalse((self.current / (path + '.gz')).exists())
+
+    def test_discards_precompression_when_the_source_changes_before_the_switch(self):
+        path = 'assets/assets/editor-12345678.js'
+        production = FakeProduction({**self.files, path: b'let ready = true;\n' * 128})
+        host = FakeHost()
+
+        def supersede(candidate):
+            self.assertTrue((candidate / (path + '.gz')).is_file())
+            pointer = json.loads(production.served['/regional-release/current.json'])
+            pointer['attempt'] = '123-2'
+            production.served['/regional-release/current.json'] = json.dumps(pointer).encode()
+
+        with patch.object(host, 'backup', side_effect=supersede):
+            result = release.tick(self.args(0), host, production, now=1000)
+        self.assertEqual((result['status'], self.current.resolve().name), ('source-changed', OLD))
+        self.assertFalse((self.releases / NEW / (path + '.gz')).exists())
 
     def test_stability_starts_at_proof_and_a_rerun_cannot_reuse_old_proof(self):
         production, host = FakeProduction(self.files), FakeHost()
