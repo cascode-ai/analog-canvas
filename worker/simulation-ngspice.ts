@@ -21,6 +21,7 @@ import {
   NGSPICE_MAX_RAWFILE_BYTES,
   SIMULATION_EXECUTOR_TRANSFER_HEADER,
   createSimulationInputMetadata,
+  isRawMultiFileTestbench,
   isSimulationInputRevision,
   resolveTimeoutMs,
   simulationConfigurationMetadata,
@@ -599,9 +600,19 @@ export async function routeNgspiceSimulationRequest(
         : null;
     // Raw input is already an executable deck: preserve its title, control
     // program and includes. Model directives in raw files remain author-owned.
+    // A multi-file raw run may carry all authored testbench files in
+    // `testbench` while naming the executed entry file in `preparedDeck` (#1407).
     if (body.mode === "raw") {
       modelLibrary = null;
-      deck = testbench;
+      const rawEntryPath =
+        typeof body.entryPath === "string" ? body.entryPath : "deck.cir";
+      if (
+        typeof body.preparedDeck === "string" &&
+        body.preparedDeck !== testbench &&
+        isRawMultiFileTestbench(testbench, body.preparedDeck, files, rawEntryPath)
+      )
+        deck = body.preparedDeck;
+      else deck = testbench;
     } else deck = buildSimulationDeck({ netlist, testbench }, modelLibrary);
   } catch (error) {
     return Response.json(
@@ -612,7 +623,12 @@ export async function routeNgspiceSimulationRequest(
       { status: 503 },
     );
   }
-  if (new TextEncoder().encode(deck).length > MAX_INPUT_BYTES) {
+  const maxTestbenchBytes =
+    MAX_INPUT_BYTES + Math.max(0, files.length - 1);
+  if (
+    new TextEncoder().encode(deck).length > MAX_INPUT_BYTES ||
+    new TextEncoder().encode(testbench).length > maxTestbenchBytes
+  ) {
     return Response.json({ error: "deck-too-large" }, { status: 413 });
   }
   const collection = body.collection as { rawfile?: unknown } | undefined;

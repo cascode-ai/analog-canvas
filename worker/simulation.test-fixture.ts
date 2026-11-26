@@ -73,7 +73,7 @@ export async function nativeReply(input = nativeInput()) {
       environment: nativeEnvironment,
       input: await createSimulationInputMetadata({
         inputRevision: input.inputRevision,
-        netlist: "",
+        netlist: input.netlist,
         testbench: input.testbench,
         deck: input.preparedDeck!,
       }),

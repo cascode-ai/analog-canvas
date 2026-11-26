@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createSimulationInputMetadata } from "@icm/spice-run";
 import {
   routeVacaskSimulationRequest as routeSimulationRequest,
   type SimulationEnv,
@@ -213,6 +214,54 @@ describe("native simulation route", () => {
     expect(result.metadata.environment).toEqual(nativeEnvironment);
     expect(result).not.toHaveProperty("executedDeck");
     expect(result).not.toHaveProperty("rawfile");
+  });
+  it("verifies and forwards non-empty drawn-circuit netlist and multi-file authored testbench digests (#1407)", async () => {
+    const entryText = "Native protocol proof\ncontrol\nendc\n";
+    const tbText = "model r resistor\nR1 (1 0) r r=1k\n";
+    const circuitText = "subckt dut (a b)\nends\n";
+    const input = {
+      ...nativeInput(),
+      files: [
+        { path: "run.sim", text: entryText },
+        { path: "tb.inc", text: tbText },
+        { path: "circuit.inc", text: circuitText },
+      ],
+      netlist: circuitText,
+      testbench: `${entryText}\n${tbText}`,
+      preparedDeck: entryText,
+    };
+    const expected = await createSimulationInputMetadata({
+      inputRevision: input.inputRevision,
+      netlist: circuitText,
+      testbench: input.testbench,
+      deck: entryText,
+    });
+    const runToken = crypto.randomUUID();
+    const run = vi.fn(async (_url: string, init?: RequestInit) =>
+      nativeStreamingReply(JSON.parse(String(init?.body))),
+    );
+    const streamed = await routeSimulationRequest(
+      post({ ...input, runToken }),
+      nativeWorkerEnv(run),
+    );
+    expect(streamed!.status).toBe(200);
+    const sent = JSON.parse(String(run.mock.calls[0]![1]!.body));
+    expect(sent.netlist).toBe(circuitText);
+    expect(sent.testbench).toBe(input.testbench);
+    const streamedPayload = await streamed!.json();
+    expect(streamedPayload.metadata.input).toEqual(expected);
+    expect(expected.testbenchSha256).not.toBe(expected.deckSha256);
+
+    // A stale executor still hashing netlist: "" must be withheld as mismatched.
+    const staleReply = await nativeReply({ ...input, netlist: "" });
+    const rejected = await routeSimulationRequest(
+      post({ ...input, runToken: crypto.randomUUID() }),
+      nativeWorkerEnv(async () => Response.json(staleReply)),
+    );
+    expect(rejected!.status).toBe(502);
+    expect(await rejected!.json()).toMatchObject({
+      error: "simulator-protocol-invalid",
+    });
   });
   it.each([
     ["language", undefined],

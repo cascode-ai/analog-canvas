@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   createSimulationEnvironmentMetadata,
+  isRawMultiFileTestbench,
+  isValidRawExecutionInputMetadata,
   verifySimulationEnvironmentMetadata,
 } from "./metadata.js";
 
@@ -35,5 +37,97 @@ describe("native environment identity", () => {
         simulator: { ...native.simulator, name: "other" },
       }),
     ).toBeNull();
+  });
+
+  it("binds raw netlist and testbench metadata texts to unique submitted file slices (#1407)", () => {
+    const files = [
+      {
+        path: "run.cir",
+        text: '* entry\n.include "tb.spice"\n.include "circuit.spice"\n.end\n',
+      },
+      { path: "tb.spice", text: "* tb\nV1 in 0 1\n" },
+      { path: "circuit.spice", text: "* circuit\nR1 in 0 1k\n" },
+    ];
+    const authored = `${files[0]!.text}\n${files[1]!.text}`;
+    expect(
+      isRawMultiFileTestbench(authored, files[0]!.text, files, "run.cir"),
+    ).toBe(true);
+    // createSimulationFolder places testbench.spice before run.cir (entryIndex = 1).
+    const entrySecond = [files[1]!, files[0]!, files[2]!];
+    const authoredSecond = `${files[1]!.text}\n${files[0]!.text}`;
+    expect(
+      isRawMultiFileTestbench(
+        authoredSecond,
+        files[0]!.text,
+        entrySecond,
+        "run.cir",
+      ),
+    ).toBe(true);
+    expect(
+      isValidRawExecutionInputMetadata(
+        {
+          netlist: files[2]!.text,
+          testbench: authoredSecond,
+          deck: files[0]!.text,
+        },
+        entrySecond,
+        "run.cir",
+      ),
+    ).toBe(true);
+    expect(
+      isValidRawExecutionInputMetadata(
+        { netlist: files[2]!.text, testbench: authored, deck: files[0]!.text },
+        files,
+        "run.cir",
+      ),
+    ).toBe(true);
+    // Rejects duplicate file paths (unexecuted bytes could otherwise be signed).
+    expect(
+      isRawMultiFileTestbench(
+        authored,
+        files[0]!.text,
+        [...files, { path: "tb.spice", text: "* override\n" }],
+        "run.cir",
+      ),
+    ).toBe(false);
+    // Rejects empty deck, overlapping netlist/testbench, bridging across entry, wrong order.
+    expect(
+      isRawMultiFileTestbench(
+        "x",
+        "",
+        [{ path: "run.cir", text: "" }],
+        "run.cir",
+      ),
+    ).toBe(false);
+    expect(
+      isValidRawExecutionInputMetadata(
+        { netlist: files[1]!.text, testbench: authored, deck: files[0]!.text },
+        files,
+        "run.cir",
+      ),
+    ).toBe(false);
+    const sandwiched = [
+      { path: "a.inc", text: "A\n" },
+      { path: "run.cir", text: "ENTRY\n" },
+      { path: "b.inc", text: "B\n" },
+    ];
+    expect(
+      isValidRawExecutionInputMetadata(
+        { netlist: "A\n\nB\n", testbench: "ENTRY\n", deck: "ENTRY\n" },
+        sandwiched,
+        "run.cir",
+      ),
+    ).toBe(false);
+    expect(
+      isRawMultiFileTestbench(
+        `${files[1]!.text}\n${files[0]!.text}`,
+        files[0]!.text,
+        files,
+        "run.cir",
+      ),
+    ).toBe(false);
+    expect(
+      isRawMultiFileTestbench(files[2]!.text, files[0]!.text, files, "run.cir"),
+    ).toBe(false);
   });
 });
