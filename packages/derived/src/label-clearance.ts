@@ -219,9 +219,11 @@ export function createLabelClearanceContext(
       ),
     ),
   ];
-  // A handful of accepted moves in this pass. Avoid rebuilding all geometry
-  // for each candidate, and ignore stale index entries for already moved text.
+  // A handful of accepted moves (or hidden values) in this pass. Avoid
+  // rebuilding all geometry for each candidate, and ignore stale index
+  // entries for already moved or hidden text.
   const moved = new Map<string, Rect>();
+  const hidden = new Set<string>();
   /** Wires drawn across `box`. */
   const wiresAt = (box: Rect) => {
     const ids = new Set<string>();
@@ -242,12 +244,14 @@ export function createLabelClearanceContext(
     for (const id of labelIndex.queryBounds(grown))
       if (
         id !== annotationId &&
+        !hidden.has(id) &&
         !moved.has(id) &&
         overlap(grown, labels.get(id)!)
       )
         ids.add(id);
     for (const [id, bounds] of moved)
-      if (id !== annotationId && overlap(grown, bounds)) ids.add(id);
+      if (id !== annotationId && !hidden.has(id) && overlap(grown, bounds))
+        ids.add(id);
     return [...ids];
   };
   /** What a label's ink would meet in `box`, without measuring it there. */
@@ -548,18 +552,29 @@ export function createLabelClearanceContext(
     /** Other labels whose ink comes within `reach` of `box`. */
     labelsWithin: (box: Rect, annotationId: string, reach: number) =>
       labelsAt(box, annotationId, reach, reach)
-        .filter(
-          (id) => rectangleGap(box, moved.get(id) ?? labels.get(id)!) <= reach,
-        )
+        .filter((id) => {
+          const bounds = hidden.has(id)
+            ? undefined
+            : (moved.get(id) ?? labels.get(id));
+          return bounds !== undefined && rectangleGap(box, bounds) <= reach;
+        })
         .sort(),
     /** Where a label or free text is drawn, as moved in this pass. */
     labelBounds: (id: string): Rect | undefined =>
-      moved.get(id) ?? labels.get(id),
+      hidden.has(id) ? undefined : (moved.get(id) ?? labels.get(id)),
     wiresAt,
     dotsAt,
     enclosedAt,
     crossings,
-    accept: (a: Annotation) => moved.set(a.id, measure(a).inkBounds),
+    accept: (a: Annotation) => {
+      if (a.visible === false) {
+        hidden.add(a.id);
+        moved.delete(a.id);
+      } else {
+        hidden.delete(a.id);
+        moved.set(a.id, measure(a).inkBounds);
+      }
+    },
   };
 }
 

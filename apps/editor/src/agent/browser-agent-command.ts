@@ -465,17 +465,21 @@ export function planBrowserAgentCommand(
       };
     }
     case "arrange-labels": {
-      const { edits, leftInPlace } = arrangeInstanceLabelsReport(
-        document,
-        resolver,
-        command.instanceIds,
-        command,
-      );
+      const { edits, leftInPlace, hiddenValueIds } =
+        arrangeInstanceLabelsReport(
+          document,
+          resolver,
+          command.instanceIds,
+          command,
+        );
+      const notes: AgentCommandPlanNote[] = [];
+      if (leftInPlace.length)
+        notes.push(labelsLeftInPlaceNote(document, leftInPlace));
+      if (hiddenValueIds?.length)
+        notes.push(labelsValuesHiddenNote(document, hiddenValueIds));
       return {
         edits,
-        ...(leftInPlace.length
-          ? { notes: [labelsLeftInPlaceNote(document, leftInPlace)] }
-          : {}),
+        ...(notes.length ? { notes } : {}),
       };
     }
     case "apply-label-preset": {
@@ -2127,5 +2131,26 @@ function labelsLeftInPlaceNote(
     code: "LABELS_LEFT_IN_PLACE",
     message: `arrange-labels left ${left.length} label${left.length === 1 ? "" : "s"} in place: ${listed.join(", ")}${hint}`,
     objectIds: left.map((label) => label.labelId),
+  };
+}
+
+function labelsValuesHiddenNote(
+  document: SchematicDocument,
+  hiddenValueIds: readonly string[],
+): AgentCommandPlanNote {
+  const listed = hiddenValueIds.map((id) => {
+    const ann = document.annotations.find((item) => item.id === id);
+    const ownerId =
+      ann?.anchor.kind === "object" ? ann.anchor.objectId : undefined;
+    const part = ownerId
+      ? (document.instances.find((item) => item.id === ownerId)?.reference ??
+        ownerId)
+      : null;
+    return `${part === null ? "" : `${part}'s `}${id}`;
+  });
+  return {
+    code: "LABELS_VALUES_HIDDEN",
+    message: `arrange-labels hid ${hiddenValueIds.length} crowded value label${hiddenValueIds.length === 1 ? "" : "s"} (netlist parameters untouched): ${listed.join(", ")}`,
+    objectIds: [...hiddenValueIds],
   };
 }

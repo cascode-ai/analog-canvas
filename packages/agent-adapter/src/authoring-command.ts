@@ -484,6 +484,12 @@ export const AgentAuthoringCommandSchema = z.discriminatedUnion("kind", [
         .describe(
           "Also repair labels moved by hand that the label findings report (struck, crowded, overlapping, far from their part), only to a clear place.",
         ),
+      hideCrowdedValues: z
+        .boolean()
+        .optional()
+        .describe(
+          "With includeManual: hide a visible value display (parameters untouched) as a last resort when it collides with another label and no placement fits name and value cleanly.",
+        ),
       side: z
         .enum(["left", "right", "top", "bottom", "outside"])
         .optional()
