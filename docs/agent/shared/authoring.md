@@ -681,13 +681,17 @@ means deleting the Cell.
   Manual, locked, hidden and restyled labels stay and are named
   (`LABELS_LEFT_IN_PLACE`); `includeManual:true` is a repair: only parts with
   a label the label findings report (struck, `VISUAL_LABEL_CROWDED`,
-  overlapping, far, run on) move, hand-moved labels included, as one group
-  by the least move to a place where none is reported or meets another
-  label (at most two grid steps, one when only crowded), beside its own part
-  on the same side, no nearer a neighbour, name before value; a part only
-  crowded keeps its row or mirror with like parts; else they stay
-  (`crowded`). Other labels stay; a block's name stays; a Pin's or VDD name
-  only turns about its end, a VDD name the way most of the drawing's stand. Reported labels left,
+  overlapping, far, run on) — and aligned or mirrored cohort peers moving
+  flush with them — move, hand-moved labels included, jointly per cohort
+  (mirrored pairs try outward unwired sides when facing inward and colliding;
+  rows/columns move uniformly or stay intact) by the least clear move (at most
+  two grid steps when struck/overlapped/run-on, one when only crowded), beside
+  its own part, no nearer a neighbour, name before value, crossing only to an
+  unwired side on severe clashes; optional `hideCrowdedValues:true` hides a
+  colliding value display (`LABELS_VALUES_HIDDEN`, parameters untouched) as a
+  last resort when name+value cannot fit; else they stay (`crowded`). Other
+  labels stay; a block's name stays; a Pin's or VDD name only turns about its
+  end, a VDD name the way most of the drawing's stand. Reported labels left,
   including Net labels and free text, are named (`unarranged`).
   Clearance observations never gate editing.
 - `{kind:"apply-label-preset",preset:"textbook"}` (`circuit_text`) for the Cell

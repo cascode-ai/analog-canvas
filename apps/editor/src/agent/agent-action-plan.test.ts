@@ -1857,6 +1857,147 @@ describe("the editor plans an Agent's action list", () => {
     expect(value().anchor).toEqual(drawn);
   });
 
+  it("hides colliding parallel values only on hideCrowdedValues and reports LABELS_VALUES_HIDDEN (#2619)", async () => {
+    const { controller, client, instance } = await editor();
+    await client.applyActions([
+      {
+        ...place("resistor", "R0", 250, { value: "400Ω" }),
+        showValue: true,
+      },
+      {
+        ...place("resistor", "R1", 320, { value: "400Ω" }),
+        showValue: true,
+      },
+    ]);
+    const r0 = instance("R0")!.id;
+    const r1 = instance("R1")!.id;
+    // Move R0/R1 labels inward so their 400Ω values collide between them,
+    // and box in their outer sides (y=80..120) so 400Ω cannot fit cleanly there.
+    const r0Ref = controller.document.annotations.find(
+      (a) =>
+        a.binding?.kind === "instance-reference" && a.binding.instanceId === r0,
+    )!;
+    const r0Val = controller.document.annotations.find(
+      (a) =>
+        a.binding?.kind === "instance-value" && a.binding.instanceId === r0,
+    )!;
+    const r1Ref = controller.document.annotations.find(
+      (a) =>
+        a.binding?.kind === "instance-reference" && a.binding.instanceId === r1,
+    )!;
+    const r1Val = controller.document.annotations.find(
+      (a) =>
+        a.binding?.kind === "instance-value" && a.binding.instanceId === r1,
+    )!;
+    // Put two horizontal wires boxing in the outer sides (y=80..120) via real
+    // Agent placement + routing, and place R0/R1's labels facing inward so 400Ω collides.
+    const setup = await client.applyActions([
+      {
+        kind: "place-component",
+        id: "PL",
+        symbol: "port",
+        reference: "PL",
+        position: { x: 180, y: 120 },
+      },
+      {
+        kind: "place-component",
+        id: "PR",
+        symbol: "port",
+        reference: "PR",
+        position: { x: 390, y: 120 },
+      },
+      {
+        kind: "place-component",
+        id: "TL",
+        symbol: "port",
+        reference: "TL",
+        position: { x: 180, y: 80 },
+      },
+      {
+        kind: "place-component",
+        id: "TR",
+        symbol: "port",
+        reference: "TR",
+        position: { x: 390, y: 80 },
+      },
+      {
+        kind: "route-net",
+        target: {
+          kind: "pins",
+          pins: [
+            { instanceId: r0, pinName: "2" },
+            { instanceId: "PL", pinName: "P" },
+          ],
+        },
+      },
+      {
+        kind: "route-net",
+        target: {
+          kind: "pins",
+          pins: [
+            { instanceId: r1, pinName: "2" },
+            { instanceId: "PR", pinName: "P" },
+          ],
+        },
+      },
+      {
+        kind: "route-net",
+        target: {
+          kind: "pins",
+          pins: [
+            { instanceId: r0, pinName: "1" },
+            { instanceId: "TL", pinName: "P" },
+            { instanceId: r1, pinName: "1" },
+            { instanceId: "TR", pinName: "P" },
+          ],
+        },
+      },
+      {
+        kind: "move-annotation",
+        annotationId: r0Ref.id,
+        position: { x: 259, y: 105 },
+        alignment: "start",
+      },
+      {
+        kind: "move-annotation",
+        annotationId: r0Val.id,
+        position: { x: 259, y: 125 },
+        alignment: "start",
+      },
+      {
+        kind: "move-annotation",
+        annotationId: r1Ref.id,
+        position: { x: 311, y: 105 },
+        alignment: "end",
+      },
+      {
+        kind: "move-annotation",
+        annotationId: r1Val.id,
+        position: { x: 311, y: 125 },
+        alignment: "end",
+      },
+    ]);
+    expect(setup.ok, setup.message).toBe(true);
+    const hidden = await client.applyActions([
+      {
+        kind: "arrange-labels",
+        instanceIds: [r0, r1],
+        includeManual: true,
+        hideCrowdedValues: true,
+      },
+    ]);
+    expect(hidden.ok, hidden.message).toBe(true);
+    expect(hidden.diagnosticDelta?.added).toContainEqual(
+      expect.objectContaining({
+        code: "LABELS_VALUES_HIDDEN",
+        severity: "info",
+        objectIds: expect.arrayContaining([r0Val.id, r1Val.id]),
+      }),
+    );
+    expect(instance("R0")?.netlist?.parameters.value).toBe("400Ω");
+    expect(instance("R1")?.netlist?.parameters.value).toBe("400Ω");
+  });
+
   it("draws a rail of a supply whose VDD Pin marker stands, leaving the marker's label (#1410)", async () => {
     const { controller, client } = await editor();
     const marked = await client.applyActions([

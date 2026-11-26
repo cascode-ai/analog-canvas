@@ -125,24 +125,28 @@ redraws seen drawings), whether the name was typed, connected or generated:
   earlier value-over-name stack or another side's rows; hand-moved ones only
   with `includeManual`) to bounded nearby positions; it never resets all
   labels. `includeManual` is a repair (#2619): only parts with a label the
-  label findings report (struck, crowded, overlapping, far, run on) are
-  arranged, hand-moved labels included, and every other label stays and is
-  in the way. A repaired part's labels move as one group by the least move
-  that clears (from where they stand, its default rows, or a side no lead of
-  the part leaves, each shifted a little), at most two grid steps when a
-  wire, another part or another label is drawn over one of them or it runs
-  on, one step when only crowded or over its own part's outline (a label far
-  from its part goes back to its rows, beside the labels it left); only to a
-  place none of them is reported or meets another label, within two grid
-  steps of their own part and nearer it than any other part, never across
-  to the part's far side, no nearer than it was to another part, its labels,
-  its Pin ends or a wire within half a grid step; the name no further from
-  its value than a row or than it was, read before it (above it, or ahead of
-  it on its line) and both on one side of the part. A part whose labels are
-  only crowded or over its own outline stays rather than leave a row or a
-  mirror of like parts' labels (level or one above another, the same labels
-  within half a grid step of alike or mirrored, kept within a quarter step).
-  Failing all that the group stays (`crowded`). A block's name stays where it is
+  label findings report (struck, crowded, overlapping, far, run on) — and
+  aligned or mirrored cohort peers moving flush with them — are arranged,
+  hand-moved labels included, and every other label stays in the way.
+  Structural cohorts (mirrored pairs, aligned rows and columns of like parts)
+  are planned jointly so all members stay symmetric or flush, or stay as they
+  were; inward-facing colliding pairs try their outward unwired sides
+  symmetrically first. Each part's labels move as one block by the least move
+  that clears (at most two grid steps when struck, overlapped or run on, one
+  step when only crowded; a label far from its part returns beside the labels
+  it left), only to a place none is reported or meets another label, within
+  two grid steps of its own part and nearer it than any other, no nearer than
+  it was to another part, its labels, its Pin ends or a wire within half a
+  grid step, and not intruding between unrelated parts' labels on their row;
+  the name stays within a row (or its prior gap) of its value, reads before
+  it, and shares one side of the part. Crossing to another side is allowed
+  only onto an unwired side for severe clashes (wire/other-part strike,
+  overlap, run-on) or outward pairs. With `hideCrowdedValues`, a value that
+  directly overlaps or runs on into another label may be hidden
+  (`visible: false`, netlist parameters untouched, reported in
+  `LABELS_VALUES_HIDDEN`) as a last resort when no placement fits name and
+  value cleanly (uniformly across cohorts). Failing all that the part or
+  cohort stays (`crowded`). A block's name stays where it is
   (a name inside its own block's box is not reported); a Pin's name only
   turns to a clear side of its end and a VDD name only goes over its bar or
   beside it, as most of the drawing's VDD names stand (its own way on a
