@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -11,6 +12,126 @@ import { galleryOriginTagMark } from "../gallery-origin-tags";
 
 const WIDTH_KEY = "icm.gallery.sidebarWidth";
 const COLLAPSED_KEY = "icm.gallery.sidebarCollapsed";
+const MIN_SIDEBAR_HEIGHT = 120;
+const useIsomorphicLayoutEffect =
+  typeof document === "undefined" ? useEffect : useLayoutEffect;
+
+/**
+ * Visible height available to a sticky sidebar inside `.gallery-shell`,
+ * bounded by both the scroll viewport and the sidebar track (#2654).
+ */
+export function stickySidebarMaxHeight({
+  shellTop,
+  shellClientHeight,
+  stickyTopOffset,
+  trackTop,
+  trackBottom,
+}: {
+  shellTop: number;
+  shellClientHeight: number;
+  stickyTopOffset: number;
+  trackTop: number;
+  trackBottom: number;
+}): number {
+  const visibleTop = Math.max(trackTop, shellTop + stickyTopOffset);
+  const visibleBottom = Math.min(shellTop + shellClientHeight, trackBottom);
+  return Math.max(MIN_SIDEBAR_HEIGHT, Math.floor(visibleBottom - visibleTop));
+}
+
+/**
+ * Sticky scrollable body shared by Gallery and Review sidebars. Keeps its
+ * max-height within the visible `.gallery-shell` viewport at every scroll
+ * offset so the bottom of the menu is reachable without scrolling the page.
+ */
+export function GallerySidebarScrollArea({
+  id,
+  testId,
+  mobileOpen,
+  ariaLabel,
+  children,
+}: {
+  id?: string;
+  testId?: string;
+  mobileOpen?: boolean;
+  ariaLabel: string;
+  children: ReactNode;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const asideRef = useRef<HTMLElement>(null);
+
+  useIsomorphicLayoutEffect(() => {
+    const track = trackRef.current;
+    const aside = asideRef.current;
+    const shell = aside?.closest<HTMLElement>(".gallery-shell");
+    if (!track || !aside || !shell) return;
+    let lastHeight: number | null = null;
+    const clear = () => {
+      if (lastHeight === null) return;
+      aside.style.removeProperty("--gallery-sidebar-max-height");
+      lastHeight = null;
+    };
+    const update = () => {
+      const style = getComputedStyle(aside);
+      if (style.position !== "sticky") {
+        clear();
+        return;
+      }
+      const trackRect = track.getBoundingClientRect();
+      if (trackRect.height <= 0 || shell.clientHeight <= 0) return;
+      const shellRect = shell.getBoundingClientRect();
+      const nextHeight = stickySidebarMaxHeight({
+        shellTop: shellRect.top + shell.clientTop,
+        shellClientHeight: shell.clientHeight,
+        stickyTopOffset: Number.parseFloat(style.top) || 0,
+        trackTop: trackRect.top,
+        trackBottom: trackRect.bottom,
+      });
+      if (nextHeight === lastHeight) return;
+      aside.style.setProperty(
+        "--gallery-sidebar-max-height",
+        `${nextHeight}px`,
+      );
+      lastHeight = nextHeight;
+    };
+    update();
+    shell.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    if (observer) {
+      observer.observe(shell);
+      observer.observe(track);
+      if (track.parentElement) observer.observe(track.parentElement);
+      for (const child of shell.children) {
+        if (child instanceof HTMLElement && !child.contains(track))
+          observer.observe(child);
+      }
+    }
+    return () => {
+      shell.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      observer?.disconnect();
+      clear();
+    };
+  }, []);
+
+  return (
+    <div ref={trackRef} className="gallery-sidebar-track">
+      <div className="gallery-sidebar-track-inner">
+        <aside
+          ref={asideRef}
+          id={id}
+          className="gallery-tag-sidebar"
+          data-testid={testId}
+          data-open={mobileOpen}
+          aria-label={ariaLabel}
+        >
+          {children}
+        </aside>
+      </div>
+    </div>
+  );
+}
 
 /** Whether a sidebar is folded to the left, remembered under its key. */
 export function useCollapsedSidebar(key: string): [boolean, () => void] {
@@ -245,12 +366,11 @@ export function GalleryTagSidebar({
           : ""}
         <span aria-hidden="true">{mobileOpen ? "−" : "+"}</span>
       </button>
-      <aside
+      <GallerySidebarScrollArea
         id="gallery-tag-sidebar"
-        className="gallery-tag-sidebar"
-        data-testid="gallery-tag-sidebar"
-        data-open={mobileOpen}
-        aria-label="Gallery filters"
+        testId="gallery-tag-sidebar"
+        mobileOpen={mobileOpen}
+        ariaLabel="Gallery filters"
       >
         <div className="gallery-sidebar-quick">{quickFilters}</div>
         {sizeFilters ? (
@@ -294,7 +414,7 @@ export function GalleryTagSidebar({
         {adminTools ? (
           <div className="gallery-sidebar-admin">{adminTools}</div>
         ) : null}
-      </aside>
+      </GallerySidebarScrollArea>
       <div
         className="gallery-sidebar-resize-handle"
         role="separator"

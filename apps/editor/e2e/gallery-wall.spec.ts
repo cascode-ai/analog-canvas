@@ -1302,6 +1302,183 @@ test("the tag sidebar resizes by dragging and keyboard, remembers width and adap
   await expectWidth(420);
 });
 
+test("the gallery sidebar scrolls to its bottom item without scrolling the page (#2654)", async ({
+  page,
+}) => {
+  await mockPreviews(page);
+  const tags = [
+    { tag: "amplifier", count: 8 },
+    { tag: "bandgap", count: 6 },
+    { tag: "adc", count: 4 },
+    { tag: "pll", count: 3 },
+    { tag: "buck", count: 2 },
+    { tag: "lna", count: 2 },
+    { tag: "switch", count: 1 },
+  ];
+  const entries = Array.from({ length: 24 }, (_, index) =>
+    tile(`scroll-${index}`),
+  );
+  await mockGalleryApi(page, { tags }, (_url, route) =>
+    route.fulfill({
+      json: { entries, nextCursor: null, total: entries.length },
+    }),
+  );
+  await page.setViewportSize({ width: 1280, height: 700 });
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-tile-scroll-0")).toBeVisible();
+
+  const shell = page.locator(".gallery-shell");
+  const sidebar = page.getByTestId("gallery-tag-sidebar");
+  const lastGroup = sidebar.locator(".gallery-tag-group").last();
+  const lastGroupToggle = lastGroup.locator(".gallery-tag-group-expand");
+
+  const measure = () =>
+    page.evaluate(() => {
+      const s = document.querySelector(".gallery-shell")!;
+      const c = document.querySelector(".gallery-chrome")!;
+      const a = document.querySelector('[data-testid="gallery-tag-sidebar"]')!;
+      const f = document.querySelector('[data-testid="gallery-footnote"]')!;
+      return {
+        shellTop: s.getBoundingClientRect().top + s.clientTop,
+        shellBottom:
+          s.getBoundingClientRect().top + s.clientTop + s.clientHeight,
+        chromeBottom: c.getBoundingClientRect().bottom,
+        sidebarTop: a.getBoundingClientRect().top,
+        sidebarBottom: a.getBoundingClientRect().bottom,
+        sidebarHeight: a.getBoundingClientRect().height,
+        footnoteTop: f.getBoundingClientRect().top,
+      };
+    });
+
+  // At scrollTop = 0, the sidebar must fit inside the viewport so scrolling
+  // only the sidebar reaches its actual last group and last tag without
+  // scrolling the page.
+  expect(await shell.evaluate((el) => el.scrollTop)).toBe(0);
+  await expect
+    .poll(async () =>
+      sidebar.evaluate((el) => el.scrollHeight > el.clientHeight),
+    )
+    .toBe(true);
+  const atTop = await measure();
+  expect(atTop.sidebarBottom).toBeLessThanOrEqual(atTop.shellBottom + 1);
+
+  await sidebar.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  expect(await shell.evaluate((el) => el.scrollTop)).toBe(0);
+  const lastToggleBox = (await lastGroupToggle.boundingBox())!;
+  expect(lastToggleBox.y).toBeGreaterThanOrEqual(atTop.sidebarTop - 1);
+  expect(lastToggleBox.y + lastToggleBox.height).toBeLessThanOrEqual(
+    atTop.shellBottom + 1,
+  );
+
+  await lastGroupToggle.click();
+  const lastTag = lastGroup.locator(".gallery-sidebar-tag").last();
+  await expect(lastTag).toBeVisible();
+  await sidebar.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  expect(await shell.evaluate((el) => el.scrollTop)).toBe(0);
+  const lastTagBox = (await lastTag.boundingBox())!;
+  expect(lastTagBox.y).toBeGreaterThanOrEqual(atTop.sidebarTop - 1);
+  expect(lastTagBox.y + lastTagBox.height).toBeLessThanOrEqual(
+    atTop.shellBottom + 1,
+  );
+  await lastTag.click();
+  await expect(lastTag).toHaveAttribute("aria-pressed", "true");
+  expect(await shell.evaluate((el) => el.scrollTop)).toBe(0);
+
+  // Scrolling the page past the tabs and search lets the sticky sidebar grow
+  // to fill the freed height while still staying inside the viewport.
+  await shell.evaluate((el) => {
+    el.scrollTop = 300;
+  });
+  await expect
+    .poll(async () =>
+      sidebar.evaluate((el) => el.getBoundingClientRect().height),
+    )
+    .toBeGreaterThan(atTop.sidebarHeight + 50);
+  const afterScroll = await measure();
+  expect(afterScroll.sidebarBottom).toBeLessThanOrEqual(
+    afterScroll.shellBottom + 1,
+  );
+
+  // At the bottom of the wall, the sidebar stays between the sticky header
+  // and the footnote without being pushed under the header.
+  await shell.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  await expect
+    .poll(async () => {
+      const m = await measure();
+      return (
+        m.sidebarTop >= m.chromeBottom - 1 &&
+        m.sidebarBottom <= m.footnoteTop + 1
+      );
+    })
+    .toBe(true);
+});
+
+test("a short wall is not stretched by the sticky sidebar and keeps its last tag reachable (#2654)", async ({
+  page,
+}) => {
+  await mockPreviews(page);
+  await mockGalleryApi(
+    page,
+    { tags: [{ tag: "amplifier", count: 1 }] },
+    (_url, route) =>
+      route.fulfill({
+        json: { entries: [tile("only-1")], nextCursor: null, total: 1 },
+      }),
+  );
+  await page.setViewportSize({ width: 1280, height: 700 });
+  await page.goto("/");
+  await expect(page.getByTestId("gallery-tile-only-1")).toBeVisible();
+
+  const shell = page.locator(".gallery-shell");
+  const sidebar = page.getByTestId("gallery-tag-sidebar");
+  const lastGroup = sidebar.locator(".gallery-tag-group").last();
+  const lastGroupToggle = lastGroup.locator(".gallery-tag-group-expand");
+
+  // With one tile, the sidebar stays inside the remaining viewport height
+  // above the footnote instead of creating a spurious page scrollbar.
+  const layout = await page.evaluate(() => {
+    const s = document.querySelector(".gallery-shell")!;
+    const a = document.querySelector('[data-testid="gallery-tag-sidebar"]')!;
+    const f = document.querySelector('[data-testid="gallery-footnote"]')!;
+    return {
+      shellScrollHeight: s.scrollHeight,
+      shellClientHeight: s.clientHeight,
+      shellBottom: s.getBoundingClientRect().top + s.clientTop + s.clientHeight,
+      sidebarTop: a.getBoundingClientRect().top,
+      sidebarBottom: a.getBoundingClientRect().bottom,
+      footnoteTop: f.getBoundingClientRect().top,
+      footnoteBottom: f.getBoundingClientRect().bottom,
+    };
+  });
+  expect(layout.shellScrollHeight).toBeLessThanOrEqual(
+    layout.shellClientHeight + 1,
+  );
+  expect(layout.sidebarBottom).toBeLessThanOrEqual(layout.footnoteTop + 1);
+  expect(layout.footnoteBottom).toBeLessThanOrEqual(layout.shellBottom + 1);
+
+  await sidebar.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  await lastGroupToggle.click();
+  const lastTag = lastGroup.locator(".gallery-sidebar-tag").last();
+  await expect(lastTag).toBeVisible();
+  await sidebar.evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  const lastTagBox = (await lastTag.boundingBox())!;
+  expect(lastTagBox.y).toBeGreaterThanOrEqual(layout.sidebarTop - 1);
+  expect(lastTagBox.y + lastTagBox.height).toBeLessThanOrEqual(
+    layout.footnoteTop + 1,
+  );
+  expect(await shell.evaluate((el) => el.scrollTop)).toBe(0);
+});
+
 test("the tag menu multi-selects and a tile's tag joins the selection", async ({
   page,
 }) => {
