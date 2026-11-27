@@ -8,6 +8,7 @@ import {
   routeEnd,
   SchematicDocumentSchema,
   parseRoutingDocument,
+  parseOwnedRoutingDocument,
   resolveDrawingOrder,
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
@@ -137,6 +138,17 @@ export function executeTransaction(
   input: EditTransaction | unknown,
   context: EditExecutionContext = {},
   readMembership?: Parameters<typeof parseRoutingDocument>[1],
+): EditTransactionResult {
+  return applyTransaction(document, input, context, readMembership, false);
+}
+
+/** Owned candidates are consumed only by synchronous Canvas preparation. */
+export function applyTransaction(
+  document: SchematicDocument,
+  input: unknown,
+  context: EditExecutionContext,
+  readMembership: Parameters<typeof parseRoutingDocument>[1] | undefined,
+  keepOwned: boolean,
 ): EditTransactionResult {
   const parsed = EditTransactionSchema.safeParse(input);
   if (!parsed.success) {
@@ -1396,7 +1408,9 @@ export function executeTransaction(
     );
   if (draft.drawingOrder) draft.drawingOrder = resolveDrawingOrder(draft);
   const candidate = readMembership
-    ? parseRoutingDocument(draft, readMembership)
+    ? keepOwned
+      ? parseOwnedRoutingDocument(draft, document, readMembership)
+      : parseRoutingDocument(draft, readMembership)
     : SchematicDocumentSchema.safeParse(draft);
   if (!candidate.success) {
     return rejectTransaction(
