@@ -4117,8 +4117,8 @@ function WorkspaceEditor({
     };
   }
 
-  /** The Cell the last navigation fit framed, to fit again below. */
-  const fittedDocument = useRef<string | null>(null);
+  /** A navigation's fit to complete once the destination scene is mounted. */
+  const pendingFitDocument = useRef<string | null>(null);
   /** A navigation's focus to frame again once the dock it opened is drawn. */
   const focusBeforeDock = useRef<(() => void) | null>(null);
   const {
@@ -4150,8 +4150,8 @@ function WorkspaceEditor({
     defaultViewBox: DEFAULT_VIEWBOX,
     setViewBox,
     measureCanvasView,
-    onFit: (documentId) => {
-      fittedDocument.current = documentId;
+    requestFitAfterLayout: (documentId) => {
+      pendingFitDocument.current = documentId;
     },
     onFocusBeforeDock: (frameAgain) => {
       focusBeforeDock.current = frameAgain;
@@ -4179,16 +4179,14 @@ function WorkspaceEditor({
     document.instanceGroups?.find((group) =>
       group.memberIds.includes(selectedInstance.id),
     );
-  // A navigation fits before its instance path appears over the canvas or
-  // goes. Once the path is drawn, before it is painted, fit the Cell again
-  // with the path's inset, so entering, leaving and F land on one view.
+  // Use the destination's committed bounds and final insets before the first
+  // paint, so entering, leaving and F land on the same view.
   useLayoutEffect(() => {
-    const fitted = fittedDocument.current;
-    fittedDocument.current = null;
-    if (fitted !== document.id) return;
-    fitDocument(fitted);
-    // That fit reported itself too; it needs no second pass.
-    fittedDocument.current = null;
+    const target = pendingFitDocument.current;
+    pendingFitDocument.current = null;
+    if (target !== document.id) return;
+    fitDocument(target);
+    pendingFitDocument.current = null;
   }, [document.id, documentStack]);
   // A Find result or diagnostic focuses its part, then opens Properties.
   // Once the dock is drawn, before it is painted, frame the part again in

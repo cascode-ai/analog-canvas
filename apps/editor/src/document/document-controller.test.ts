@@ -48,6 +48,38 @@ function hierarchicalProject() {
 }
 
 describe("EditorDocumentController", () => {
+  it("validates an ordinary Cell edit without reparsing an unrelated drawing", () => {
+    const input = hierarchicalProject();
+    const peer = input.documents[1]!;
+    peer.instances.push(instance("R100"));
+    peer.nets.push({
+      id: "n1",
+      terminals: [{ instanceId: "R100", pinName: "1" }],
+    });
+
+    const controller = new EditorDocumentController(input);
+    const before = controller.project;
+    const original = serializeProject(before);
+    const parse = vi.spyOn(CircuitProjectSchema, "safeParse");
+    try {
+      expect(
+        controller.transact([
+          { kind: "add_instance", instance: instance("R1") },
+        ]),
+      ).toMatchObject({ ok: true, applied: true });
+      expect(parse).not.toHaveBeenCalled();
+    } finally {
+      parse.mockRestore();
+    }
+    expect(controller.project.documents[1]).toBe(before.documents[1]);
+    expect(CircuitProjectSchema.parse(controller.project)).toEqual(
+      controller.project,
+    );
+    expect(
+      parseProject(serializeProject(controller.project)).documents[1],
+    ).toEqual(parseProject(original).documents[1]);
+  });
+
   it("installs two scalar Canvas wires without reparsing the Project and restores each complete file", () => {
     const input = hierarchicalProject();
     for (const [i, id] of ["a", "b", "c"].entries()) {

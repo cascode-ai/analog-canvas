@@ -112,36 +112,108 @@ export const ExternalSubcircuitDefinitionSchema = z
       context.addIssue({ code: "custom", message, path: ["presentation"] });
   });
 
-export const CircuitProjectSchema = z
-  .strictObject({
-    // This is the in-memory/runtime model version. Portable Project Code is
-    // decoded and encoded by @icm/project-protocol with its own version.
-    schemaVersion: z.literal(CURRENT_MODEL_SCHEMA_VERSION),
-    id: StableIdSchema,
-    name: z.string().min(1),
-    source: SourceManifestSchema,
-    symbolLibrary: SymbolLibraryLockSchema,
-    componentDefinitions: z
-      .array(ComponentDefinitionSchema)
-      .max(4096)
-      .optional(),
-    componentAuthoringDrafts: z
-      .array(ComponentAuthoringDraftSchema)
-      .max(256)
-      .optional(),
-    structureRevision: z.number().int().nonnegative(),
-    topDocumentId: StableIdSchema,
-    documents: z.array(SchematicDocumentSchema).min(1),
-    externalSubcircuitDefinitions: z
-      .array(ExternalSubcircuitDefinitionSchema)
-      .max(256)
-      .default([]),
-    /** Named authored intents. Testbench topology remains an ordinary Cell;
-     * results and run receipts remain session resources. */
-    simulationFolders: z.array(ProjectSimulationFolderSchema).max(64),
-    modelSources: z.array(ProjectModelSourceSchema).max(256).optional(),
-  })
-  .superRefine((project, context) => {
+const ProjectFields = z.strictObject({
+  // This is the in-memory/runtime model version. Portable Project Code is
+  // decoded and encoded by @icm/project-protocol with its own version.
+  schemaVersion: z.literal(CURRENT_MODEL_SCHEMA_VERSION),
+  id: StableIdSchema,
+  name: z.string().min(1),
+  source: SourceManifestSchema,
+  symbolLibrary: SymbolLibraryLockSchema,
+  componentDefinitions: z.array(ComponentDefinitionSchema).max(4096).optional(),
+  componentAuthoringDrafts: z
+    .array(ComponentAuthoringDraftSchema)
+    .max(256)
+    .optional(),
+  structureRevision: z.number().int().nonnegative(),
+  topDocumentId: StableIdSchema,
+  documents: z.array(SchematicDocumentSchema).min(1),
+  externalSubcircuitDefinitions: z
+    .array(ExternalSubcircuitDefinitionSchema)
+    .max(256)
+    .default([]),
+  /** Named authored intents. Testbench topology remains an ordinary Cell;
+   * results and run receipts remain session resources. */
+  simulationFolders: z.array(ProjectSimulationFolderSchema).max(64),
+  modelSources: z.array(ProjectModelSourceSchema).max(256).optional(),
+});
+
+type ProjectData = z.output<typeof ProjectFields>;
+type ProjectCell = ProjectData["documents"][number];
+
+const childIdsByInstances = new WeakMap<ProjectCell["instances"], string[]>();
+
+function retainedChildIds(cell: ProjectCell): string[] {
+  const cached = childIdsByInstances.get(cell.instances);
+  if (cached) return cached;
+  const children: string[] = [];
+  for (const instance of cell.instances) {
+    const binding = instance.netlist?.binding;
+    if (binding?.kind === "subcircuit") children.push(binding.childDocumentId);
+  }
+  childIdsByInstances.set(cell.instances, children);
+  return children;
+}
+
+/** A retained Cell's cross-checks read child interfaces, external IDs, and
+ * native artwork owners. Project-wide naming, ownership and cycle checks still run. */
+function retainedCellChecks(
+  previous: ProjectData,
+  project: ProjectData,
+  documents: ReadonlyMap<string, ProjectCell>,
+): ((cell: ProjectCell) => string[] | undefined) | undefined {
+  const externalIds = new Set(
+    project.externalSubcircuitDefinitions.map(({ id }) => id),
+  );
+  if (
+    externalIds.size !== previous.externalSubcircuitDefinitions.length ||
+    previous.externalSubcircuitDefinitions.some(
+      ({ id }) => !externalIds.has(id),
+    )
+  )
+    return undefined;
+  const artworkOwners = (value: ProjectData) =>
+    new Map(
+      (value.componentDefinitions ?? []).flatMap(
+        ({ symbol, circuitBinding }) =>
+          circuitBinding
+            ? [[symbol.id, circuitBinding.definitionId] as const]
+            : [],
+      ),
+    );
+  const previousOwners = artworkOwners(previous);
+  const owners = artworkOwners(project);
+  if (
+    owners.size !== previousOwners.size ||
+    [...previousOwners].some(([id, owner]) => owners.get(id) !== owner)
+  )
+    return undefined;
+
+  const before = new Map(previous.documents.map((cell) => [cell.id, cell]));
+  const checkedTargets = new Map<string, boolean>();
+  function sameChildInterface(id: string): boolean {
+    const known = checkedTargets.get(id);
+    if (known !== undefined) return known;
+    const prior = before.get(id);
+    const child = documents.get(id);
+    const equal =
+      prior !== undefined &&
+      child !== undefined &&
+      (child.netlist === prior.netlist ||
+        JSON.stringify(child.netlist) === JSON.stringify(prior.netlist));
+    checkedTargets.set(id, equal);
+    return equal;
+  }
+  return (cell) => {
+    if (before.get(cell.id) !== cell) return undefined;
+    const children = retainedChildIds(cell);
+    return children.every(sameChildInterface) ? children : undefined;
+  };
+}
+
+const checkProject =
+  (previous?: ProjectData) =>
+  (project: ProjectData, context: z.RefinementCtx) => {
     reportDuplicateIds(project.modelSources ?? [], "modelSources", context);
     reportDuplicateIds(
       project.componentAuthoringDrafts ?? [],
@@ -334,8 +406,15 @@ export const CircuitProjectSchema = z
     const documentById = new Map(
       project.documents.map((document) => [document.id, document]),
     );
+    const retained =
+      previous && retainedCellChecks(previous, project, documentById);
     const childrenByDocument = new Map<string, string[]>();
     for (const [documentIndex, document] of project.documents.entries()) {
+      const knownChildren = retained?.(document);
+      if (knownChildren) {
+        childrenByDocument.set(document.id, knownChildren);
+        continue;
+      }
       const memberReferences = [
         ...document.nets.flatMap((net, netIndex) =>
           net.terminals.map((terminal, terminalIndex) => ({
@@ -647,4 +726,22 @@ export const CircuitProjectSchema = z
       visited.add(documentId);
     };
     for (const document of project.documents) visit(document.id, []);
-  });
+  };
+
+export const CircuitProjectSchema = ProjectFields.superRefine(checkProject());
+
+/** Only the snapshot owner supplies a fully validated predecessor. Retained
+ * Cells are admitted by identity. All replacement rows still go through the schema. */
+export function safeParseWithRetainedCells(
+  input: unknown,
+  previous: ProjectData,
+) {
+  const retained = new Set(previous.documents);
+  const cell = z.union([
+    z.custom<ProjectCell>((value) => retained.has(value as ProjectCell)),
+    SchematicDocumentSchema,
+  ]);
+  return ProjectFields.extend({ documents: z.array(cell).min(1) })
+    .superRefine(checkProject(previous))
+    .safeParse(input);
+}
