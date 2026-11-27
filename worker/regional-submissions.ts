@@ -1,4 +1,10 @@
-import { AUTH_SESSION_COOKIE, sessionUserOf, type SessionUser } from "./auth";
+import {
+  AUTH_SESSION_COOKIE,
+  hasBearer,
+  ownerTokenUserOf,
+  sessionUserOf,
+  type SessionUser,
+} from "./auth";
 import { routeGalleryRequest } from "./gallery";
 import { digest, sessionIdentity } from "./regional-auth-contract";
 import { readSyncJson } from "./project-sync-http";
@@ -69,12 +75,19 @@ export async function routeRegionalSubmissions(
       (peer.protocol !== "https:" || peer.origin !== env.RESOURCE_ACTION_PEER)
     )
       return fail("action-not-configured", 503);
+    const byToken =
+      !incoming && path === "/api/gallery/submissions" && hasBearer(request);
     const auth = (operation: string, body: unknown) =>
       env
         .AUTH!.getByName("auth")
         .fetch("https://auth/internal/resource-action-" + operation, {
           method: "POST",
-          headers: { cookie: request.headers.get("cookie") ?? "" },
+          headers: {
+            cookie: request.headers.get("cookie") ?? "",
+            ...(byToken
+              ? { authorization: request.headers.get("authorization")! }
+              : {}),
+          },
           body: JSON.stringify(body),
         });
     let command: Command, user: SessionUser | null;
@@ -101,9 +114,12 @@ export async function routeRegionalSubmissions(
       if (!verified.ok) return fail("unauthorized", verified.status);
       user = sessionIdentity((await verified.json()).user);
     } else {
-      if (!sameOrigin(request)) return fail("forbidden", 403);
-      user = await sessionUserOf(request, env);
+      if (!byToken && !sameOrigin(request)) return fail("forbidden", 403);
+      user = byToken
+        ? await ownerTokenUserOf(request, env)
+        : await sessionUserOf(request, env);
       if (!user) return fail("unauthorized", 401);
+      if (byToken && !user.isOwner) return fail("owner-only", 403);
       if (prepare)
         return answer({
           key: regional

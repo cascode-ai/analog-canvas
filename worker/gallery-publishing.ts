@@ -216,17 +216,27 @@ export async function handleSubmission(
   request: Request,
   env: GalleryEnv,
 ): Promise<Response> {
-  if (!sameOrigin(request)) {
+  // The Owner's scripts publish by Owner token (a browser never adds a
+  // bearer by itself, so it needs no same-origin check); anyone else by
+  // their same-origin session.
+  const viaToken = hasBearer(request);
+  if (!viaToken && !sameOrigin(request)) {
     return Response.json({ error: "forbidden" }, { status: 403 });
   }
   // Signing in is the whole gate: every signed-in user publishes straight to
   // the wall. Anonymous upload stays impossible, because an entry has to be
   // attributable to the account that submitted it.
-  const user = await sessionUserOf(request, env);
+  const user = viaToken
+    ? await ownerTokenUserOf(request, env)
+    : await sessionUserOf(request, env);
   if (!user) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
-  const privileged = user.isAdmin === true || user.role === "moderator";
+  if (viaToken && !user.isOwner) {
+    return Response.json({ error: "owner-only" }, { status: 403 });
+  }
+  const privileged =
+    user.isAdmin === true || user.isOwner === true || user.role === "moderator";
   const body = (await request.json().catch(() => null)) as {
     name?: unknown;
     description?: unknown;

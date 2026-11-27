@@ -374,7 +374,7 @@ describe("reference datasets in stores of their own (#1510)", () => {
     ).toBe(404);
   });
 
-  it("takes an Owner token from a non-browser client, on the import alone (#1769)", async () => {
+  it("takes an Owner token from a non-browser client, on dataset imports and community submissions (#1769)", async () => {
     const env = environment();
     const owner = await ownerAccountOf(env);
     const auth = (path: string, init: RequestInit = {}) =>
@@ -448,23 +448,95 @@ describe("reference datasets in stores of their own (#1510)", () => {
     );
     expect(withCookie.status).toBe(401);
 
-    // No other route takes it: not a submission. (Reads need nothing.)
+    // The Owner's token also publishes directly to the Community Gallery wall.
+    const submitted = await bearerCall("/api/gallery/submissions", token, {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Through a token",
+        description: "d",
+        tags: ["amplifier"],
+        projectText: projectText("Through a token"),
+      }),
+    });
+    expect(submitted.status).toBe(201);
+    const submittedBody = (await submitted.json()) as {
+      id: string;
+      status: string;
+    };
+    expect(submittedBody.status).toBe("public");
+
+    // A bad bearer is refused on submissions even beside the Owner's session.
+    const badBearerSub = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/submissions`, {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          Cookie: owner,
+          Authorization: "Bearer acot_wrong",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Bad bearer submission",
+          description: "d",
+          projectText: projectText("Bad bearer submission"),
+        }),
+      }),
+    );
+    expect(badBearerSub.status).toBe(401);
+
+    // Still-session-only routes (e.g. likes) do not accept a token.
+    expect(
+      (
+        await bearerCall(`/api/gallery/${submittedBody.id}/like`, token, {
+          method: "POST",
+        })
+      ).status,
+    ).toBe(401);
+
+    // A non-Owner account's token is refused on community submissions.
+    const maker = await makerOf(env);
+    const makerMint = await env.authDurable.fetch(
+      new Request(`${ORIGIN}/api/auth/owner-tokens`, {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          Cookie: maker,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ label: "maker-cli" }),
+      }),
+    );
+    expect(makerMint.status).toBe(201);
+    const { token: makerToken } = (await makerMint.json()) as {
+      token: string;
+    };
+    const makerSub = await bearerCall("/api/gallery/submissions", makerToken, {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Non-owner token submission",
+        description: "d",
+        projectText: projectText("Non-owner token submission"),
+      }),
+    });
+    expect(makerSub.status).toBe(403);
+    expect(await makerSub.json()).toEqual({ error: "owner-only" });
+
+    // A revoked token is refused.
+    expect((await auth(`/${id}`, { method: "DELETE" })).status).toBe(200);
+    expect((await importing(token)).status).toBe(401);
     expect(
       (
         await bearerCall("/api/gallery/submissions", token, {
           method: "POST",
           body: JSON.stringify({
-            name: "Through a token",
+            name: "After revoke",
             description: "d",
-            projectText: projectText("Through a token"),
+            projectText: projectText("After revoke"),
           }),
         })
       ).status,
     ).toBe(401);
-
-    // A revoked token is refused.
-    expect((await auth(`/${id}`, { method: "DELETE" })).status).toBe(200);
-    expect((await importing(token)).status).toBe(401);
 
     // So is one whose account is no longer the Owner.
     const second = await mint();

@@ -250,7 +250,9 @@ preloads it. "Open the editor anyway" opens it for that tab
 
 ## Publishing
 
-- `POST /api/gallery/submissions` (same-origin) publishes immediately as
+- `POST /api/gallery/submissions` (same-origin session, or the Owner's
+  `Authorization: Bearer <Owner token>` without the same-origin check; 403
+  `owner-only` for non-Owner tokens) publishes immediately as
   `public`: `name` (trimmed, ≤120), `description` (≤1000), `tags` (lowercase
   `[a-z0-9 +/-]`, ≤32 chars, ≤12, deduplicated; `sanitizeGalleryTags` is the one
   normalization), `projectText` (≤2 MiB), optional boolean `aiGenerated` (else
@@ -561,8 +563,8 @@ createdAt?}]}` (≤10), validated like submissions with the prefix
   post from the CLI with `pnpm gallery:import-batches … --post`
   ([Batch drawing](../agent/batch-drawing.md)).
 - API tokens (#1769, "Owner tokens" when the Owner's): one labelled token per
-  machine. The Owner's opens that import, the comparison import below, gallery
-  curation and the [local simulation check](#simulation-checks); any account's
+  machine. The Owner's opens community submissions/updates, dataset entry and
+  comparison imports, gallery curation and the [local simulation check](#simulation-checks); any account's
   edits the [selection board](selection-boards.md) as that account; no other
   route accepts one, and a token does not expire until it is revoked.
   A person's own same-origin session (else 401; 403 for an AI account) mints

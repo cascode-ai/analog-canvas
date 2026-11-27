@@ -280,3 +280,62 @@ it("keeps a bare retry key on one writer and refuses an unsigned peer submission
   );
   expect(forged.status).toBe(401);
 });
+
+it("publishes community submissions by the Owner's token across regions without same-origin", async () => {
+  const { auth, cn, overseas } = await pair();
+  const owner = await ownerAccountOf(auth.source);
+  const { token } = (await (
+    await auth.source.authDurable.fetch(
+      new Request(ORIGIN + "/api/auth/owner-tokens", {
+        method: "POST",
+        headers: { origin: ORIGIN, cookie: owner },
+        body: JSON.stringify({ label: "Regional batch publish" }),
+      }),
+    )
+  ).json()) as { token: string };
+
+  // Local writer (cn -> cn) and forwarded peer writer (cn -> overseas)
+  for (const [label, key, peerCheck] of [
+    ["Token local", "cn_aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", false],
+    ["Token peer", "overseas_bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", true],
+  ] as const) {
+    const res = await cn.route(
+      new Request(ORIGIN + "/api/gallery/submissions", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer " + token,
+          "content-type": "application/json",
+          "idempotency-key": key,
+        },
+        body: JSON.stringify({
+          name: label,
+          description: "Published via owner token",
+          tags: ["amplifier"],
+          projectText: wiredProjectText(),
+        }),
+      }),
+    );
+    expect(res.status, await res.clone().text()).toBe(201);
+    const created = (await res.json()) as { id: string; status: string };
+    expect(created.status).toBe("public");
+    expect((await cn.call(`/api/gallery/${created.id}`)).status).toBe(200);
+    if (peerCheck) {
+      expect((await overseas.call(`/api/gallery/${created.id}`)).status).toBe(
+        200,
+      );
+    }
+  }
+
+  // Reviews remain session-only: Owner token is rejected.
+  const reviewRes = await cn.route(
+    new Request(ORIGIN + "/api/gallery/some-entry/reviews", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer " + token,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ verdict: "ok" }),
+    }),
+  );
+  expect(reviewRes.status).toBe(401);
+});
