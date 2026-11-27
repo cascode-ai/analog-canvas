@@ -1,6 +1,7 @@
 import {
   createRoutePath,
   electricalConnectionGrid,
+  equalJsonValue,
   routeEnd,
 } from "@icm/model";
 import type { RouteBranch, SchematicDocument } from "@icm/model";
@@ -83,7 +84,7 @@ export function applyRouteGeometryEdit(
         }));
       if (
         existing?.members &&
-        JSON.stringify(mapping(existing)) !== JSON.stringify(mapping(route))
+        !equalJsonValue(mapping(existing), mapping(route))
       ) {
         return {
           ok: false,

@@ -1,6 +1,7 @@
 import {
   createRoutePath,
   electricalConnectionGrid,
+  equalJsonValue,
   routeEnd,
   routeModes,
   snapGridPoint,
@@ -266,8 +267,7 @@ export function carryTranslatedRouteComponents(
       from.mirror !== to.mirror ||
       before.symbolId !== after.symbolId ||
       before.symbolVariantId !== after.symbolVariantId ||
-      JSON.stringify(before.signalFlowParameters) !==
-        JSON.stringify(after.signalFlowParameters)
+      !equalJsonValue(before.signalFlowParameters, after.signalFlowParameters)
     )
       continue;
     const delta = {

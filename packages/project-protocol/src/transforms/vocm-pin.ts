@@ -182,9 +182,11 @@ export function repairVocmPinSnapshots(
       : [];
     const subcircuit = definition.subcircuit;
     if (
+      signatures.length === 0 ||
       definition.generatedFrom ||
       !subcircuit ||
       subcircuit.ports.some((port) => port.name === VOCM) ||
+      definition.symbol.pins.some((pin) => pin.name === VOCM) ||
       !signatures.includes(symbolSignature("vocm-pin-v1", definition.symbol))
     )
       return definition;

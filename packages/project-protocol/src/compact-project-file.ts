@@ -1,5 +1,9 @@
 /** Readable structural shorthand. Every transform has an exact inverse. */
-import { InstanceNetlistDataSchema, SegmentModeSchema } from "@icm/model";
+import {
+  equalJsonKeyOrder,
+  InstanceNetlistDataSchema,
+  SegmentModeSchema,
+} from "@icm/model";
 import {
   SHORT_FIELDS_FILE_VERSION,
   transformShortProjectFields,
@@ -91,7 +95,7 @@ export function compactProjectFile(input: RecordValue): RecordValue {
         instances.every(
           (i) =>
             Object.hasOwn(i, key) &&
-            JSON.stringify(i[key]) === JSON.stringify(instances[0]![key]),
+            equalJsonKeyOrder(i[key], instances[0]![key]),
         )
       ) {
         values[key] = instances[0]![key];

@@ -5,6 +5,7 @@ import {
 } from "./local-transaction-draft.js";
 import {
   cellSymbolArtworkIssues,
+  equalJsonValue,
   projectCellInterface,
   routeEnd,
   SchematicDocumentSchema,
@@ -189,8 +190,10 @@ export function applyTransaction(
     transaction.edits.every(
       (edit) =>
         edit.kind === "set_cell_symbol_presentation" &&
-        JSON.stringify(edit.presentation) ===
-          JSON.stringify(document.presentation.cellSymbol ?? null),
+        equalJsonValue(
+          edit.presentation,
+          document.presentation.cellSymbol ?? null,
+        ),
     )
   ) {
     return {

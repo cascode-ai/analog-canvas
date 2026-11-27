@@ -1,4 +1,4 @@
-import { SignalFlowParametersSchema } from "@icm/model";
+import { equalJsonValue, SignalFlowParametersSchema } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
@@ -62,8 +62,10 @@ export function applyInstanceSignalFlowEdit(
   }
 
   if (
-    JSON.stringify(instance.signalFlowParameters ?? null) ===
-    JSON.stringify(nextParameters ?? null)
+    equalJsonValue(
+      instance.signalFlowParameters ?? null,
+      nextParameters ?? null,
+    )
   ) {
     return {
       ok: false,

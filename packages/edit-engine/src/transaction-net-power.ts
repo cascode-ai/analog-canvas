@@ -4,6 +4,7 @@ import {
   JunctionSchema,
   createRoutePath,
   deriveStableId,
+  equalJsonValue,
   renamedLabelFormat,
   supplyLabelFormat,
 } from "@icm/model";
@@ -331,7 +332,7 @@ export function applyNetPowerEdit(
         previous?.kind === "name-claim" &&
         previous.signal &&
         (evidence.kind !== "name-claim" ||
-          JSON.stringify(previous.signal) !== JSON.stringify(evidence.signal))
+          !equalJsonValue(previous.signal, evidence.signal))
       ) {
         return rejectAt(
           "EDIT_PRECONDITION",

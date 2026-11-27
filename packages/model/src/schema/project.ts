@@ -21,6 +21,7 @@ import { projectCellInterface } from "../cell-interface-projection.js";
 import { foldNetName } from "../net-name.js";
 import { cellPinsByUsualName } from "../part-pin-names.js";
 import { hierarchicalSymbolId } from "../ids.js";
+import { equalJsonValue } from "../json-equal.js";
 import { circuitComponentIssues } from "../circuit-component.js";
 export const ComponentAuthoringDraftSchema = z.strictObject({
   id: StableIdSchema,
@@ -199,8 +200,7 @@ function retainedCellChecks(
     const equal =
       prior !== undefined &&
       child !== undefined &&
-      (child.netlist === prior.netlist ||
-        JSON.stringify(child.netlist) === JSON.stringify(prior.netlist));
+      equalJsonValue(child.netlist, prior.netlist);
     checkedTargets.set(id, equal);
     return equal;
   }

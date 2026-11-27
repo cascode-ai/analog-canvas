@@ -1,5 +1,6 @@
 import {
   drawingOrderKey,
+  equalJsonValue,
   resolveDrawingOrder,
   SchematicDocumentSchema,
 } from "@icm/model";
@@ -79,9 +80,7 @@ export function diffDocumentObjectIds(
     .filter(
       (id) =>
         reordered.has(id) ||
-        (leftObjects.get(id) !== rightObjects.get(id) &&
-          JSON.stringify(leftObjects.get(id)) !==
-            JSON.stringify(rightObjects.get(id))),
+        !equalJsonValue(leftObjects.get(id), rightObjects.get(id)),
     )
     .sort();
 }

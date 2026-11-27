@@ -24,77 +24,93 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+const PROJECT_KEY_ORDER = new Map(
+  [
+    "schemaVersion",
+    "id",
+    "name",
+    "topDocumentId",
+    "defaults",
+    "documents",
+    "componentDefinitions",
+    "externalSubcircuitDefinitions",
+    "simulationFolders",
+    "source",
+    "symbolLibrary",
+    "structureRevision",
+  ].map((key, index) => [key, index]),
+);
+const DOCUMENT_KEY_ORDER = new Map(
+  [
+    "id",
+    "name",
+    "netlist",
+    "presentation",
+    "drawingOrder",
+    "instances",
+    "instanceGroups",
+    "routes",
+    "connections",
+    "nets",
+    "junctions",
+    "annotations",
+    "drafting",
+    "mosBulkDefaults",
+    "connectivityEvidence",
+    "layoutGroups",
+    "constraints",
+    "inductorCouplings",
+    "sourceBinding",
+    "sourceStatus",
+    "revision",
+  ].map((key, index) => [key, index]),
+);
+const INSTANCE_KEY_ORDER = new Map(
+  [
+    "type",
+    "name",
+    "id",
+    "variant",
+    "coordinate",
+    "rotation",
+    "mirror",
+    "color",
+    "backgroundColor",
+    "bodyFill",
+    "parameters",
+    "target",
+    "control",
+    "labels",
+  ].map((key, index) => [key, index]),
+);
+
 function sortKeys(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeys);
   if (isRecord(value)) {
     const order = Array.isArray(value.documents)
-      ? [
-          "schemaVersion",
-          "id",
-          "name",
-          "topDocumentId",
-          "defaults",
-          "documents",
-          "componentDefinitions",
-          "externalSubcircuitDefinitions",
-          "simulationFolders",
-          "source",
-          "symbolLibrary",
-          "structureRevision",
-        ]
+      ? PROJECT_KEY_ORDER
       : Array.isArray(value.instances) && Array.isArray(value.nets)
-        ? [
-            "id",
-            "name",
-            "netlist",
-            "presentation",
-            "drawingOrder",
-            "instances",
-            "instanceGroups",
-            "routes",
-            "connections",
-            "nets",
-            "junctions",
-            "annotations",
-            "drafting",
-            "mosBulkDefaults",
-            "connectivityEvidence",
-            "layoutGroups",
-            "constraints",
-            "inductorCouplings",
-            "sourceBinding",
-            "sourceStatus",
-            "revision",
-          ]
+        ? DOCUMENT_KEY_ORDER
         : typeof value.type === "string" && "coordinate" in value
-          ? [
-              "type",
-              "name",
-              "id",
-              "variant",
-              "coordinate",
-              "rotation",
-              "mirror",
-              "color",
-              "backgroundColor",
-              "bodyFill",
-              "parameters",
-              "target",
-              "control",
-              "labels",
-            ]
-          : [];
-    const rank = (key: string) =>
-      order.indexOf(key) < 0 ? order.length : order.indexOf(key);
-    return Object.fromEntries(
-      Object.keys(value)
-        .sort(
-          (left, right) =>
-            rank(left) - rank(right) ||
-            (left < right ? -1 : left > right ? 1 : 0),
-        )
-        .map((key) => [key, sortKeys(value[key])]),
-    );
+          ? INSTANCE_KEY_ORDER
+          : undefined;
+    const keys = Object.keys(value);
+    if (order) {
+      const fallback = order.size;
+      keys.sort(
+        (left, right) =>
+          (order.get(left) ?? fallback) - (order.get(right) ?? fallback) ||
+          (left < right ? -1 : left > right ? 1 : 0),
+      );
+    } else {
+      keys.sort();
+    }
+    const sorted: Record<string, unknown> = {};
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i]!;
+      sorted[key] = sortKeys(value[key]);
+    }
+    return sorted;
   }
   return value;
 }

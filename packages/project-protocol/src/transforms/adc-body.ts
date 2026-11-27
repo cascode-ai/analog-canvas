@@ -22,6 +22,10 @@ export function repairAdcBodySnapshots(
       !["adc", "adc-differential", "adc-differential-inputs-swapped"].includes(
         symbol.id,
       ) ||
+      symbol.primitives.some(
+        (primitive) =>
+          primitive.kind === "polygon" && primitive.fillableBody === true,
+      ) ||
       !CAPTURED_ADC_BODIES.has(symbolSignature("adc-body-v1", symbol))
     )
       return definition;

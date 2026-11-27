@@ -7,6 +7,7 @@ import {
   SymbolDefinitionSchema,
   SymbolTerminalMappingSchema,
   cellSymbolArtworkIssues,
+  equalJsonValue,
   foldNetName,
   isOptionalSupplyPin,
   routeEndpoints,
@@ -258,7 +259,7 @@ export function planSetCellSymbolArtwork(
             `${instance.reference ?? instance.id} in ${parent.name} has a wire or No Connect on ${name}: a property supply has none. Map ${name} to a graphical pin, or remove that wire first. Nothing was changed.`,
           );
       }
-  if (JSON.stringify(stored?.artwork) === JSON.stringify(artwork)) return [];
+  if (equalJsonValue(stored?.artwork, artwork)) return [];
   return planSetCellSymbolPresentation(project, documentId, {
     ...stored,
     artwork,

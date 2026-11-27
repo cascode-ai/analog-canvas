@@ -3,6 +3,7 @@ import {
   draftingCoverColor,
   draftingCoverMessage,
   DraftingObjectSchema,
+  equalJsonValue,
   flattenRichText,
   LayoutConstraintSchema,
   LayoutGroupSchema,
@@ -231,8 +232,7 @@ export function applyPresentationLayoutEdit(
       const isPureUnlock =
         existing?.locked === true &&
         parsed.locked === false &&
-        JSON.stringify({ ...existing, locked: false }) ===
-          JSON.stringify(parsed);
+        equalJsonValue({ ...existing, locked: false }, parsed);
       // Nothing is drawn in the sheet's own color to cover the drawing; an
       // older object keeps the color it has, so it still moves.
       const cover = draftingCoverColor(parsed);

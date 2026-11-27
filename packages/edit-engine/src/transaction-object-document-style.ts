@@ -1,4 +1,4 @@
-import { ObjectDocumentStyleSchema } from "@icm/model";
+import { equalJsonValue, ObjectDocumentStyleSchema } from "@icm/model";
 import type { SchematicDocument, StyleOverrides } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
@@ -64,11 +64,7 @@ export function applyObjectDocumentStyleEdit(
           [id],
         ),
       };
-    if (
-      JSON.stringify(object.documentStyle ?? null) ===
-      JSON.stringify(next ?? null)
-    )
-      continue;
+    if (equalJsonValue(object.documentStyle ?? null, next ?? null)) continue;
     if (next) object.documentStyle = structuredClone(next);
     else delete object.documentStyle;
     changed.push(id);

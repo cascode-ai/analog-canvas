@@ -1,4 +1,4 @@
-import { RouteStyleOverrideSchema } from "@icm/model";
+import { equalJsonValue, RouteStyleOverrideSchema } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
@@ -42,9 +42,7 @@ export function applyRouteStyleOverrideEdit(
     parsed?.color || parsed?.arrow || parsed?.lineStyle
       ? structuredClone(parsed)
       : undefined;
-  if (
-    JSON.stringify(route.styleOverride ?? null) === JSON.stringify(next ?? null)
-  ) {
+  if (equalJsonValue(route.styleOverride ?? null, next ?? null)) {
     return {
       ok: false,
       rejection: reject(
