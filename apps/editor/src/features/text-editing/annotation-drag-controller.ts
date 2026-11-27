@@ -16,6 +16,7 @@ import {
   startCanvasDragSession,
   type CanvasDragSession,
 } from "../../canvas/canvas-drag-session";
+import { isPrimaryOrCtrlCanvasButton } from "../../canvas/pointer-down-router";
 import { startCanvasDragVisual } from "../../canvas/canvas-drag-visual";
 import { type RouteGeometryRecord } from "../wiring/route-interaction-geometry";
 import {
@@ -78,7 +79,7 @@ export function createAnnotationDragController({
     const liveAnnotation = startDocument.annotations.find(
       (candidate) => candidate.id === annotation.id,
     );
-    if (event.button !== 0 || !liveAnnotation) return;
+    if (!isPrimaryOrCtrlCanvasButton(event) || !liveAnnotation) return;
     const deferred = options.onDragStart !== undefined;
     if (!deferred && onCompositeMove(event, hitTarget)) return;
     event.stopPropagation();

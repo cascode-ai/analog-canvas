@@ -471,6 +471,7 @@ export function createCanvasGestureController({
       ?.getAttribute("data-canvas-hit-kind");
     if (
       event.button === 2 &&
+      !event.ctrlKey &&
       (contextMenuHitKind === "instance" ||
         contextMenuHitKind === "annotation" ||
         contextMenuHitKind === "drafting")
@@ -500,6 +501,7 @@ export function createCanvasGestureController({
     const gesture = classifyCanvasGestureStart({
       button: event.button,
       altKey: event.altKey,
+      ctrlKey: event.ctrlKey,
       interactionKind: getInteractionKind(),
       targetIsCanvas:
         event.target === event.currentTarget ||
@@ -747,6 +749,7 @@ export function createCanvasGestureController({
     replaceSelection(selection);
     clearSelectedEndpoint();
     setBoxPreview(null);
+    if (!clicked && event.button === 2) setContextMenuSuppressed(true);
     const count = Object.values(selection).reduce(
       (total, ids) => total + ids.length,
       0,

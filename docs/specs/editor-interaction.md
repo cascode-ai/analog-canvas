@@ -292,10 +292,14 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 - Snap targets exclude the moving closure; capture is bounded by half a grid
   step; exact contact may add connections at a retained landing but never move it.
 - `M` translates with internal conductors and stretches boundary Routes.
-  `Shift+M` (and Ctrl/Cmd-drag) leaves wires: each routed terminal becomes an
-  open Junction stub, then `disconnect_endpoint`, and a pin set directly on
-  something staying (a ground marker on a source) lets go of it; geometry stays
-  byte-identical.
+  `Shift+M` and Ctrl/Cmd-drag on a single part leave all wires: each routed
+  terminal becomes an open Junction stub, then `disconnect_endpoint`, and a pin
+  set directly on something staying (a ground marker on a source) lets go of it;
+  geometry stays byte-identical. Ctrl/Cmd-drag on a selected region carries
+  internal Routes, Junctions and their labels intact while detaching only
+  boundary connections onto stationary stubs and partitioning shared Nets; a
+  stationary Ctrl/Cmd-click still toggles the clicked member, and macOS
+  Control-drag never opens the canvas context menu.
 - Classification: selected Instances translate; a Route/Junction component with
   all terminal ends selected translates; a Route with one selected end stretches;
   a selected loose Route moves only with both loose Junctions; other connected

@@ -123,7 +123,13 @@ export function deriveRoutingAffectedClosure(
     const end = routeEnd(route);
     const startInside = isInside(route.start, instanceIds, internalJunctionIds);
     const endInside = isInside(end, instanceIds, internalJunctionIds);
-    if (startInside !== endInside) {
+    if (
+      options.includeImplicitInstanceRoutes !== false &&
+      startInside &&
+      endInside
+    ) {
+      internalRouteIds.add(route.id);
+    } else if (startInside !== endInside) {
       boundaryRouteIds.add(route.id);
       for (const endpoint of [route.start, end]) {
         if (

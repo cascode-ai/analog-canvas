@@ -112,6 +112,160 @@ export function planRoutedTerminalDetachment(
   );
 }
 
+function occupiedLifecycleIds(document: SchematicDocument): Set<string> {
+  return new Set(
+    [
+      ...document.instances,
+      ...document.nets,
+      ...document.routes,
+      ...document.junctions,
+      ...document.noConnects,
+      ...document.annotations,
+      ...document.layoutGroups,
+      ...document.constraints,
+      ...(document.inductorCouplings ?? []),
+      ...(document.drafting?.objects ?? []),
+    ].map((object) => object.id),
+  );
+}
+
+interface EndpointReplacement {
+  endpoint: RouteEndpoint;
+  gridLanding: { x: number; y: number };
+}
+
+function detachedRoutePathEdit(
+  route: SchematicDocument["routes"][number],
+  fromReplacement: EndpointReplacement | undefined,
+  toReplacement: EndpointReplacement | undefined,
+  sequence: number,
+): SchematicEdit {
+  const from = fromReplacement?.endpoint ?? route.start;
+  const to = toReplacement?.endpoint ?? routeEnd(route);
+  const waypoints = routeBends(route);
+  const segmentModes = routeModes(route);
+  if (
+    fromReplacement &&
+    waypoints[0]?.x === fromReplacement.gridLanding.x &&
+    waypoints[0]?.y === fromReplacement.gridLanding.y
+  ) {
+    waypoints.shift();
+    segmentModes.shift();
+  }
+  if (
+    toReplacement &&
+    waypoints.at(-1)?.x === toReplacement.gridLanding.x &&
+    waypoints.at(-1)?.y === toReplacement.gridLanding.y
+  ) {
+    waypoints.pop();
+    segmentModes.pop();
+  }
+  return {
+    kind: "set_route_path",
+    route: rebuildRoutePath(
+      route,
+      from,
+      to,
+      waypoints,
+      segmentModes,
+      `detach-${sequence}`,
+    ),
+  };
+}
+
+/**
+ * Re-anchors only boundary Routes leaving a moving region onto stationary
+ * Junction stubs at the moving ends' exact landings, leaving internal Routes
+ * and Junctions untouched so the region can travel intact.
+ */
+export function planBoundaryRouteDetachment(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  movingInstances: ReadonlySet<string>,
+  movingJunctions: ReadonlySet<string>,
+  preservedRoutes: ReadonlySet<string>,
+  sequence: number,
+): { edits: SchematicEdit[]; detachedRouteIds: string[] } {
+  const isMovingEndpoint = (endpoint: RouteEndpoint): boolean =>
+    endpoint.kind === "terminal"
+      ? movingInstances.has(endpoint.instanceId)
+      : movingJunctions.has(endpoint.junctionId);
+  const boundaryRoutes = document.routes.filter((route) => {
+    if (preservedRoutes.has(route.id)) return false;
+    return isMovingEndpoint(route.start) || isMovingEndpoint(routeEnd(route));
+  });
+  if (boundaryRoutes.length === 0) return { edits: [], detachedRouteIds: [] };
+
+  const occupiedIds = occupiedLifecycleIds(document);
+  const replacements = new Map<string, EndpointReplacement>();
+  const junctionEdits: SchematicEdit[] = [];
+  let junctionCounter = 0;
+
+  const replacementFor = (
+    route: SchematicDocument["routes"][number],
+    endpoint: RouteEndpoint,
+  ): EndpointReplacement => {
+    const key = `${route.netId}\u0000${endpointKey(endpoint)}`;
+    const existing = replacements.get(key);
+    if (existing) return existing;
+    const connection = resolveEndpointConnection(document, resolver, endpoint);
+    if (!connection) {
+      throw new Error(
+        `Cannot preserve unresolved endpoint ${endpointKey(endpoint)}`,
+      );
+    }
+    let junctionId: string;
+    do {
+      junctionCounter += 1;
+      junctionId = `junction-lifecycle-${sequence}-${junctionCounter}`;
+    } while (occupiedIds.has(junctionId));
+    occupiedIds.add(junctionId);
+    const sourceJunction =
+      endpoint.kind === "junction"
+        ? document.junctions.find(
+            (candidate) => candidate.id === endpoint.junctionId,
+          )
+        : undefined;
+    junctionEdits.push({
+      kind: "add_junction",
+      junctionId,
+      netId: route.netId,
+      ...(sourceJunction?.members
+        ? { members: structuredClone(sourceJunction.members) }
+        : {}),
+      position: connection.gridLanding,
+    });
+    const entry: EndpointReplacement = {
+      endpoint: { kind: "junction", junctionId },
+      gridLanding: connection.gridLanding,
+    };
+    replacements.set(key, entry);
+    return entry;
+  };
+
+  const routeEdits: SchematicEdit[] = [];
+  const detachedRouteIds: string[] = [];
+  for (const route of boundaryRoutes) {
+    const routeFinal = routeEnd(route);
+    const fromReplacement = isMovingEndpoint(route.start)
+      ? replacementFor(route, route.start)
+      : undefined;
+    const toReplacement = isMovingEndpoint(routeFinal)
+      ? replacementFor(route, routeFinal)
+      : undefined;
+    if (!fromReplacement && !toReplacement) continue;
+    detachedRouteIds.push(route.id);
+    routeEdits.push(
+      detachedRoutePathEdit(route, fromReplacement, toReplacement, sequence),
+    );
+  }
+
+  return {
+    edits: [...junctionEdits, ...routeEdits],
+    detachedRouteIds,
+  };
+}
+
 /**
  * Removes selected terminal connectivity while preserving every visible wire
  * as a Junction-anchored stub. Hierarchy planners use this when a child Cell
@@ -151,25 +305,9 @@ function planRoutedEndpointDetachment(
   matches: (endpoint: { instanceId: string; pinName: string }) => boolean,
   sequence: number,
 ): SchematicEdit[] {
-  const replacements = new Map<
-    string,
-    { endpoint: RouteEndpoint; gridLanding: { x: number; y: number } }
-  >();
+  const replacements = new Map<string, EndpointReplacement>();
   const junctionEdits: SchematicEdit[] = [];
-  const occupiedIds = new Set(
-    [
-      ...document.instances,
-      ...document.nets,
-      ...document.routes,
-      ...document.junctions,
-      ...document.noConnects,
-      ...document.annotations,
-      ...document.layoutGroups,
-      ...document.constraints,
-      ...(document.inductorCouplings ?? []),
-      ...(document.drafting?.objects ?? []),
-    ].map((object) => object.id),
-  );
+  const occupiedIds = occupiedLifecycleIds(document);
   let junctionCounter = 0;
 
   for (const net of document.nets) {
@@ -216,38 +354,8 @@ function planRoutedEndpointDetachment(
     const fromReplacement = replacements.get(endpointKey(route.start));
     const toReplacement = replacements.get(endpointKey(routeFinal));
     if (!fromReplacement && !toReplacement) return [];
-    const from = fromReplacement?.endpoint ?? route.start;
-    const to = toReplacement?.endpoint ?? routeFinal;
-    const waypoints = routeBends(route);
-    const segmentModes = routeModes(route);
-    if (
-      fromReplacement &&
-      waypoints[0]?.x === fromReplacement.gridLanding.x &&
-      waypoints[0]?.y === fromReplacement.gridLanding.y
-    ) {
-      waypoints.shift();
-      segmentModes.shift();
-    }
-    if (
-      toReplacement &&
-      waypoints.at(-1)?.x === toReplacement.gridLanding.x &&
-      waypoints.at(-1)?.y === toReplacement.gridLanding.y
-    ) {
-      waypoints.pop();
-      segmentModes.pop();
-    }
     return [
-      {
-        kind: "set_route_path",
-        route: rebuildRoutePath(
-          route,
-          from,
-          to,
-          waypoints,
-          segmentModes,
-          `detach-${sequence}`,
-        ),
-      },
+      detachedRoutePathEdit(route, fromReplacement, toReplacement, sequence),
     ];
   });
 

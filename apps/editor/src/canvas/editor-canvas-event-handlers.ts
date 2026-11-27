@@ -460,12 +460,16 @@ export function createEditorCanvasEventHandlers({
     onContextMenuCapture(event: CanvasMouseEvent) {
       if (tool !== "pointer" || interactionKind() !== "idle") return;
       const target = event.target as Element;
-      if (
-        target.closest(
-          "foreignObject, .endpoint-hit, .draft-handle, .route-handle",
-        )
-      )
+      if (target.closest("foreignObject")) return;
+      // macOS synthesizes contextmenu on Control+left-press/drag, which this
+      // canvas binds to toggle-selection, detach-move and additive marquee —
+      // including when the press lands on an endpoint circle.
+      if (event.ctrlKey) {
+        event.preventDefault();
+        event.stopPropagation();
         return;
+      }
+      if (target.closest(".endpoint-hit, .draft-handle, .route-handle")) return;
       event.preventDefault();
       event.stopPropagation();
       openContextMenu(
@@ -636,6 +640,7 @@ export function createEditorCanvasEventHandlers({
     },
     onContextMenu(event: CanvasMouseEvent) {
       event.preventDefault();
+      if (event.ctrlKey) return;
       if (
         tool === "arrow" ||
         tool === "polyline" ||

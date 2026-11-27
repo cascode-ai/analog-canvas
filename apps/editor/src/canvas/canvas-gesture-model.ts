@@ -24,6 +24,7 @@ export type CanvasGestureStart = "pan" | "select" | "zoom" | null;
 export interface CanvasGestureStartContext {
   button: number;
   altKey: boolean;
+  ctrlKey?: boolean;
   interactionKind: string;
   targetIsCanvas: boolean;
   placementPending: boolean;
@@ -36,6 +37,7 @@ export interface CanvasGestureStartContext {
 export function classifyCanvasGestureStart({
   button,
   altKey,
+  ctrlKey = false,
   interactionKind,
   targetIsCanvas,
   placementPending,
@@ -46,7 +48,11 @@ export function classifyCanvasGestureStart({
   if (interactionKind === "moving-selection") return null;
   if (button === 1) return "pan";
 
-  const frameZoomDrag = button === 2 || (button === 0 && altKey);
+  // macOS WebKit can report Control+left-press as button 2 with ctrlKey held.
+  // Keep plain right-drag as frame-zoom while letting Ctrl+drag stay select.
+  const ctrlSecondarySelect = button === 2 && ctrlKey && !altKey;
+  const frameZoomDrag =
+    (button === 2 && !ctrlSecondarySelect) || (button === 0 && altKey);
   const placementOwnsClick =
     placementPending || vddRailMode || copyPlacementPending;
   const draftingOwnsClick =
@@ -62,7 +68,12 @@ export function classifyCanvasGestureStart({
       ? "zoom"
       : null;
   }
-  if (button !== 0 || placementOwnsClick || !targetIsCanvas) return null;
+  if (
+    (button !== 0 && !ctrlSecondarySelect) ||
+    placementOwnsClick ||
+    !targetIsCanvas
+  )
+    return null;
   return draftingOwnsClick ? null : "select";
 }
 

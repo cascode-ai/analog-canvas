@@ -356,8 +356,23 @@ describe("who owns one press on the canvas", () => {
     });
   });
 
-  it("lets a modifier compose the selection instead of moving it", () => {
-    for (const modifier of ["shiftKey", "ctrlKey", "metaKey"] as const) {
+  it("lets Shift compose the selection and lets Ctrl/Cmd detach-move or toggle on click", () => {
+    expect(
+      resolvePointerDownAction(
+        facts({
+          shiftKey: true,
+          hit: hitOf("route", "route-1"),
+          compositeSelectionOwnsHit: true,
+          compositeMovePlanHasPreview: true,
+          primaryInstanceId: "R1",
+        }),
+      ),
+    ).toEqual({
+      kind: "route-pointer-down",
+      routeId: "route-1",
+    });
+
+    for (const modifier of ["ctrlKey", "metaKey"] as const) {
       const action = resolvePointerDownAction(
         facts({
           [modifier]: true,
@@ -367,12 +382,44 @@ describe("who owns one press on the canvas", () => {
           primaryInstanceId: "R1",
         }),
       );
-      // The hit answers for itself, so the press can add or remove it.
       expect(action, modifier).toEqual({
-        kind: "route-pointer-down",
-        routeId: "route-1",
+        kind: "begin-instance-move",
+        instanceId: "R1",
+        toggleHit: { kind: "route", id: "route-1" },
+      });
+
+      const wireOnlyAction = resolvePointerDownAction(
+        facts({
+          [modifier]: true,
+          hit: hitOf("route", "route-1"),
+          compositeSelectionOwnsHit: true,
+          compositeMovePlanHasPreview: true,
+          primaryInstanceId: null,
+        }),
+      );
+      expect(wireOnlyAction, `${modifier}-wire-only`).toEqual({
+        kind: "begin-visual-selection-move",
+        toggleHit: { kind: "route", id: "route-1" },
       });
     }
+
+    // macOS WebKit delivers Control+left-click with button === 2 and ctrlKey.
+    expect(
+      resolvePointerDownAction(
+        facts({
+          button: 2,
+          ctrlKey: true,
+          hit: hitOf("route", "route-1"),
+          compositeSelectionOwnsHit: true,
+          compositeMovePlanHasPreview: true,
+          primaryInstanceId: "R1",
+        }),
+      ),
+    ).toEqual({
+      kind: "begin-instance-move",
+      instanceId: "R1",
+      toggleHit: { kind: "route", id: "route-1" },
+    });
   });
 
   it("falls through to the hit when the composite move has nothing to show", () => {

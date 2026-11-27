@@ -16,7 +16,7 @@ import {
   prepareProjectCopy,
   planProjectCopyPlacement,
 } from "../clipboard/project-copy";
-import { endpointKey } from "@icm/derived";
+import { deriveRoutingAffectedClosure, endpointKey } from "@icm/derived";
 import {
   createRoutingOperationPlan,
   executeTransaction,
@@ -47,8 +47,12 @@ import {
   type CanvasDragSession,
 } from "../../canvas/canvas-drag-session";
 import { startCanvasDragVisual } from "../../canvas/canvas-drag-visual";
+import {
+  isPrimaryOrCtrlCanvasButton,
+  type CompositeToggleHit,
+} from "../../canvas/pointer-down-router";
 import type { ScreenFlip } from "../../interaction/shortcut-orientation";
-import { planDetachedMove } from "./detached-move";
+import { planDetachedMove, type DetachedMoveRegion } from "./detached-move";
 import type { VisualSelection } from "./visual-selection";
 import {
   planSelectionMove,
@@ -56,6 +60,7 @@ import {
 } from "./selection-move-plan";
 import type {
   createSelectionMoveController,
+  DetachedRegionMoveContext,
   SelectionMovePreview,
   ResolvedSelectionMove,
 } from "./selection-move-controller";
@@ -188,6 +193,7 @@ export interface UseSelectionInteractionOptions {
   moveController: ReturnType<typeof createSelectionMoveController>;
   snapCoordinate: (value: number, grid: number) => number;
   updateInstanceSelection: (instanceId: string, additive: boolean) => void;
+  toggleSelectionHit?: (hit: CompositeToggleHit) => void;
   suppressInstanceClickRef: MutableRefObject<boolean>;
   logicalRadiusForPixels: (svg: SVGSVGElement, pixels: number) => number;
   snapGuides: (guides: SnapGuideLine[]) => void;
@@ -251,23 +257,61 @@ export function useSelectionInteraction(
   };
 
   /**
-   * One validated prefix shared by Shift+M and Ctrl/Cmd-drag. The gate both
-   * rejects protected interface terminals before a preview starts and gives
-   * the renderer the exact post-disconnect Document the final move uses.
+   * One validated prefix shared by Shift+M and Ctrl/Cmd-drag.
+   *
+   * For parts-only detach, the gate runs immediately and gives the renderer the
+   * post-disconnect Document. For a region detach that keeps internal wiring,
+   * boundary stub creation is deferred into the same atomic transaction as the
+   * move (`detachedRegion`) so stationary stubs and moving Junctions never
+   * coalesce at delta=0.
    */
   const prepareDetachedMove = (
     instanceIds: ReadonlySet<string>,
     baseDocument: SchematicDocument = options.document,
-  ): { document: SchematicDocument; edits: SchematicEdit[] } => {
+    region?: DetachedMoveRegion,
+  ): {
+    document: SchematicDocument;
+    edits: SchematicEdit[];
+    detachedRegion?: DetachedRegionMoveContext;
+  } => {
     detachSequenceRef.current += 1;
     const planned = planDetachedMove(
       baseDocument,
       options.resolver,
       instanceIds,
       detachSequenceRef.current,
+      region,
     );
     if (planned.edits.length === 0) {
       return { document: baseDocument, edits: [] };
+    }
+    if (
+      planned.detachedBoundaryRouteIds.length > 0 ||
+      planned.partitionedNetIds.length > 0
+    ) {
+      const boundarySet = new Set(planned.detachedBoundaryRouteIds);
+      const protectedBoundary = baseDocument.routes.find(
+        (route) =>
+          boundarySet.has(route.id) &&
+          route.legs.some(
+            (leg) => leg.mode === "locked" || leg.mode === "trunk",
+          ),
+      );
+      if (protectedBoundary) {
+        throw new Error(
+          `Route contains a locked segment: ${protectedBoundary.id}`,
+        );
+      }
+      return {
+        document: baseDocument,
+        edits: [],
+        detachedRegion: {
+          prefixEdits: planned.edits,
+          detachedBoundaryRouteIds: planned.detachedBoundaryRouteIds,
+          partitionedNetIds: planned.partitionedNetIds,
+          disconnectedEndpointKeys: planned.disconnectedEndpointKeys,
+        },
+      };
     }
     const gate = gateRoutingOperationPlan(
       baseDocument,
@@ -324,6 +368,9 @@ export function useSelectionInteraction(
     }
     if (!session.selectionPreview.primaryInstanceId) {
       return "Rotate and mirror during Move require a component selection";
+    }
+    if (session.selectionPreview.detachedRegion) {
+      return "Place the detached selection before rotating or mirroring";
     }
     if (
       session.movePlan.looseRouteIds.length > 0 ||
@@ -394,7 +441,9 @@ export function useSelectionInteraction(
       // A topology/pose preview replaces SVG nodes. Stay on the formal path
       // for the rest of that gesture; imperative handles then refer to old ink.
       session.semanticPreview ||=
-        !prepared.visualRoutePoints || session.prefixEdits.length > 0;
+        !prepared.visualRoutePoints ||
+        session.prefixEdits.length > 0 ||
+        Boolean(session.selectionPreview.detachedRegion);
       const input = {
         screenPoint: { ...screenPoint },
         camera,
@@ -579,7 +628,10 @@ export function useSelectionInteraction(
         return;
       }
       try {
-        const prepared = prepareDetachedMove(new Set(detaching.instanceIds));
+        const prepared = prepareDetachedMove(
+          new Set(detaching.instanceIds),
+          options.document,
+        );
         detachEdits = prepared.edits;
         baseDocument = prepared.document;
       } catch (error) {
@@ -892,8 +944,10 @@ export function useSelectionInteraction(
     event: ReactPointerEvent<SVGElement>,
     instanceId: string,
     hitTarget: SVGElement = event.currentTarget,
+    toggleHit?: CompositeToggleHit,
   ): void => {
-    if (options.tool !== "pointer" || event.button !== 0) return;
+    if (options.tool !== "pointer" || !isPrimaryOrCtrlCanvasButton(event))
+      return;
     if (options.getInteractionState().kind === "moving-selection") {
       options.cancelInteraction();
     }
@@ -906,13 +960,11 @@ export function useSelectionInteraction(
     options.suppressInstanceClickRef.current =
       hitTarget.getAttribute("data-canvas-hit-kind") === "instance";
     // The two modified drags follow Virtuoso, where they mean different
-    // things. Ctrl/Cmd-drag moves a part off its wires, leaving them exactly
-    // where they are on open Junction stubs with the old terminal memberships
-    // disconnected. Shift-drag duplicates instead: the original never moves
-    // and a copy lands where the pointer is released.
-    //
-    // Cmd stands in for Ctrl because macOS browsers convert Ctrl+left-press
-    // into a right-button press before the page ever sees it.
+    // things. Ctrl/Cmd-drag detaches and moves the target off its outside
+    // wires (for a single part, off all its wires; for a selected region, off
+    // only boundary wires while keeping internal wiring intact). Shift-drag
+    // duplicates instead: the original never moves and a copy lands where the
+    // pointer is released.
     //
     // Either modifier pressed and released without moving keeps its
     // toggle-selection meaning; the drag threshold decides which happened, so
@@ -923,26 +975,58 @@ export function useSelectionInteraction(
       beginCopyDrag(event, instanceId, hitTarget);
       return;
     }
-    const movingSelection: VisualSelection =
-      !detachDrag && options.selectedIds.includes(instanceId)
-        ? options.visualSelection
-        : {
-            instanceIds: [instanceId],
-            routeIds: [],
-            junctionIds: [],
-            annotationIds: [],
-            draftingIds: [],
-          };
+    const partOfSelection =
+      options.selectedIds.includes(instanceId) || Boolean(toggleHit);
+    const movingSelection: VisualSelection = partOfSelection
+      ? options.visualSelection
+      : {
+          instanceIds: [instanceId],
+          routeIds: [],
+          junctionIds: [],
+          annotationIds: [],
+          draftingIds: [],
+        };
+    const isRegionSelection =
+      partOfSelection &&
+      (movingSelection.instanceIds.length > 1 ||
+        movingSelection.routeIds.length > 0 ||
+        movingSelection.junctionIds.length > 0);
     let detachEdits: SchematicEdit[] = [];
+    let detachedRegion: DetachedRegionMoveContext | undefined;
     let previewBaseDocument = currentDocument;
     if (detachDrag) {
       try {
-        const prepared = prepareDetachedMove(
-          new Set([instanceId]),
-          currentDocument,
-        );
-        detachEdits = prepared.edits;
-        previewBaseDocument = prepared.document;
+        if (isRegionSelection) {
+          const closure = deriveRoutingAffectedClosure(
+            currentDocument,
+            {
+              instanceIds: movingSelection.instanceIds,
+              routeIds: movingSelection.routeIds,
+              junctionIds: movingSelection.junctionIds,
+              annotationIds: movingSelection.annotationIds,
+            },
+            { resolver: options.resolver },
+          );
+          const prepared = prepareDetachedMove(
+            new Set(closure.instances),
+            currentDocument,
+            {
+              routeIds: new Set(closure.internalRoutes),
+              junctionIds: new Set(closure.internalJunctions),
+            },
+          );
+          detachEdits = prepared.edits;
+          detachedRegion = prepared.detachedRegion;
+          previewBaseDocument = prepared.document;
+        } else {
+          const prepared = prepareDetachedMove(
+            new Set([instanceId]),
+            currentDocument,
+          );
+          detachEdits = prepared.edits;
+          detachedRegion = prepared.detachedRegion;
+          previewBaseDocument = prepared.document;
+        }
       } catch (error) {
         options.setStatus(
           error instanceof Error ? error.message : "Detach move failed",
@@ -950,12 +1034,10 @@ export function useSelectionInteraction(
         return;
       }
     }
-    // A detach drag defers selection: a threshold-crossing drag selects the
-    // moved part on finish, while a mere modifier-click keeps its
-    // toggle-selection meaning (pre-selecting here would make that toggle
-    // deselect what it just selected).
-    if (!detachDrag && !options.selectedIds.includes(instanceId))
-      selectInstance(instanceId, false);
+    // A detach drag defers selection: a threshold-crossing drag keeps a
+    // composite selection (or selects an unselected single part on finish),
+    // while a mere modifier-click keeps its toggle-selection meaning.
+    if (!detachDrag && !partOfSelection) selectInstance(instanceId, false);
     options.canvasDragSessionRef.current?.cancel();
     const svg = (hitTarget.ownerSVGElement ?? hitTarget) as SVGSVGElement;
     const pointerStart = options.pointFromClient(
@@ -986,14 +1068,22 @@ export function useSelectionInteraction(
           ),
           pointerStart,
           movePlan,
+          ...(detachedRegion ? { detachedRegion } : {}),
         };
       },
       previewBaseDocument,
       detachEdits,
       currentDocument,
       (dragged) => {
-        if (dragged && detachDrag) selectInstance(instanceId, false);
-        else if (!dragged && detachDrag) toggleInstance(instanceId);
+        if (dragged && detachDrag && !partOfSelection)
+          selectInstance(instanceId, false);
+        else if (!dragged && detachDrag) {
+          if (toggleHit && options.toggleSelectionHit) {
+            options.toggleSelectionHit(toggleHit);
+          } else {
+            toggleInstance(instanceId);
+          }
+        }
       },
       detachDrag ? MODIFIER_DRAG_THRESHOLD_PX : undefined,
     );
@@ -1003,16 +1093,50 @@ export function useSelectionInteraction(
     event: ReactPointerEvent<SVGElement>,
     selection: VisualSelection,
     hitTarget: SVGElement = event.currentTarget,
+    toggleHit?: CompositeToggleHit,
   ): void => {
-    if (options.tool !== "pointer" || event.button !== 0) return;
+    if (options.tool !== "pointer" || !isPrimaryOrCtrlCanvasButton(event))
+      return;
     const currentDocument = options.getDocument();
+    const detachDrag = (event.ctrlKey || event.metaKey) && !event.shiftKey;
     const movePlan = planSelectionMove(currentDocument, selection);
     if (movePlan.previewObjectIds.length === 0) {
+      if (detachDrag && toggleHit && options.toggleSelectionHit) {
+        options.toggleSelectionHit(toggleHit);
+        return;
+      }
       options.cancelInteraction();
       options.setStatus(
         "Selected objects are attached or locked and cannot move",
       );
       return;
+    }
+    let detachEdits: SchematicEdit[] = [];
+    let detachedRegion: DetachedRegionMoveContext | undefined;
+    let previewBaseDocument = currentDocument;
+    if (
+      detachDrag &&
+      (movePlan.translatedRouteIds.length > 0 ||
+        movePlan.translatedJunctionIds.length > 0)
+    ) {
+      try {
+        const prepared = prepareDetachedMove(
+          new Set(movePlan.instanceIds),
+          currentDocument,
+          {
+            routeIds: new Set(movePlan.translatedRouteIds),
+            junctionIds: new Set(movePlan.translatedJunctionIds),
+          },
+        );
+        detachEdits = prepared.edits;
+        detachedRegion = prepared.detachedRegion;
+        previewBaseDocument = prepared.document;
+      } catch (error) {
+        options.setStatus(
+          error instanceof Error ? error.message : "Detach move failed",
+        );
+        return;
+      }
     }
     options.cancelInteraction();
     event.preventDefault();
@@ -1028,15 +1152,25 @@ export function useSelectionInteraction(
         svg,
         false,
       ),
-      movePlan,
+      movePlan:
+        previewBaseDocument === currentDocument
+          ? movePlan
+          : planSelectionMove(previewBaseDocument, selection),
+      ...(detachedRegion ? { detachedRegion } : {}),
     };
     startPointerSelectionMove(
       event,
       hitTarget,
       () => preview,
+      previewBaseDocument,
+      detachEdits,
       currentDocument,
-      [],
-      currentDocument,
+      (dragged) => {
+        if (!dragged && detachDrag && toggleHit && options.toggleSelectionHit) {
+          options.toggleSelectionHit(toggleHit);
+        }
+      },
+      detachDrag ? MODIFIER_DRAG_THRESHOLD_PX : undefined,
     );
   };
 

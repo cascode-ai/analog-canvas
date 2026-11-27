@@ -3519,6 +3519,34 @@ function WorkspaceEditor({
     moveController: selectionMoveController,
     snapCoordinate,
     updateInstanceSelection,
+    toggleSelectionHit: ({ kind, id }) => {
+      if (kind === "instance" || kind === "instance-label") {
+        const removing = selectedIds.includes(id);
+        setSelectedEndpoint(null);
+        updateInstanceSelection(id, true);
+        setStatus(
+          removing
+            ? `Removed ${id} from the selection`
+            : `Added ${id} to the selection`,
+        );
+        return;
+      }
+      const toggleKinds = {
+        route: { ids: visualSelection.routeIds, label: "wire" },
+        junction: { ids: visualSelection.junctionIds, label: "junction" },
+        annotation: { ids: visualSelection.annotationIds, label: "label" },
+        drafting: { ids: visualSelection.draftingIds, label: "drawing" },
+      } as const;
+      if (kind in toggleKinds) {
+        const visualKind = kind as keyof typeof toggleKinds;
+        const { ids, label } = toggleKinds[visualKind];
+        const removing = ids.includes(id);
+        selectVisualObject(visualKind, id, true);
+        setStatus(
+          `${removing ? "Removed" : "Added"} ${label} ${id} ${removing ? "from" : "to"} the selection`,
+        );
+      }
+    },
     suppressInstanceClickRef: suppressInstanceClick,
     logicalRadiusForPixels,
     snapGuides: paintSnapGuides,
@@ -8441,7 +8469,14 @@ function WorkspaceEditor({
           routeHandles={{
             document,
             routeGeometryRecords,
-            selectedRouteId,
+            // Single-wire stretch/endpoint handles only apply to a lone wire
+            // selection; inside a composite region they would sit under
+            // route-hit and steal midpoint drags from the composite router.
+            selectedRouteId:
+              selectedRouteId &&
+              !compositeSelectionOwnsHit("route", selectedRouteId)
+                ? selectedRouteId
+                : null,
             selectedRouteSegmentIndex,
             routeStretchPreview,
             tool,
@@ -8560,7 +8595,10 @@ function WorkspaceEditor({
                     : wiringEndpoints,
               tool,
               selectedRoute:
-                simulationPickActive || controlPickState
+                simulationPickActive ||
+                controlPickState ||
+                (selectedRoute &&
+                  compositeSelectionOwnsHit("route", selectedRoute.id))
                   ? undefined
                   : selectedRoute,
               selectedRouteSegmentIndex,

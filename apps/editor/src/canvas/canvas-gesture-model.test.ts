@@ -28,13 +28,24 @@ describe("canvas gesture model", () => {
     ).toBeNull();
   });
 
-  it("classifies middle pan and both frame-zoom entry gestures", () => {
+  it("classifies middle pan, frame-zoom, and macOS Control+drag additive marquee", () => {
     expect(classifyCanvasGestureStart({ ...startContext, button: 1 })).toBe(
       "pan",
     );
     expect(classifyCanvasGestureStart({ ...startContext, button: 2 })).toBe(
       "zoom",
     );
+    expect(
+      classifyCanvasGestureStart({ ...startContext, button: 2, ctrlKey: true }),
+    ).toBe("select");
+    expect(
+      classifyCanvasGestureStart({
+        ...startContext,
+        button: 2,
+        ctrlKey: true,
+        altKey: true,
+      }),
+    ).toBe("zoom");
     expect(classifyCanvasGestureStart({ ...startContext, altKey: true })).toBe(
       "zoom",
     );

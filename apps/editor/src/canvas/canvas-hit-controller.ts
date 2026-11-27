@@ -14,7 +14,11 @@ import { planSelectionMove } from "../features/selection/selection-move-plan";
 import { type SelectionPolicy } from "../features/selection/selection-filter";
 import type { VisualSelection } from "../features/selection/visual-selection";
 import { rankCanvasHits, type CanvasHitKind } from "./canvas-hit-resolver";
-import { resolvePointerDownAction } from "./pointer-down-router";
+import {
+  isPrimaryOrCtrlCanvasButton,
+  resolvePointerDownAction,
+  type CompositeToggleHit,
+} from "./pointer-down-router";
 
 export interface CanvasHitControllerDependencies {
   model: {
@@ -44,11 +48,13 @@ export interface CanvasHitControllerDependencies {
       event: ReactPointerEvent<SVGElement>,
       instanceId: string,
       hitTarget: SVGElement,
+      toggleHit?: CompositeToggleHit,
     ) => void;
     beginVisualSelectionMove: (
       event: ReactPointerEvent<SVGElement>,
       selection: VisualSelection,
       hitTarget: SVGElement,
+      toggleHit?: CompositeToggleHit,
     ) => void;
     beginAnnotationDrag: (
       event: ReactPointerEvent<SVGElement>,
@@ -237,7 +243,7 @@ export function useCanvasHitController({
       !placementOwnsCanvas &&
       interactionKind !== "moving-selection" &&
       tool === "pointer" &&
-      event.button === 0 &&
+      isPrimaryOrCtrlCanvasButton(event) &&
       !handleAtPoint;
     // While a part is being placed, the hit is only looked up, to tell a
     // press on a label (which ends placement) from a press that places.
@@ -358,10 +364,15 @@ export function useCanvasHitController({
         suppressNextClick?.();
         return;
       case "begin-instance-move":
-        beginInstanceMove(event, action.instanceId, hitTarget);
+        beginInstanceMove(
+          event,
+          action.instanceId,
+          hitTarget,
+          action.toggleHit,
+        );
         return;
       case "begin-visual-selection-move":
-        beginVisualSelectionMove(event, selection, hitTarget);
+        beginVisualSelectionMove(event, selection, hitTarget, action.toggleHit);
         return;
       case "begin-annotation-drag": {
         const annotation = document.annotations.find(
