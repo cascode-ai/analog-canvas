@@ -4,6 +4,7 @@ import {
 } from "./schema/project.js";
 import {
   SchematicDocumentSchema,
+  parseOwnedDocument,
   parseOwnedRoutingDocument,
 } from "./schema/document.js";
 import { freezeSnapshot, isFrozenSnapshot } from "./immutable-snapshot.js";
@@ -15,6 +16,7 @@ import {
 } from "./snapshot-structural-sharing.js";
 import {
   hasValidatedCells,
+  rememberValidatedCell,
   rememberValidatedCells,
 } from "./validated-cells.js";
 
@@ -70,6 +72,18 @@ export function validateProjectResult(
   return result;
 }
 
+/** Validate an owned Cell once, retaining unchanged immutable rows from its validated predecessor. */
+export function prepareOwnedDocument(
+  draft: SchematicDocument,
+  source: SchematicDocument,
+) {
+  const result = parseOwnedDocument(draft, source);
+  if (!result.success || !isFrozenSnapshot(source)) return result;
+  const cell = freezeSnapshot(result.data);
+  rememberValidatedCell(cell);
+  return { success: true as const, data: cell };
+}
+
 /** Validate the Cell once and retain its exact source through Canvas commit. */
 export function prepareWireCell(
   draft: SchematicDocument,
@@ -83,6 +97,7 @@ export function prepareWireCell(
   const cell = freezeSnapshot(
     shareEqualDocumentStructure(source, result.data, changedNetIds),
   );
+  rememberValidatedCell(cell);
   if (
     project &&
     hasValidatedCells(project) &&

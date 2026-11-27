@@ -2,6 +2,7 @@ import { equalJsonValue, InstanceStyleOverrideSchema } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
+import { writableDraftRow } from "./local-transaction-draft.js";
 import type { EditMutationOutcome, RejectEdit } from "./transaction-domain.js";
 
 type InstanceStyleOverrideEdit = Extract<
@@ -36,9 +37,10 @@ export function applyInstanceStyleOverrideEdit(
 ): InstanceStyleOverrideEditOutcome {
   const { draft, changedObjectIds, reject } = context;
 
-  const instance = draft.instances.find(
+  const instanceIndex = draft.instances.findIndex(
     (candidate) => candidate.id === edit.instanceId,
   );
+  const instance = draft.instances[instanceIndex];
   if (!instance) {
     return {
       ok: false,
@@ -85,10 +87,16 @@ export function applyInstanceStyleOverrideEdit(
   }
 
   // Apply.
+  const writable = writableDraftRow(
+    draft,
+    draft.instances,
+    instance,
+    instanceIndex,
+  );
   if (newOverride === undefined) {
-    delete instance.styleOverride;
+    delete writable.styleOverride;
   } else {
-    instance.styleOverride = newOverride;
+    writable.styleOverride = newOverride;
   }
 
   changedObjectIds.add(edit.instanceId);

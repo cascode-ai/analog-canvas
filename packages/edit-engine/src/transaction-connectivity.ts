@@ -719,7 +719,8 @@ export function reconcileMosBulkAfterConnectivity(
   deferNetPrune: (netId: string) => void,
 ): boolean {
   let changed = false;
-  for (const instance of draft.instances) {
+  for (let index = 0; index < draft.instances.length; index += 1) {
+    const instance = draft.instances[index]!;
     if (instance.mosBulkBinding?.origin !== "cell-default") {
       // Imported B membership is explicit source data, so do not turn it into
       // policy ownership. A route split can nevertheless leave that B alone
@@ -740,7 +741,8 @@ export function reconcileMosBulkAfterConnectivity(
         ),
       );
       if (!detached || detached.id === target.id) continue;
-      detached.terminals = detached.terminals.filter(
+      const writableDetached = writableDraftRow(draft, draft.nets, detached);
+      writableDetached.terminals = writableDetached.terminals.filter(
         (terminal) =>
           terminal.instanceId !== instance.id || terminal.pinName !== "B",
       );
@@ -750,7 +752,10 @@ export function reconcileMosBulkAfterConnectivity(
             terminal.instanceId === instance.id && terminal.pinName === "B",
         )
       ) {
-        target.terminals.push({ instanceId: instance.id, pinName: "B" });
+        writableDraftRow(draft, draft.nets, target).terminals.push({
+          instanceId: instance.id,
+          pinName: "B",
+        });
       }
       changedObjectIds.add(detached.id);
       changedObjectIds.add(target.id);
@@ -759,7 +764,8 @@ export function reconcileMosBulkAfterConnectivity(
       continue;
     }
     if (hasExplicitMosBulkRoute(draft, instance.id)) {
-      delete instance.mosBulkBinding;
+      delete writableDraftRow(draft, draft.instances, instance, index)
+        .mosBulkBinding;
       changedObjectIds.add(instance.id);
       changed = true;
       continue;
@@ -783,14 +789,16 @@ export function reconcileMosBulkAfterConnectivity(
 
     if (!target) {
       for (const net of currentNets) {
-        net.terminals = net.terminals.filter(
+        const writableNet = writableDraftRow(draft, draft.nets, net);
+        writableNet.terminals = writableNet.terminals.filter(
           (terminal) =>
             terminal.instanceId !== instance.id || terminal.pinName !== "B",
         );
         changedObjectIds.add(net.id);
         deferNetPrune(net.id);
       }
-      delete instance.mosBulkBinding;
+      delete writableDraftRow(draft, draft.instances, instance, index)
+        .mosBulkBinding;
       changedObjectIds.add(instance.id);
       changed = true;
       continue;
@@ -798,7 +806,8 @@ export function reconcileMosBulkAfterConnectivity(
 
     for (const net of currentNets) {
       if (net.id === target.id) continue;
-      net.terminals = net.terminals.filter(
+      const writableNet = writableDraftRow(draft, draft.nets, net);
+      writableNet.terminals = writableNet.terminals.filter(
         (terminal) =>
           terminal.instanceId !== instance.id || terminal.pinName !== "B",
       );
@@ -812,12 +821,20 @@ export function reconcileMosBulkAfterConnectivity(
           terminal.instanceId === instance.id && terminal.pinName === "B",
       )
     ) {
-      target.terminals.push({ instanceId: instance.id, pinName: "B" });
+      writableDraftRow(draft, draft.nets, target).terminals.push({
+        instanceId: instance.id,
+        pinName: "B",
+      });
       changedObjectIds.add(target.id);
       changed = true;
     }
     if (instance.mosBulkBinding.netId !== target.id) {
-      instance.mosBulkBinding.netId = target.id;
+      writableDraftRow(
+        draft,
+        draft.instances,
+        instance,
+        index,
+      ).mosBulkBinding!.netId = target.id;
       changedObjectIds.add(instance.id);
       changed = true;
     }

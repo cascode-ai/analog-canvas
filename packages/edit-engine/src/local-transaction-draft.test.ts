@@ -1,12 +1,20 @@
 import {
+  CircuitProjectSchema,
   createEmptyDocument,
+  createEmptyProject,
   createRoutePath,
   freezeSnapshot,
+  isFrozenSnapshot,
+  parseProjectSnapshot,
 } from "@icm/model";
 import { builtInSymbols, InMemorySymbolResolver } from "@icm/symbols";
 import { describe, expect, it, vi } from "vitest";
 import { readTransactionDraftWork } from "./local-transaction-draft.js";
-import { executeTransaction, type SchematicEdit } from "./index.js";
+import {
+  executeProjectTransaction,
+  executeTransaction,
+  type SchematicEdit,
+} from "./index.js";
 
 const resolver = new InMemorySymbolResolver(builtInSymbols);
 
@@ -271,5 +279,217 @@ describe("local transaction drafts", () => {
     expect(executeTransaction(source, request, context)).toEqual(
       executeTransaction(pristine, request, context),
     );
+  });
+
+  it("keeps attribute and isolated transform edits local on a Cell with formal Pins and Net Labels", () => {
+    const project = createEmptyProject("labeled-proj", "Labeled Project");
+    const doc = project.documents[0]!;
+    doc.nets.push({
+      id: "net-in",
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
+    doc.junctions.push({
+      id: "j1",
+      netId: "net-in",
+      position: { x: 100, y: 0 },
+    });
+    doc.routes.push(
+      createRoutePath({
+        id: "r1",
+        netId: "net-in",
+        start: { kind: "terminal", instanceId: "P1", pinName: "P" },
+        end: { kind: "junction", junctionId: "j1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+    doc.instances.push(
+      {
+        id: "P1",
+        symbolId: "port",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      },
+      {
+        id: "R1",
+        reference: "R1",
+        symbolId: "resistor",
+        placement: {
+          position: { x: 300, y: 200 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: {
+          binding: { kind: "primitive", deviceClass: "resistor" },
+          parameters: { value: "10k" },
+        },
+      },
+    );
+    doc.netlist = {
+      name: "top",
+      terminals: [
+        {
+          id: "term-in",
+          name: "IN",
+          netId: "net-in",
+          direction: "input",
+          interfaceInstanceIds: ["P1"],
+        },
+      ],
+      formalParameters: [],
+    };
+    doc.connectivityEvidence.push({
+      id: "claim-in",
+      kind: "name-claim",
+      netId: "net-in",
+      name: "IN",
+      owner: { kind: "net-label", annotationId: "lbl-in" },
+      scope: "local",
+    });
+    doc.annotations.push(
+      {
+        id: "lbl-in",
+        kind: "net-label",
+        netId: "net-in",
+        binding: { kind: "net-name", netId: "net-in" },
+        anchor: {
+          kind: "route",
+          routeId: "r1",
+          legId: doc.routes[0]!.legs[0]!.id,
+          t: 0.5,
+          normalOffset: 10,
+          direction: "forward",
+          orientation: "horizontal",
+          fallbackPosition: { x: 50, y: 10 },
+        },
+        alignment: "middle",
+        rotation: 0,
+        locked: false,
+      },
+      {
+        id: "val-R1",
+        kind: "instance-value",
+        binding: { kind: "instance-value", instanceId: "R1" },
+        anchor: {
+          kind: "object",
+          objectId: "R1",
+          localOffset: { x: 10, y: 20 },
+          fallbackPosition: { x: 310, y: 220 },
+        },
+        alignment: "middle",
+        rotation: 0,
+        locked: false,
+      },
+    );
+    const peer = createEmptyDocument("peer", "Peer");
+    project.documents.push(peer);
+    const snapshot = parseProjectSnapshot(CircuitProjectSchema.parse(project));
+    const source = snapshot.documents[0]!;
+    const pristine = structuredClone(source);
+
+    const cases: readonly (readonly [string, SchematicEdit[]])[] = [
+      [
+        "move_instance",
+        [
+          {
+            kind: "move_instance",
+            instanceId: "R1",
+            position: { x: 320, y: 240 },
+          },
+        ],
+      ],
+      [
+        "rotate_instance",
+        [{ kind: "rotate_instance", instanceId: "R1", rotation: 90 }],
+      ],
+      [
+        "mirror_instance",
+        [{ kind: "mirror_instance", instanceId: "R1", mirror: "horizontal" }],
+      ],
+      [
+        "patch_instance_netlist_parameters",
+        [
+          {
+            kind: "patch_instance_netlist_parameters",
+            instanceId: "R1",
+            set: { value: "20k" },
+          },
+        ],
+      ],
+      [
+        "set_instance_reference",
+        [{ kind: "set_instance_reference", instanceId: "R1", reference: "R9" }],
+      ],
+      [
+        "set_instance_style_override",
+        [
+          {
+            kind: "set_instance_style_override",
+            instanceId: "R1",
+            styleOverride: { foreground: "#cc0000" },
+          },
+        ],
+      ],
+    ];
+
+    for (const [name, edits] of cases) {
+      const request = {
+        transactionId: `local-${name}`,
+        documentId: source.id,
+        expectedRevision: source.revision,
+        actor: { kind: "human", id: "editor" },
+        edits,
+      };
+      const reference = executeTransaction(structuredClone(source), request, {
+        symbolResolver: resolver,
+      });
+      const result = executeTransaction(source, request, {
+        symbolResolver: resolver,
+      });
+      expect(result.ok, name).toBe(true);
+      expect(result).toEqual(reference);
+      expect(readTransactionDraftWork(result.document)).toMatchObject({
+        mode: "local",
+      });
+      expect(isFrozenSnapshot(result.document)).toBe(false);
+
+      const owned = executeTransaction(source, request, {
+        symbolResolver: resolver,
+        resultOwnership: "owned",
+      });
+      expect(owned.ok, name).toBe(true);
+      expect(owned).toEqual(reference);
+      expect(isFrozenSnapshot(owned.document)).toBe(true);
+      expect(owned.document.instances[0]).toBe(source.instances[0]);
+      expect(owned.document.routes[0]).toBe(source.routes[0]);
+      expect(owned.document.annotations[0]).toBe(source.annotations[0]);
+
+      const projectRequest = {
+        transactionId: `ptx-${name}`,
+        projectId: snapshot.id,
+        expectedStructureRevision: snapshot.structureRevision,
+        actor: { kind: "human" as const, id: "editor" },
+        edits: [
+          {
+            kind: "transact_document" as const,
+            documentId: source.id,
+            expectedRevision: source.revision,
+            edits,
+          },
+        ],
+      };
+      const placed = executeProjectTransaction(snapshot, projectRequest, {
+        resultOwnership: "canvas-placement",
+      });
+      const detached = executeProjectTransaction(snapshot, projectRequest);
+      expect(placed.ok, name).toBe(true);
+      expect(placed).toEqual(detached);
+      if (placed.ok) {
+        expect(placed.project.documents[1]).toBe(snapshot.documents[1]);
+        expect(placed.project.documents[0]!.instances[0]).toBe(
+          source.instances[0],
+        );
+      }
+    }
+    expect(source).toEqual(pristine);
   });
 });

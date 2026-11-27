@@ -59,7 +59,7 @@ import {
   type EditActor,
   type SchematicEdit,
 } from "./edit-schema.js";
-import { executeTransaction } from "./transaction.js";
+import { applyTransaction, executeTransaction } from "./transaction.js";
 import { prepareConnectivityPhaseRead } from "./connectivity-phase-read.js";
 import { diffDocumentObjectIds } from "./history.js";
 import {
@@ -1397,23 +1397,33 @@ function applyProjectTransaction(
         )
         ? project.documents.find((item) => item.id === document.id)
         : undefined;
-    const result = executeTransaction(
-      originalPlacement ?? document,
-      {
-        transactionId: `${transaction.transactionId}-document-${editIndex}`,
-        documentId: edit.documentId,
-        expectedRevision: edit.expectedRevision,
-        actor: transaction.actor as EditActor,
-        edits: edit.edits,
-      },
-      {
-        symbolResolver: resolver,
-        externalSubcircuitDefinitions: candidate.externalSubcircuitDefinitions,
-        ...(options.preparedTransactions
-          ? { preparedTransactions: options.preparedTransactions }
-          : {}),
-      },
-    );
+    const documentRequest = {
+      transactionId: `${transaction.transactionId}-document-${editIndex}`,
+      documentId: edit.documentId,
+      expectedRevision: edit.expectedRevision,
+      actor: transaction.actor as EditActor,
+      edits: edit.edits,
+    };
+    const documentContext = {
+      symbolResolver: resolver,
+      externalSubcircuitDefinitions: candidate.externalSubcircuitDefinitions,
+      ...(options.preparedTransactions
+        ? { preparedTransactions: options.preparedTransactions }
+        : {}),
+    };
+    const result = placementDraft
+      ? applyTransaction(
+          originalPlacement ?? document,
+          documentRequest,
+          documentContext,
+          undefined,
+          true,
+        )
+      : executeTransaction(
+          originalPlacement ?? document,
+          documentRequest,
+          documentContext,
+        );
     documentResults.push(result);
     if (!result.ok) {
       return rejectProjectTransaction(

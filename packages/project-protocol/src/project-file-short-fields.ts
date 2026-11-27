@@ -9,44 +9,157 @@ function isObject(value: unknown): value is FileObject {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function visitObjects(
+function decodePointTuple(
   value: unknown,
   path: Path,
-  visit: (object: FileObject, path: Path) => void,
-): void {
-  if (!Array.isArray(value)) return;
-  value.forEach((item, index) => {
-    if (isObject(item)) visit(item, [...path, index]);
-  });
-}
-
-function convertTuple(
-  owner: FileObject,
   field: string,
-  keys: readonly string[],
-  path: Path,
-  decode: boolean,
-): void {
-  const value = owner[field];
-  if (!decode) {
-    if (isObject(value)) owner[field] = keys.map((key) => value[key]);
-    return;
-  }
+): FileObject {
   if (
     !Array.isArray(value) ||
-    value.length !== keys.length ||
-    !value.every(Number.isFinite)
-  )
+    value.length !== 2 ||
+    !Number.isFinite(value[0]) ||
+    !Number.isFinite(value[1])
+  ) {
     throw new ProjectFormatError([
       {
         code: "INVALID_PROJECT",
         path: [...path, field],
-        message: `Expected numeric [${keys.join(", ")}]`,
+        message: "Expected numeric [x, y]",
       },
     ]);
-  owner[field] = Object.fromEntries(
-    keys.map((key, index) => [key, value[index]]),
+  }
+  return { x: value[0], y: value[1] };
+}
+
+function decodeSpanEndTuple(
+  value: unknown,
+  path: Path,
+  field: string,
+): FileObject {
+  if (
+    !Array.isArray(value) ||
+    value.length !== 3 ||
+    !Number.isFinite(value[0]) ||
+    !Number.isFinite(value[1]) ||
+    !Number.isFinite(value[2])
+  ) {
+    throw new ProjectFormatError([
+      {
+        code: "INVALID_PROJECT",
+        path: [...path, field],
+        message: "Expected numeric [offset, line, column]",
+      },
+    ]);
+  }
+  return { offset: value[0], line: value[1], column: value[2] };
+}
+
+function encodePointTuple(value: unknown): unknown {
+  return isObject(value) ? [value.x, value.y] : value;
+}
+
+function encodeSpanEndTuple(value: unknown): unknown {
+  return isObject(value) ? [value.offset, value.line, value.column] : value;
+}
+
+function encodeSourceSpanCow(owner: unknown): unknown {
+  if (!isObject(owner) || !isObject(owner.sourceRef)) return owner;
+  const ref = owner.sourceRef;
+  const nextStart = encodeSpanEndTuple(ref.start);
+  const nextEnd = encodeSpanEndTuple(ref.end);
+  if (nextStart === ref.start && nextEnd === ref.end) return owner;
+  return {
+    ...owner,
+    sourceRef: { ...ref, start: nextStart, end: nextEnd },
+  };
+}
+
+function decodeSourceSpanInPlace(owner: unknown, path: Path): void {
+  if (!isObject(owner) || !isObject(owner.sourceRef)) return;
+  const spanPath = [...path, "sourceRef"];
+  owner.sourceRef.start = decodeSpanEndTuple(
+    owner.sourceRef.start,
+    spanPath,
+    "start",
   );
+  owner.sourceRef.end = decodeSpanEndTuple(
+    owner.sourceRef.end,
+    spanPath,
+    "end",
+  );
+}
+
+function encodePinCow(pin: unknown): unknown {
+  if (!isObject(pin)) return pin;
+  const nextAt = encodePointTuple(pin.at);
+  let nextRouting = pin.routing;
+  if (isObject(pin.routing) && Object.hasOwn(pin.routing, "preferredLanding")) {
+    const nextLanding = encodePointTuple(pin.routing.preferredLanding);
+    if (nextLanding !== pin.routing.preferredLanding) {
+      nextRouting = { ...pin.routing, preferredLanding: nextLanding };
+    }
+  }
+  if (nextAt === pin.at && nextRouting === pin.routing) return pin;
+  return {
+    ...pin,
+    at: nextAt,
+    ...(nextRouting !== pin.routing ? { routing: nextRouting } : {}),
+  };
+}
+
+function decodePinInPlace(pin: unknown, path: Path): void {
+  if (!isObject(pin)) return;
+  pin.at = decodePointTuple(pin.at, path, "at");
+  if (isObject(pin.routing) && Object.hasOwn(pin.routing, "preferredLanding")) {
+    pin.routing.preferredLanding = decodePointTuple(
+      pin.routing.preferredLanding,
+      [...path, "routing"],
+      "preferredLanding",
+    );
+  }
+}
+
+function encodePrimitiveCow(primitive: unknown): unknown {
+  if (!isObject(primitive)) return primitive;
+  if (primitive.kind === "line") {
+    const nextFrom = encodePointTuple(primitive.from);
+    const nextTo = encodePointTuple(primitive.to);
+    if (nextFrom === primitive.from && nextTo === primitive.to)
+      return primitive;
+    return { ...primitive, from: nextFrom, to: nextTo };
+  }
+  if (primitive.kind === "circle") {
+    const nextCenter = encodePointTuple(primitive.center);
+    if (nextCenter === primitive.center) return primitive;
+    return { ...primitive, center: nextCenter };
+  }
+  return primitive;
+}
+
+function decodePrimitiveInPlace(primitive: unknown, path: Path): void {
+  if (!isObject(primitive)) return;
+  if (primitive.kind === "line") {
+    primitive.from = decodePointTuple(primitive.from, path, "from");
+    primitive.to = decodePointTuple(primitive.to, path, "to");
+  } else if (primitive.kind === "circle") {
+    primitive.center = decodePointTuple(primitive.center, path, "center");
+  }
+}
+
+function mapCow(
+  items: unknown,
+  transform: (item: unknown) => unknown,
+): unknown {
+  if (!Array.isArray(items)) return items;
+  let copy: unknown[] | undefined;
+  for (let i = 0; i < items.length; i += 1) {
+    const next = transform(items[i]);
+    if (next !== items[i]) {
+      copy ??= items.slice();
+      copy[i] = next;
+    }
+  }
+  return copy ?? items;
 }
 
 /** Visit only the SourceSpan owners and captured Symbol fields of a Project. */
@@ -54,84 +167,173 @@ export function transformShortProjectFields(
   project: FileObject,
   decode: boolean,
 ): void {
-  function sourceSpan(owner: unknown, path: Path): void {
-    if (!isObject(owner) || !isObject(owner.sourceRef)) return;
-    const spanPath = [...path, "sourceRef"];
-    for (const end of ["start", "end"])
-      convertTuple(
-        owner.sourceRef,
-        end,
-        ["offset", "line", "column"],
-        spanPath,
-        decode,
-      );
+  if (decode) {
+    if (Array.isArray(project.documents)) {
+      for (let i = 0; i < project.documents.length; i += 1) {
+        const document = project.documents[i];
+        if (!isObject(document)) continue;
+        const path: Path = ["documents", i];
+        for (const field of ["layoutGroups", "constraints", "noConnects"]) {
+          if (!Object.hasOwn(document, field)) document[field] = [];
+        }
+        decodeSourceSpanInPlace(document.sourceBinding, [
+          ...path,
+          "sourceBinding",
+        ]);
+        if (Array.isArray(document.instances)) {
+          for (let j = 0; j < document.instances.length; j += 1) {
+            const instance = document.instances[j];
+            if (isObject(instance) && isObject(instance.sourceRef)) {
+              decodeSourceSpanInPlace(instance, [...path, "instances", j]);
+            }
+          }
+        }
+        if (Array.isArray(document.connectivityEvidence)) {
+          for (let j = 0; j < document.connectivityEvidence.length; j += 1) {
+            const evidence = document.connectivityEvidence[j];
+            if (isObject(evidence) && evidence.kind === "spice-source") {
+              decodeSourceSpanInPlace(evidence, [
+                ...path,
+                "connectivityEvidence",
+                j,
+              ]);
+            }
+          }
+        }
+      }
+    }
+    if (Array.isArray(project.componentDefinitions)) {
+      for (let i = 0; i < project.componentDefinitions.length; i += 1) {
+        const definition = project.componentDefinitions[i];
+        if (!isObject(definition) || !isObject(definition.symbol)) continue;
+        const symbol = definition.symbol;
+        const symbolPath: Path = ["componentDefinitions", i, "symbol"];
+        if (Array.isArray(symbol.pins)) {
+          for (let j = 0; j < symbol.pins.length; j += 1) {
+            decodePinInPlace(symbol.pins[j], [...symbolPath, "pins", j]);
+          }
+        }
+        if (Array.isArray(symbol.primitives)) {
+          for (let j = 0; j < symbol.primitives.length; j += 1) {
+            decodePrimitiveInPlace(symbol.primitives[j], [
+              ...symbolPath,
+              "primitives",
+              j,
+            ]);
+          }
+        }
+        if (Array.isArray(symbol.variants)) {
+          for (let v = 0; v < symbol.variants.length; v += 1) {
+            const variant = symbol.variants[v];
+            if (!isObject(variant)) continue;
+            const variantPath = [...symbolPath, "variants", v];
+            if (Array.isArray(variant.auxiliaryPins)) {
+              for (let j = 0; j < variant.auxiliaryPins.length; j += 1) {
+                decodePinInPlace(variant.auxiliaryPins[j], [
+                  ...variantPath,
+                  "auxiliaryPins",
+                  j,
+                ]);
+              }
+            }
+            if (Array.isArray(variant.additionalPrimitives)) {
+              for (let j = 0; j < variant.additionalPrimitives.length; j += 1) {
+                decodePrimitiveInPlace(variant.additionalPrimitives[j], [
+                  ...variantPath,
+                  "additionalPrimitives",
+                  j,
+                ]);
+              }
+            }
+          }
+        }
+      }
+    }
+    return;
   }
 
-  visitObjects(project.documents, ["documents"], (document, path) => {
-    for (const field of ["layoutGroups", "constraints", "noConnects"]) {
-      const value = document[field];
-      if (decode && !Object.hasOwn(document, field)) document[field] = [];
-      if (!decode && Array.isArray(value) && value.length === 0)
-        delete document[field];
+  // Encode path: copy-on-write for any fields that may be shared with frozen input.
+  if (Array.isArray(project.documents)) {
+    for (const document of project.documents) {
+      if (!isObject(document)) continue;
+      for (const field of ["layoutGroups", "constraints", "noConnects"]) {
+        const value = document[field];
+        if (Array.isArray(value) && value.length === 0) delete document[field];
+      }
+      if (document.sourceBinding !== undefined) {
+        document.sourceBinding = encodeSourceSpanCow(document.sourceBinding);
+      }
+      if (Array.isArray(document.instances)) {
+        for (let i = 0; i < document.instances.length; i += 1) {
+          const instance = document.instances[i];
+          if (isObject(instance) && isObject(instance.sourceRef)) {
+            document.instances[i] = encodeSourceSpanCow(instance);
+          }
+        }
+      }
+      if (Array.isArray(document.connectivityEvidence)) {
+        document.connectivityEvidence = mapCow(
+          document.connectivityEvidence,
+          (evidence) =>
+            isObject(evidence) && evidence.kind === "spice-source"
+              ? encodeSourceSpanCow(evidence)
+              : evidence,
+        );
+      }
     }
-    sourceSpan(document.sourceBinding, [...path, "sourceBinding"]);
-    visitObjects(document.instances, [...path, "instances"], sourceSpan);
-    visitObjects(
-      document.connectivityEvidence,
-      [...path, "connectivityEvidence"],
-      (evidence, evidencePath) => {
-        if (evidence.kind === "spice-source")
-          sourceSpan(evidence, evidencePath);
+  }
+
+  if (Array.isArray(project.componentDefinitions)) {
+    project.componentDefinitions = mapCow(
+      project.componentDefinitions,
+      (definition) => {
+        if (!isObject(definition) || !isObject(definition.symbol))
+          return definition;
+        const symbol = definition.symbol;
+        const nextPins = mapCow(symbol.pins, encodePinCow);
+        const nextPrimitives = mapCow(symbol.primitives, encodePrimitiveCow);
+        const nextVariants = mapCow(symbol.variants, (variant) => {
+          if (!isObject(variant)) return variant;
+          const nextAux = mapCow(variant.auxiliaryPins, encodePinCow);
+          const nextAdd = mapCow(
+            variant.additionalPrimitives,
+            encodePrimitiveCow,
+          );
+          if (
+            nextAux === variant.auxiliaryPins &&
+            nextAdd === variant.additionalPrimitives
+          )
+            return variant;
+          return {
+            ...variant,
+            ...(nextAux !== variant.auxiliaryPins
+              ? { auxiliaryPins: nextAux }
+              : {}),
+            ...(nextAdd !== variant.additionalPrimitives
+              ? { additionalPrimitives: nextAdd }
+              : {}),
+          };
+        });
+        if (
+          nextPins === symbol.pins &&
+          nextPrimitives === symbol.primitives &&
+          nextVariants === symbol.variants
+        )
+          return definition;
+        return {
+          ...definition,
+          symbol: {
+            ...symbol,
+            ...(nextPins !== symbol.pins ? { pins: nextPins } : {}),
+            ...(nextPrimitives !== symbol.primitives
+              ? { primitives: nextPrimitives }
+              : {}),
+            ...(nextVariants !== symbol.variants
+              ? { variants: nextVariants }
+              : {}),
+          },
+        };
       },
     );
-  });
-
-  function pin(pin: FileObject, path: Path): void {
-    convertTuple(pin, "at", ["x", "y"], path, decode);
-    if (isObject(pin.routing) && Object.hasOwn(pin.routing, "preferredLanding"))
-      convertTuple(
-        pin.routing,
-        "preferredLanding",
-        ["x", "y"],
-        [...path, "routing"],
-        decode,
-      );
   }
-
-  function primitive(primitive: FileObject, path: Path): void {
-    if (primitive.kind === "line") {
-      convertTuple(primitive, "from", ["x", "y"], path, decode);
-      convertTuple(primitive, "to", ["x", "y"], path, decode);
-    }
-    if (primitive.kind === "circle")
-      convertTuple(primitive, "center", ["x", "y"], path, decode);
-  }
-
-  visitObjects(
-    project.componentDefinitions,
-    ["componentDefinitions"],
-    (definition, path) => {
-      const symbol = definition.symbol;
-      if (!isObject(symbol)) return;
-      const symbolPath = [...path, "symbol"];
-      visitObjects(symbol.pins, [...symbolPath, "pins"], pin);
-      visitObjects(symbol.primitives, [...symbolPath, "primitives"], primitive);
-      visitObjects(
-        symbol.variants,
-        [...symbolPath, "variants"],
-        (variant, variantPath) => {
-          visitObjects(
-            variant.auxiliaryPins,
-            [...variantPath, "auxiliaryPins"],
-            pin,
-          );
-          visitObjects(
-            variant.additionalPrimitives,
-            [...variantPath, "additionalPrimitives"],
-            primitive,
-          );
-        },
-      );
-    },
-  );
 }

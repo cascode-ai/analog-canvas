@@ -7,11 +7,13 @@ import {
 } from "@icm/devices";
 import {
   equalJsonValue,
+  isFrozenSnapshot,
   isPowerMarkerSymbol,
   type SchematicDocument,
 } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
+import { writableDraftRow } from "./local-transaction-draft.js";
 import type { EditMutationOutcome, RejectEdit } from "./transaction-domain.js";
 import {
   refreshInstanceReferenceAnnotation,
@@ -92,9 +94,10 @@ export function applyInstanceNetlistEdit(
 
   switch (edit.kind) {
     case "patch_instance_netlist_parameters": {
-      const instance = draft.instances.find(
+      const instanceIndex = draft.instances.findIndex(
         (candidate) => candidate.id === edit.instanceId,
       );
+      const instance = draft.instances[instanceIndex];
       if (!instance) {
         return {
           ok: false,
@@ -145,8 +148,6 @@ export function applyInstanceNetlistEdit(
           ),
         };
       }
-      const before: SchematicDocument["instances"][number] =
-        structuredClone(instance);
       const netlist = instance.netlist;
       if (!netlist) {
         return {
@@ -198,7 +199,18 @@ export function applyInstanceNetlistEdit(
           ),
         };
       }
-      netlist.parameters = nextParameters;
+      const before: SchematicDocument["instances"][number] = isFrozenSnapshot(
+        instance,
+      )
+        ? instance
+        : structuredClone(instance);
+      const writable = writableDraftRow(
+        draft,
+        draft.instances,
+        instance,
+        instanceIndex,
+      );
+      writable.netlist!.parameters = nextParameters;
       refreshInstanceValueAnnotation(
         draft,
         before,
@@ -210,9 +222,10 @@ export function applyInstanceNetlistEdit(
       return { ok: true, connectivityChanged: false };
     }
     case "set_instance_reference": {
-      const instance = draft.instances.find(
+      const instanceIndex = draft.instances.findIndex(
         (candidate) => candidate.id === edit.instanceId,
       );
+      const instance = draft.instances[instanceIndex];
       if (!instance) {
         return {
           ok: false,
@@ -261,9 +274,18 @@ export function applyInstanceNetlistEdit(
           ),
         };
       }
-      const before: SchematicDocument["instances"][number] =
-        structuredClone(instance);
-      instance.reference = edit.reference;
+      const before: SchematicDocument["instances"][number] = isFrozenSnapshot(
+        instance,
+      )
+        ? instance
+        : structuredClone(instance);
+      const writable = writableDraftRow(
+        draft,
+        draft.instances,
+        instance,
+        instanceIndex,
+      );
+      writable.reference = edit.reference;
       context.references?.invalidate();
       const failure = referencePolicyFailure(
         draft,
