@@ -30,3 +30,5 @@ export * from "./identifier-text.js";
 export * from "./label-typography.js";
 export * from "./signal-expression.js";
 export * from "./supply-port-symbol.js";
+
+export { isValidatedCell } from "./validated-cells.js";

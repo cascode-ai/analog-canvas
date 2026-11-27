@@ -1,3 +1,4 @@
+import { selectWireSubgraph } from "./wire-subgraph.js";
 import {
   createTransactionDraft,
   recordTransactionDraftWork,
@@ -811,6 +812,13 @@ export function applyTransaction(
       routeEdits,
       resolver,
       changedObjectIds,
+      selectWireSubgraph(
+        document,
+        draft,
+        context,
+        transaction.edits,
+        changedObjectIds,
+      ),
     );
     if (!rebuilt.ok)
       return rejectTransaction(
@@ -1269,10 +1277,22 @@ export function applyTransaction(
       resolver,
       originalEndpointLookup,
     );
+    const inWireSubgraph =
+      invalidatedBulkDefault || reconciledBulkConnectivity
+        ? undefined
+        : selectWireSubgraph(
+            document,
+            draft,
+            context,
+            transaction.edits,
+            new Set([...changedObjectIds, ...changedRouteIds]),
+          );
     const originalRoutes = new Map(
       document.routes
         .filter(
-          (route) => !routeValidationIds || routeValidationIds.has(route.id),
+          (route) =>
+            (!inWireSubgraph || inWireSubgraph(route)) &&
+            (!routeValidationIds || routeValidationIds.has(route.id)),
         )
         .map((route) => [route.id, route]),
     );
@@ -1283,6 +1303,7 @@ export function applyTransaction(
       finalEndpointLookup,
     );
     for (const route of draft.routes) {
+      if (inWireSubgraph && !inWireSubgraph(route)) continue;
       if (
         routeValidationIds &&
         !routeValidationIds.has(route.id) &&
