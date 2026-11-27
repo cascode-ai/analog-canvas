@@ -215,6 +215,23 @@
   padding: 0 3px;
 }
 
+.reference-panel-link {
+  color: var(--icm-accent);
+  text-decoration: none;
+}
+
+.reference-panel-link:hover {
+  text-decoration: underline;
+}
+
+.reference-panel-subcomponents {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 /* The reference picture's own heading, under the facts; the line above it
    is the facts' own, and the picture follows with none between. */
 .reference-panel-caption {

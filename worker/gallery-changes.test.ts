@@ -139,7 +139,7 @@ describe("Gallery change feed", () => {
       },
     } as never;
     db.exec(
-      "CREATE TABLE gallery_entries (id TEXT PRIMARY KEY, name TEXT, author TEXT, description TEXT, created_at TEXT, owner_user_id TEXT, schema_version INTEGER, tags TEXT, curation_json TEXT, netlistable INTEGER, preview_revision TEXT, preview_width REAL, preview_height REAL, component_count INTEGER, ai_generated INTEGER, status TEXT, project_text TEXT, svg_text TEXT)",
+      "CREATE TABLE gallery_entries (id TEXT PRIMARY KEY, name TEXT, author TEXT, description TEXT, created_at TEXT, owner_user_id TEXT, schema_version INTEGER, tags TEXT, curation_json TEXT, netlistable INTEGER, preview_revision TEXT, preview_width REAL, preview_height REAL, component_count INTEGER, ai_generated INTEGER, parent_entry_id TEXT, status TEXT, project_text TEXT, svg_text TEXT)",
     );
     db.exec(
       "CREATE TABLE entry_references (entry_id TEXT PRIMARY KEY, revision TEXT)",
@@ -161,5 +161,11 @@ describe("Gallery change feed", () => {
         .prepare("SELECT seq FROM gallery_entry_changes WHERE entry_id = 'a'")
         .get(),
     ).toEqual({ seq: 3 });
+    db.exec("UPDATE gallery_entries SET parent_entry_id = 'b' WHERE id = 'a'");
+    expect(
+      db
+        .prepare("SELECT seq FROM gallery_entry_changes WHERE entry_id = 'a'")
+        .get(),
+    ).toEqual({ seq: 4 });
   });
 });

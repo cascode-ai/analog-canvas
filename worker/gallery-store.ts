@@ -174,6 +174,12 @@ export type GalleryEnv = {
   ADMIN_EMAILS_EXTRA?: string;
 };
 
+/** Another Gallery entry linked as parent or extracted subcomponent (#2658). */
+export interface GalleryRelatedEntry {
+  id: string;
+  name: string;
+}
+
 export interface GalleryEntrySummary {
   curationRevision: number;
   attention?: GalleryAttention;
@@ -221,6 +227,14 @@ export interface GalleryEntrySummary {
   simVerified?: boolean;
   /** Its author gave a reference image, the figure it was drawn from (#2129). */
   hasReference?: boolean;
+  /** Parent circuit id when this entry is an extracted subcomponent (#2658). */
+  parentEntryId?: string;
+  /** Public parent circuit summary when this entry is a subcomponent (#2658). */
+  parentEntry?: GalleryRelatedEntry;
+  /** Public extracted subcomponents of this parent entry (detail reads). */
+  subcomponents?: GalleryRelatedEntry[];
+  /** Number of public extracted subcomponents on this parent entry (wall tiles). */
+  subcomponentCount?: number;
   likes: number;
   /** Whether the requesting account has liked it; false when signed out. */
   likedByViewer: boolean;
@@ -293,6 +307,7 @@ export interface EntryRow {
   preview_revision: string;
   preview_width: number | null;
   preview_height: number | null;
+  parent_entry_id?: string | null;
 }
 
 /**
@@ -335,7 +350,10 @@ export type EntrySummaryRow = Pick<
   Partial<
     Pick<
       EntryRow,
-      "ai_generated" | "component_count" | "component_count_version"
+      | "ai_generated"
+      | "component_count"
+      | "component_count_version"
+      | "parent_entry_id"
     >
   >;
 
@@ -385,6 +403,7 @@ export function summaryOf(
     ...(row.component_count_version && row.component_count !== undefined
       ? { componentCount: row.component_count }
       : {}),
+    ...(row.parent_entry_id ? { parentEntryId: row.parent_entry_id } : {}),
     likes: row.likes ?? 0,
     likedByViewer: (row.liked_by_viewer ?? 0) === 1,
   };

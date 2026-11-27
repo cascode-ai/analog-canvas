@@ -5,6 +5,7 @@ import type { LibraryProjectExample } from "../../examples/library-examples";
 import type { SchematicClipboard } from "../clipboard/clipboard";
 import { GRID_INCOMPATIBLE } from "../clipboard/paste-proposal";
 import { OFFLINE_FAILURE, requestFailureOf } from "../../request-failure";
+import type { GalleryRelatedEntry } from "../../gallery-client";
 import { captureGalleryDrawing, prepareGalleryProject } from "./gallery-import";
 
 export interface GalleryEntryContext {
@@ -22,6 +23,12 @@ export interface GalleryEntryContext {
    * absent when not known, as in a context kept from before it was said.
    */
   hasReference?: boolean;
+  /** Parent circuit id when this entry is a subcomponent of a drawn block (#2658). */
+  parentEntryId?: string;
+  /** Public parent circuit link when this entry is a subcomponent (#2658). */
+  parentEntry?: GalleryRelatedEntry;
+  /** Public subcomponents extracted from this circuit (#2658). */
+  subcomponents?: readonly GalleryRelatedEntry[];
   /**
    * SHA-256 of the stored text this copy was opened from, so a later visit
    * can tell whether the Gallery has changed the entry since.
@@ -55,6 +62,9 @@ interface GalleryEntryPayload {
     tags?: string[];
     aiGenerated?: boolean;
     hasReference?: boolean;
+    parentEntryId?: string;
+    parentEntry?: GalleryRelatedEntry;
+    subcomponents?: GalleryRelatedEntry[];
   };
   ownerUserId?: string | null;
   projectText?: string;
@@ -187,6 +197,15 @@ export function createGalleryExampleCommands({
       aiGenerated: payload.entry?.aiGenerated === true,
       ...(payload.entry
         ? { hasReference: payload.entry.hasReference === true }
+        : {}),
+      ...(payload.entry?.parentEntryId
+        ? { parentEntryId: payload.entry.parentEntryId }
+        : {}),
+      ...(payload.entry?.parentEntry
+        ? { parentEntry: payload.entry.parentEntry }
+        : {}),
+      ...(payload.entry?.subcomponents?.length
+        ? { subcomponents: payload.entry.subcomponents }
         : {}),
       ...(sourceDigest ? { sourceDigest } : {}),
     };

@@ -830,6 +830,48 @@ export function ReferenceWindow({
               <dt>Contributor</dt>
               <dd>{entry.author.trim() || "Unknown contributor"}</dd>
             </div>
+            {dataset ? (
+              <div>
+                <dt>License</dt>
+                <dd>{dataset.license}</dd>
+              </div>
+            ) : null}
+            {entry.parentEntry ? (
+              <div>
+                <dt>Parent</dt>
+                <dd>
+                  <a
+                    className="reference-panel-link"
+                    data-testid="reference-parent-link"
+                    href={`/g/${encodeURIComponent(entry.parentEntry.id)}`}
+                  >
+                    {entry.parentEntry.name}
+                  </a>
+                </dd>
+              </div>
+            ) : null}
+            {entry.subcomponents?.length ? (
+              <div>
+                <dt>Subcomponents</dt>
+                <dd>
+                  <ul
+                    className="reference-panel-subcomponents"
+                    data-testid="reference-subcomponents"
+                  >
+                    {entry.subcomponents.map((sub) => (
+                      <li key={sub.id}>
+                        <a
+                          className="reference-panel-link"
+                          href={`/g/${encodeURIComponent(sub.id)}`}
+                        >
+                          {sub.name}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </dd>
+              </div>
+            ) : null}
           </dl>
         ) : null}
       </div>

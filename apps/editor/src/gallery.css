@@ -484,7 +484,8 @@
   color: var(--icm-accent);
 }
 
-.gallery-tile-author {
+.gallery-tile-author,
+.gallery-tile-parent {
   padding: 0;
   border: none;
   color: inherit;
@@ -1128,6 +1129,12 @@
 .gallery-tile-origin {
   color: #7a4f00;
   background: #f6ecd8;
+}
+
+/* Extracted from a drawn block of a parent entry (#2658). */
+.gallery-tile-subcomponent {
+  color: #4c3a8a;
+  background: #ede9fa;
 }
 
 .gallery-tile-like {

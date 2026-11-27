@@ -118,6 +118,21 @@ export async function handleSourceImport(
       results.push(refuse("invalid-id"));
       continue;
     }
+    let parentEntryId: string | null | undefined;
+    if (item.parentEntryId === null) {
+      parentEntryId = null;
+    } else if (item.parentEntryId !== undefined) {
+      if (
+        typeof item.parentEntryId !== "string" ||
+        item.parentEntryId.length === 0 ||
+        item.parentEntryId === id ||
+        gallerySourceOfEntryId(item.parentEntryId)?.key !== source.key
+      ) {
+        results.push(refuse("invalid-parent"));
+        continue;
+      }
+      parentEntryId = item.parentEntryId;
+    }
     const name = fieldText(item.name, GALLERY_MAX_NAME_LENGTH);
     const description =
       item.description === undefined
@@ -173,10 +188,17 @@ export async function handleSourceImport(
         netlistable: designExtractsNetlist(project) ? 1 : 0,
         componentCount: galleryComponentCount(project),
         tags: wrapTags(sanitizeGalleryTags(item.tags)),
+        ...(parentEntryId !== undefined ? { parentEntryId } : {}),
       },
     );
     results.push(
-      status === 200 ? { ...payload, ok: true } : refuse(`http-${status}`),
+      status === 200
+        ? { ...payload, ok: true }
+        : refuse(
+            payload?.error === "invalid-parent"
+              ? "invalid-parent"
+              : `http-${status}`,
+          ),
     );
   }
   return Response.json({ source: source.key, results });

@@ -38,6 +38,7 @@ export function GalleryWallEmpty({
     withoutReference: withoutReferenceOnly,
     sim: simOnly,
     ai: aiFilter,
+    subcomponents: subcomponentsFilter,
     liked: likedOnly,
     parts: selectedParts,
   } = filters;
@@ -56,6 +57,7 @@ export function GalleryWallEmpty({
         withoutNetlistOnly ||
         simOnly ||
         aiFilter !== null ||
+        subcomponentsFilter !== null ||
         likedOnly
           ? "No circuits match these filters."
           : narrowedToAuthor
@@ -81,6 +83,7 @@ export function GalleryWallEmpty({
       !withoutNetlistOnly &&
       !simOnly &&
       aiFilter === null &&
+      subcomponentsFilter === null &&
       !likedOnly &&
       selectedParts.length > 0 ? (
         <p className="gallery-status" data-testid="gallery-parts-empty">
@@ -92,16 +95,23 @@ export function GalleryWallEmpty({
         withoutNetlistOnly ||
         simOnly ||
         aiFilter !== null ||
+        subcomponentsFilter !== null ||
         likedOnly) ? (
         <p className="gallery-status" data-testid="gallery-mark-empty">
           {likedOnly && !signedIn
             ? "Sign in to collect the circuits you like."
-            : likedOnly && netlistableOnly
+            : likedOnly &&
+                netlistableOnly &&
+                subcomponentsFilter === null &&
+                !simOnly &&
+                aiFilter === null
               ? "None of the circuits you liked extracts to a netlist yet."
               : likedOnly &&
+                  !netlistableOnly &&
                   !withoutNetlistOnly &&
                   !simOnly &&
-                  aiFilter === null
+                  aiFilter === null &&
+                  subcomponentsFilter === null
                 ? "You have not liked any circuits yet."
                 : likedOnly ||
                     [
@@ -109,6 +119,7 @@ export function GalleryWallEmpty({
                       withoutNetlistOnly,
                       simOnly,
                       aiFilter !== null,
+                      subcomponentsFilter !== null,
                     ].filter(Boolean).length > 1
                   ? "No circuits match these filters."
                   : netlistableOnly
@@ -117,11 +128,15 @@ export function GalleryWallEmpty({
                       ? "Every circuit here extracts to a netlist."
                       : simOnly
                         ? "No circuits here pass the simulation check yet."
-                        : aiFilter === "ai"
-                          ? "No AI-generated circuits here yet."
-                          : aiFilter === "dataset"
-                            ? "No dataset circuits here yet."
-                            : "No circuits made by hand here yet."}
+                        : subcomponentsFilter === "only"
+                          ? "No subcomponents here yet."
+                          : subcomponentsFilter === "hide"
+                            ? "No top-level circuits here yet."
+                            : aiFilter === "ai"
+                              ? "No AI-generated circuits here yet."
+                              : aiFilter === "dataset"
+                                ? "No dataset circuits here yet."
+                                : "No circuits made by hand here yet."}
         </p>
       ) : null}
       {!galleryFiltersNarrowQuery(filters) ? (

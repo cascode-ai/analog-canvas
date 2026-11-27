@@ -348,6 +348,9 @@ export class GalleryDO {
       "ALTER TABLE gallery_entries ADD COLUMN preview_width REAL",
       "ALTER TABLE gallery_entries ADD COLUMN preview_height REAL",
       "ALTER TABLE gallery_entries ADD COLUMN ai_generated INTEGER NOT NULL DEFAULT 0",
+      // Parent circuit id when this entry is a subcomponent extracted from a
+      // drawn block cell of a parent entry (#2658); NULL for top-level entries.
+      "ALTER TABLE gallery_entries ADD COLUMN parent_entry_id TEXT",
       // A like's hearts: one, but for the Owner's accounts, which may give
       // more (toggleLike).
       "ALTER TABLE gallery_likes ADD COLUMN hearts INTEGER NOT NULL DEFAULT 1",
@@ -381,11 +384,35 @@ export class GalleryDO {
     this.sql.exec("DROP INDEX IF EXISTS idx_gallery_entries_feed_stats");
     this.sql.exec("DROP INDEX IF EXISTS idx_gallery_entries_feed_stats_parts");
     this.sql.exec("DROP INDEX IF EXISTS idx_gallery_entries_feed_stats_ai");
+    const ensureCoveringIndex = (
+      name: string,
+      requiredColumn: string,
+      createSql: string,
+    ) => {
+      const existing = this.sql
+        .exec<{ sql: string | null }>(
+          "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
+          name,
+        )
+        .toArray()[0]?.sql;
+      if (existing && !existing.includes(requiredColumn)) {
+        this.sql.exec(`DROP INDEX IF EXISTS ${name}`);
+      }
+      this.sql.exec(createSql);
+    };
+    ensureCoveringIndex(
+      "idx_gallery_entries_feed_stats_wall",
+      "parent_entry_id",
+      `CREATE INDEX IF NOT EXISTS idx_gallery_entries_feed_stats_wall
+       ON gallery_entries(status, owner_user_id, author, netlistable,
+         ai_generated, parent_entry_id, tags, curation_json, component_count,
+         component_count_version, created_at, name)`,
+    );
+    // Looks up a parent entry's public subcomponents and counts without
+    // scanning gallery_entries rows (#2658).
     this.sql.exec(`
-      CREATE INDEX IF NOT EXISTS idx_gallery_entries_feed_stats_wall
-      ON gallery_entries(status, owner_user_id, author, netlistable,
-        ai_generated, tags, curation_json, component_count,
-        component_count_version, created_at, name)
+      CREATE INDEX IF NOT EXISTS idx_gallery_entries_parent
+      ON gallery_entries(parent_entry_id, status, name, id)
     `);
     // Each entry's latest simulation check and the queue of checks (#1545).
     installSimulationChecks(this.sql);
@@ -407,13 +434,16 @@ export class GalleryDO {
     // it here, never the row, whose card fields sit behind its Project and
     // preview (about 100 kB, some 25 pages each; 30 cold tiles took about
     // 0.8 s on Production, 2026-10-13).
-    this.sql.exec(`
-      CREATE INDEX IF NOT EXISTS idx_gallery_entries_card
-      ON gallery_entries(id, status, name, author, description, created_at,
-        owner_user_id, schema_version, tags, curation_json, netlistable,
-        preview_revision, preview_width, preview_height, component_count,
-        component_count_version, ai_generated, simulation_check_json)
-    `);
+    ensureCoveringIndex(
+      "idx_gallery_entries_card",
+      "parent_entry_id",
+      `CREATE INDEX IF NOT EXISTS idx_gallery_entries_card
+       ON gallery_entries(id, status, name, author, description, created_at,
+         owner_user_id, schema_version, tags, curation_json, netlistable,
+         preview_revision, preview_width, preview_height, component_count,
+         component_count_version, ai_generated, simulation_check_json,
+         parent_entry_id)`,
+    );
     syncAiSeatBylines(this.state);
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS data_migrations (

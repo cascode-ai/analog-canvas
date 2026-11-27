@@ -48,7 +48,8 @@ ai-train=yes` and `Disallow: /g/`. `llms.txt` names the download script and
   Gallery tool and the HTTP Agent operation point to `llms.txt`.
 - `scripts/gallery-download.mjs` (Node 18 or newer, no account or install)
   downloads every public circuit, oldest first, or those its filters select:
-  `--source`, `--q`, `--tags`, `--author`, `--parts`, `--netlistable`, and
+  `--source`, `--q`, `--tags`, `--author`, `--parts`, `--netlistable`,
+  `--subcomponents`, and
   `--url` with a wall link's filters (the link's `netlist` is the list's
   `netlistable`; a link needing a signed-in reader is refused). It writes
   `index.json` (the list's entries) and `entries/<id>.json`
@@ -103,7 +104,8 @@ entries, keyset cursor, limit ≤60.
   `author` (byline, ignoring ASCII letter case) or `owner` (account),
   `tags=a,b` (ANY), `netlistable=0|1`,
   `ai=1|0|dataset` (the AI mark; community circuits without it; reference
-  datasets' circuits), `reference=0` (no reference image from its author; not
+  datasets' circuits), `subcomponents=1|0` (only subcomponents extracted from
+  drawn blocks, or hide them to show top-level circuits only), `reference=0` (no reference image from its author; not
   offered on a dataset's wall), `sim=1` (the Sim mark; honored only for a
   viewer who sees every mark, so before `publicFrom` only for an Owner
   account, else ignored; not offered on a dataset's wall), `liked=1` (signed
@@ -116,7 +118,7 @@ entries, keyset cursor, limit ≤60.
   the covering metadata index and its tiles read off the card index, never
   the rows behind their Projects and previews.
 - `filterCounts` gives each side (`netlistable`/`withoutNetlist`,
-  `ai`/`human`/`datasets`), size (`componentRanges`) and reason
+  `ai`/`human`/`datasets`, `subcomponents`/`topLevel`), size (`componentRanges`) and reason
   (`attentionKinds`) with every other filter applied and its own left out, and
   `liked`, `attention`, `withoutReference` and `sim` (only where `sim=1` is
   honored) over the wall as filtered; the
@@ -128,7 +130,13 @@ entries, keyset cursor, limit ≤60.
   preview is stored or scaled), `netlistable`, `aiGenerated: true` (publisher's word;
   else omitted), `simVerified: true` (allowed viewers only), `componentCount`
   (top-Cell parts, a subcircuit once; not Ports, markers, drafting or undrawn
-  Instances), `likes`, `likedByViewer`.
+  Instances), `parentEntryId` and `parentEntry` (`{id, name}`, when the entry
+  is a public subcomponent of a drawn block), `subcomponents` (`[{id, name}]`)
+  and `subcomponentCount` (on wall reads, when non-empty), `likes`,
+  `likedByViewer`. Wall tiles show `Subcomponent` as a side mark next to
+  circuit-type tags and link bidirectionally with their parent and
+  subcomponents (and in Project Info and the phone view, keeping the dataset
+  license where applicable).
 - `netlistable` is `designExtractsNetlist` at the editor's export standard:
   missing models leave it; an empty top Cell or reachable empty local child
   Cell (no extracted devices), a missing MOS body, unresolved required pin or
@@ -256,7 +264,11 @@ preloads it. "Open the editor anyway" opens it for that tab
   `public`: `name` (trimmed, ≤120), `description` (≤1000), `tags` (lowercase
   `[a-z0-9 +/-]`, ≤32 chars, ≤12, deduplicated; `sanitizeGalleryTags` is the one
   normalization), `projectText` (≤2 MiB), optional boolean `aiGenerated` (else
-  `invalid-fields`). Answers 201 `{id, status, previewRevision}`.
+  `invalid-fields`), optional community `parentEntryId` (public, top-level
+  community parent; requires owning the parent or curator/Owner privileges,
+  else 403 `forbidden`, and inherits the parent's `author`, `owner_user_id`
+  and default `aiGenerated`; unknown, non-community or nested parent answers
+  400 `invalid-parent`). Answers 201 `{id, status, previewRevision}`.
 - A session is the whole gate; quality advice never vetoes. `author` is the
   session display name; updates never re-attribute except AI take-over.
 - One veto: drafting in the white sheet's own color (stroke or fill, every
@@ -557,8 +569,11 @@ simulator, reason?, origin?, folders}` with per-Spec condition, value, unit and
   or `Authorization: Bearer <Owner token>` without the same-origin check; 401
   without either, 403 `owner-only` once the account is no longer an Owner
   account): `{entries: [{id, name, description?, tags?, projectText,
-createdAt?}]}` (≤10), validated like submissions with the prefix
-  (`invalid-id`); existing ids are replaced in place (version kept); per-entry
+createdAt?, parentEntryId?}]}` (≤10), validated like submissions with the prefix
+  (`invalid-id`; optional `parentEntryId` names a public top-level parent in
+  the same dataset store and refuses nesting an existing parent, else
+  `invalid-parent`; `null` clears an existing link and omitting it preserves
+  it on update); existing ids are replaced in place (version kept); per-entry
   `{id, ok, created, previewRevision}` or `{id, ok: false, error}`. Imports
   post from the CLI with `pnpm gallery:import-batches … --post`
   ([Batch drawing](../agent/batch-drawing.md)).

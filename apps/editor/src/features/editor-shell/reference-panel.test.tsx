@@ -312,3 +312,58 @@ it("keeps an author's saved picture for a tab restored later", async () => {
     vi.doUnmock("../../reference-image");
   }
 });
+
+it("shows dataset license and bidirectional parent/subcomponent links in Project Info (#2658)", async () => {
+  editorPage();
+  const missingFigure = (async () =>
+    Response.json({ error: "not-found" }, { status: 404 })) as typeof fetch;
+  const childEntry: GalleryEntryContext = {
+    id: "ag-1070-cp",
+    name: "AnalogGenie #1070 · Charge Pump",
+    projectId: "p-child",
+    ownerUserId: null,
+    author: "AnalogGenie (redrawn)",
+    description: "",
+    tags: ["charge pump"],
+    hasReference: false,
+    parentEntryId: "ag-1070",
+    parentEntry: { id: "ag-1070", name: "AnalogGenie #1070" },
+  };
+  const { panel } = await show({
+    openings: 1,
+    entry: childEntry,
+    fetchLike: missingFigure,
+  });
+  expect(panel().textContent).toContain("MIT");
+  const parentLink = panel().querySelector<HTMLAnchorElement>(
+    '[data-testid="reference-parent-link"]',
+  );
+  expect(parentLink?.getAttribute("href")).toBe("/g/ag-1070");
+  expect(parentLink?.textContent).toBe("AnalogGenie #1070");
+  await unmount?.();
+  unmount = null;
+
+  const parentEntry: GalleryEntryContext = {
+    id: "ag-1070",
+    name: "AnalogGenie #1070",
+    projectId: "p-parent",
+    ownerUserId: null,
+    author: "AnalogGenie (redrawn)",
+    description: "",
+    tags: ["pll"],
+    hasReference: false,
+    subcomponents: [
+      { id: "ag-1070-cp", name: "AnalogGenie #1070 · Charge Pump" },
+    ],
+  };
+  const { panel: parentPanel } = await show({
+    openings: 1,
+    entry: parentEntry,
+    fetchLike: missingFigure,
+  });
+  const subLink = parentPanel().querySelector<HTMLAnchorElement>(
+    '[data-testid="reference-subcomponents"] a',
+  );
+  expect(subLink?.getAttribute("href")).toBe("/g/ag-1070-cp");
+  expect(subLink?.textContent).toBe("AnalogGenie #1070 · Charge Pump");
+});
