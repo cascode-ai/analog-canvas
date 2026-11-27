@@ -1,5 +1,6 @@
 import type { CircuitProject, Instance } from "@icm/model";
 
+import { terminalPinKey } from "../document-read-helpers.js";
 import type { resolveDocumentLogicalNets } from "../logical-net.js";
 import { directObjectLocator, type ObjectLocator } from "../object-locator.js";
 
@@ -38,7 +39,7 @@ export function buildTerminalLogicalNetMap(
   for (const net of document.nets)
     for (const terminal of net.terminals)
       netOfTerminal.set(
-        `${terminal.instanceId}\u0000${terminal.pinName}`,
+        terminalPinKey(terminal.instanceId, terminal.pinName),
         logicalNets.byBaseNetId.get(net.id)?.id ?? net.id,
       );
   return netOfTerminal;

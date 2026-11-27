@@ -11,51 +11,11 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { EditTransaction } from "./edit-schema.js";
-import { replaceLayoutReference } from "./transaction-routing.js";
-
-function retargetConnectivityEvidence(
-  draft: SchematicDocument,
-  sourceNetId: string,
-  targetNetId: string,
-  changedObjectIds: Set<string>,
-): void {
-  for (const [index, evidence] of draft.connectivityEvidence.entries()) {
-    if (evidence.kind === "name-claim")
-      for (const member of evidence.signal?.members ?? []) {
-        if (member.netId === sourceNetId) {
-          member.netId = targetNetId;
-          changedObjectIds.add(evidence.id);
-        }
-      }
-    if (evidence.netId === sourceNetId) {
-      writableDraftRow(
-        draft,
-        draft.connectivityEvidence,
-        evidence,
-        index,
-      ).netId = targetNetId;
-      changedObjectIds.add(evidence.id);
-    }
-  }
-  const seenEvidence = new Set<string>();
-  draft.connectivityEvidence = draft.connectivityEvidence.filter((evidence) => {
-    const key =
-      evidence.kind === "spice-source"
-        ? `spice-source\u0000${evidence.netId}\u0000${evidence.sourceNetId}`
-        : evidence.kind === "net-name-hint"
-          ? `net-name-hint\u0000${evidence.netId}\u0000${evidence.origin}\u0000${foldNetName(evidence.sourceName)}`
-          : evidence.kind === "name-claim" &&
-              evidence.owner.kind === "global-declaration"
-            ? `global-declaration\u0000${evidence.netId}\u0000${evidence.owner.sourceNetId}\u0000${foldNetName(evidence.name)}`
-            : null;
-    if (!key || !seenEvidence.has(key)) {
-      if (key) seenEvidence.add(key);
-      return true;
-    }
-    changedObjectIds.add(evidence.id);
-    return false;
-  });
-}
+import {
+  clearMosBulkDefaultNetReference,
+  isBaseNetReferenced,
+  remapDocumentNetReferences,
+} from "./net-reference-remap.js";
 
 type BaseNetMergeResult =
   | { ok: true }
@@ -103,35 +63,6 @@ export function mergeBaseNets(
       netIds: [target.id, source.id],
     };
   }
-  for (const instance of draft.instances) {
-    if (instance.mosBulkBinding?.netId === source.id) {
-      instance.mosBulkBinding.netId = target.id;
-      changedObjectIds.add(instance.id);
-    }
-    // A controlled source senses the merged Net, not the identity it lost.
-    const control = instance.netlist?.control;
-    if (control?.kind === "voltage") {
-      if (control.positiveNetId === source.id) {
-        control.positiveNetId = target.id;
-        changedObjectIds.add(instance.id);
-      }
-      if (control.negativeNetId === source.id) {
-        control.negativeNetId = target.id;
-        changedObjectIds.add(instance.id);
-      }
-    }
-  }
-  if (draft.mosBulkDefaults?.nmosNetId === source.id) {
-    draft.mosBulkDefaults.nmosNetId = target.id;
-  }
-  if (draft.mosBulkDefaults?.pmosNetId === source.id) {
-    draft.mosBulkDefaults.pmosNetId = target.id;
-  }
-  for (const terminal of draft.netlist?.terminals ?? []) {
-    if (terminal.netId === source.id) terminal.netId = target.id;
-    for (const member of terminal.signal?.members ?? [])
-      if (member.netId === source.id) member.netId = target.id;
-  }
   const terminalKey = (terminal: (typeof target.terminals)[number]) =>
     JSON.stringify([terminal.instanceId, terminal.pinName, terminal.memberId]);
   const present = new Set(target.terminals.map(terminalKey));
@@ -144,55 +75,7 @@ export function mergeBaseNets(
       present.add(key);
     }
   }
-  for (const [index, route] of draft.routes.entries()) {
-    for (const member of route.members ?? [])
-      if (member.netId === source.id) member.netId = target.id;
-    if (route.netId === source.id) {
-      writableDraftRow(draft, draft.routes, route, index).netId = target.id;
-      changedObjectIds.add(route.id);
-    }
-  }
-  for (const [index, junction] of draft.junctions.entries()) {
-    for (const member of junction.members ?? [])
-      if (member.netId === source.id) member.netId = target.id;
-    if (junction.netId === source.id) {
-      writableDraftRow(draft, draft.junctions, junction, index).netId =
-        target.id;
-      changedObjectIds.add(junction.id);
-    }
-  }
-  for (const annotation of draft.annotations) {
-    if (annotation.netId === source.id) {
-      annotation.netId = target.id;
-      changedObjectIds.add(annotation.id);
-    }
-    if (
-      annotation.binding?.kind === "net-name" &&
-      annotation.binding.netId === source.id
-    ) {
-      annotation.binding = { kind: "net-name", netId: target.id };
-      changedObjectIds.add(annotation.id);
-    }
-  }
-  for (const group of draft.layoutGroups) {
-    const replaced = group.objectIds.includes(source.id);
-    group.objectIds = replaceLayoutReference(
-      group.objectIds,
-      source.id,
-      target.id,
-    );
-    if (replaced) changedObjectIds.add(group.id);
-  }
-  for (const constraint of draft.constraints) {
-    const replaced = constraint.objectIds.includes(source.id);
-    constraint.objectIds = replaceLayoutReference(
-      constraint.objectIds,
-      source.id,
-      target.id,
-    );
-    if (replaced) changedObjectIds.add(constraint.id);
-  }
-  retargetConnectivityEvidence(draft, source.id, target.id, changedObjectIds);
+  remapDocumentNetReferences(draft, source.id, target.id, changedObjectIds);
   draft.nets.splice(sourceIndex, 1);
   changedObjectIds.add(target.id);
   changedObjectIds.add(source.id);
@@ -671,34 +554,7 @@ export function pruneUnreachableLocalNet(
   if (!net || net.terminals.length > 0) {
     return;
   }
-  if (
-    draft.routes.some(
-      (route) =>
-        route.netId === netId ||
-        route.members?.some((member) => member.netId === netId),
-    ) ||
-    draft.junctions.some(
-      (junction) =>
-        junction.netId === netId ||
-        junction.members?.some((member) => member.netId === netId),
-    ) ||
-    draft.netlist?.terminals.some(
-      (terminal) =>
-        terminal.netId === netId ||
-        terminal.signal?.members.some((member) => member.netId === netId),
-    ) ||
-    draft.annotations.some(
-      (annotation) =>
-        annotation.netId === netId ||
-        (annotation.binding?.kind === "net-name" &&
-          annotation.binding.netId === netId),
-    ) ||
-    draft.layoutGroups.some((group) => group.objectIds.includes(netId)) ||
-    draft.constraints.some((constraint) =>
-      constraint.objectIds.includes(netId),
-    ) ||
-    draft.instances.some((instance) => instance.mosBulkBinding?.netId === netId)
-  ) {
+  if (isBaseNetReferenced(draft, netId)) {
     return;
   }
   const referencedEvidence = draft.connectivityEvidence.filter((evidence) =>
@@ -717,24 +573,7 @@ export function pruneUnreachableLocalNet(
     changedObjectIds.add(evidence.id);
     return false;
   });
-  let clearedBulkDefault = false;
-  if (draft.mosBulkDefaults?.nmosNetId === netId) {
-    delete draft.mosBulkDefaults.nmosNetId;
-    clearedBulkDefault = true;
-  }
-  if (draft.mosBulkDefaults?.pmosNetId === netId) {
-    delete draft.mosBulkDefaults.pmosNetId;
-    clearedBulkDefault = true;
-  }
-  if (clearedBulkDefault) {
-    if (
-      !draft.mosBulkDefaults?.nmosNetId &&
-      !draft.mosBulkDefaults?.pmosNetId
-    ) {
-      delete draft.mosBulkDefaults;
-    }
-    changedObjectIds.add(draft.id);
-  }
+  clearMosBulkDefaultNetReference(draft, netId, changedObjectIds);
   draft.nets = draft.nets.filter((candidate) => candidate.id !== netId);
   changedObjectIds.add(netId);
 }

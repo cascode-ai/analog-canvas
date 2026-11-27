@@ -45,6 +45,10 @@ export * from "./routing-copy-fragment.js";
 export * from "./routing-deletion-planner.js";
 export * from "./cell-selection-deletion.js";
 export * from "./net-name-operation-planner.js";
+export {
+  partitionNetSubgraphComponents,
+  planSubgraphNetLift,
+} from "./net-reference-remap.js";
 export * from "./instance-lifecycle.js";
 export * from "./undrawn-instances.js";
 export { executeTransaction } from "./transaction.js";

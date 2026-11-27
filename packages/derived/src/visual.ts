@@ -55,6 +55,12 @@ import {
 import { sameNetRouteOverlaps } from "./route-overlap.js";
 import { pointOnSegment } from "./segment-geometry.js";
 import {
+  buildTerminalBaseNetMap,
+  memberNetIds,
+  terminalPinKey,
+  visibleDocumentAnnotations,
+} from "./document-read-helpers.js";
+import {
   resolveCommittedDocumentLogicalNets,
   type ResolvedDocumentLogicalNets,
 } from "./logical-net.js";
@@ -993,44 +999,45 @@ export function diagnoseVisualQuality(
   // naming view only for this pass, including labels outside the viewport.
   let logicalNets = options.logicalNetResolution;
   const readClaims = createAnnotationNameClaimReader(document);
-  const annotationBounds = document.annotations.flatMap((annotation) => {
-    if (annotation.visible === false) return [];
-    if (annotation.binding?.kind === "net-name")
-      logicalNets ??= resolveCommittedDocumentLogicalNets(document);
-    const text = resolveAnnotationText(
-      document,
-      annotation,
-      logicalNets,
-      resolver,
-      readClaims,
-    );
-    if (
-      !isSchematicAnnotationVisible(
+  const annotationBounds = visibleDocumentAnnotations(document).flatMap(
+    (annotation) => {
+      if (annotation.binding?.kind === "net-name")
+        logicalNets ??= resolveCommittedDocumentLogicalNets(document);
+      const text = resolveAnnotationText(
         document,
         annotation,
         logicalNets,
-        text,
         resolver,
-      )
-    )
-      return [];
-    return [
-      {
-        id: annotation.id,
-        name: flattenRichText(text).trim(),
-        // The ink extent covers the drawn capitals and subscripts (#1105).
-        bounds: resolveAnnotationPresentation(
+        readClaims,
+      );
+      if (
+        !isSchematicAnnotationVisible(
           document,
-          resolver,
           annotation,
-          styleProfile,
-          routingGeometry,
           logicalNets,
           text,
-        ).inkBounds,
-      },
-    ];
-  });
+          resolver,
+        )
+      )
+        return [];
+      return [
+        {
+          id: annotation.id,
+          name: flattenRichText(text).trim(),
+          // The ink extent covers the drawn capitals and subscripts (#1105).
+          bounds: resolveAnnotationPresentation(
+            document,
+            resolver,
+            annotation,
+            styleProfile,
+            routingGeometry,
+            logicalNets,
+            text,
+          ).inkBounds,
+        },
+      ];
+    },
+  );
   for (const cluster of overlappingClusters(annotationBounds)) {
     const inOrder = orderedOverlap(cluster, paintRanks.annotation);
     const objectIds = inOrder.map((item) => item.id);
@@ -1144,21 +1151,15 @@ export function diagnoseVisualQuality(
   // 8 published abbreviated schematics (floating pins parked on power
   // rails), and the gallery contract welcomes abbreviated drawings — the
   // finding is evidence for the author, not a wall in front of them.
-  const terminalNetIds = new Map<string, Set<string>>();
-  for (const net of document.nets) {
-    for (const terminal of net.terminals) {
-      const key = `${terminal.instanceId}\0${terminal.pinName}`;
-      const ids = terminalNetIds.get(key) ?? new Set<string>();
-      ids.add(net.id);
-      terminalNetIds.set(key, ids);
-    }
-  }
+  const terminalNetIds = buildTerminalBaseNetMap(document);
   const noConnectKeys = new Set(
     document.noConnects
       .filter((noConnect) => !noConnect.endpoint.memberId)
-      .map(
-        (noConnect) =>
-          `${noConnect.endpoint.instanceId}\0${noConnect.endpoint.pinName}`,
+      .map((noConnect) =>
+        terminalPinKey(
+          noConnect.endpoint.instanceId,
+          noConnect.endpoint.pinName,
+        ),
       ),
   );
   for (const instance of document.instances) {
@@ -1171,7 +1172,7 @@ export function diagnoseVisualQuality(
     for (const pin of resolved.definition.pins) {
       if (pin.presentation.visibility === "implicit") continue;
       if (variantHidesPin(resolved.variant, pin.name)) continue;
-      const key = `${instance.id}\0${pin.name}`;
+      const key = terminalPinKey(instance.id, pin.name);
       if (noConnectKeys.has(key)) continue;
       const terminalNetId = terminalNetIds.get(key);
       const endpoint = {
@@ -1190,11 +1191,7 @@ export function diagnoseVisualQuality(
         spatialIndex,
         candidateSearch,
       )) {
-        if (
-          (route.members?.map((member) => member.netId) ?? [route.netId]).some(
-            (netId) => terminalNetId?.has(netId),
-          )
-        )
+        if (memberNetIds(route).some((netId) => terminalNetId?.has(netId)))
           continue;
         const centerline = routingGeometry.routes.get(route.id)?.centerline;
         if (
