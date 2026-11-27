@@ -395,12 +395,12 @@ export class EditorDocumentController {
     request: ProjectTransaction,
     activeDocumentId = this.activeDocumentIdValue,
     historyDocumentId = activeDocumentId,
+    resultOwnership: ProjectTransactionOptions["resultOwnership"] = "detached",
   ): ProjectTransactionResult {
-    const result = executeProjectTransaction(
-      this.projectValue,
-      request,
-      EDITOR_PROJECT_TRANSACTION_OPTIONS,
-    );
+    const result = executeProjectTransaction(this.projectValue, request, {
+      ...EDITOR_PROJECT_TRANSACTION_OPTIONS,
+      resultOwnership,
+    });
     if (result.ok && result.applied)
       this.commitProjectStructure(
         result.project,
@@ -889,10 +889,13 @@ export function useDocumentController(
     dispatchProjectTransaction: (
       request: ProjectTransaction,
       activeDocumentId?: string,
+      resultOwnership?: ProjectTransactionOptions["resultOwnership"],
     ) => {
       const result = controller.dispatchProjectTransaction(
         request,
         activeDocumentId,
+        activeDocumentId,
+        resultOwnership,
       );
       if (result.ok && result.applied) {
         synchronize();

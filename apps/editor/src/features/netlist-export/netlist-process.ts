@@ -344,7 +344,7 @@ export function placementProcessFill(
           placedProject,
           preferences.profiles[process],
           options,
-          [evaluated.finalDocument],
+          evaluated.finalDocument,
         ).edits
       : planNetlistProcess(
           placedProject,
@@ -656,13 +656,13 @@ function collectNetlistProcess(
   project: CircuitProject,
   profile: NetlistExportProfile,
   options: NetlistProcessOptions,
-  sourceDocuments: readonly SchematicDocument[] = project.documents,
+  placedCell?: SchematicDocument,
 ): {
   edits: ProjectStructureEdit[];
   conversions: ProcessValueConversion[];
 } {
   const conversions: ProcessValueConversion[] = [];
-  const projection = createNetlistPlanningProjection(project);
+  const projection = createNetlistPlanningProjection(project, placedCell);
   const definitions = new Map<
     string,
     Extract<
@@ -697,7 +697,9 @@ function collectNetlistProcess(
         },
       ]);
   }
-  for (const originalDocument of sourceDocuments) {
+  for (const originalDocument of placedCell
+    ? [placedCell]
+    : project.documents) {
     const documentId = originalDocument.id;
     // The Edit Engine refuses netlist edits to a device whose Reference is
     // missing, taken or of another class. Such a device keeps its finding

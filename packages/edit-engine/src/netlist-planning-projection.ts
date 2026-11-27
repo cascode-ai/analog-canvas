@@ -1,4 +1,9 @@
-import { type CircuitProject, type SchematicDocument } from "@icm/model";
+import { isUnusedExternalDefinition } from "./placement-project-draft.js";
+import {
+  isFrozenSnapshot,
+  type CircuitProject,
+  type SchematicDocument,
+} from "@icm/model";
 import { resolveDocumentLogicalNets } from "@icm/derived";
 import { builtInSymbols, createProjectSymbolResolver } from "@icm/symbols";
 import type { SchematicEdit } from "./edit-schema.js";
@@ -44,8 +49,25 @@ function localNetlistEdit(edit: SchematicEdit): boolean {
  * housekeeping; complete validation still belongs to executeProjectTransaction.
  * Geometry/definition rewrites use that existing full path, never approximation.
  */
-export function createNetlistPlanningProjection(source: CircuitProject) {
-  let project = structuredClone(source);
+export function createNetlistPlanningProjection(
+  source: CircuitProject,
+  placedCell?: SchematicDocument,
+) {
+  const scoped =
+    placedCell !== undefined &&
+    source.documents.find((doc) => doc.id === placedCell.id) === placedCell;
+  // The planner owns its mutable metadata and the Cell it stages. Only
+  // already immutable siblings can be borrowed from the placement source.
+  let project: CircuitProject = scoped
+    ? {
+        ...structuredClone({ ...source, documents: [] }),
+        documents: source.documents.map((doc) =>
+          doc === placedCell || !isFrozenSnapshot(doc)
+            ? structuredClone(doc)
+            : doc,
+        ),
+      }
+    : structuredClone(source);
   let resolver = createProjectSymbolResolver(project, builtInSymbols);
   const logical = new Map<
     string,
@@ -63,18 +85,10 @@ export function createNetlistPlanningProjection(source: CircuitProject) {
     if (!edits.length) return;
     const supported = edits.every((edit) =>
       edit.kind === "transact_document"
-        ? edit.edits.every(localNetlistEdit)
+        ? (!scoped || edit.documentId === placedCell.id) &&
+          edit.edits.every(localNetlistEdit)
         : edit.kind === "upsert_external_subcircuit_definition" &&
-          !project.externalSubcircuitDefinitions.some(
-            (item) => item.id === edit.definition.id,
-          ) &&
-          !project.documents.some((document) =>
-            document.instances.some(
-              (instance) =>
-                instance.netlist?.binding?.kind === "external-subcircuit" &&
-                instance.netlist.binding.definitionId === edit.definition.id,
-            ),
-          ),
+          isUnusedExternalDefinition(project, edit.definition.id),
     );
     if (!supported) {
       const result = executeProjectTransaction(project, {

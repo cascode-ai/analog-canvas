@@ -1,9 +1,10 @@
+import { z } from "zod";
 import { CircuitProjectSchema } from "./schema/project.js";
 import { SchematicDocumentSchema } from "./schema/document.js";
 import { freezeSnapshot, isFrozenSnapshot } from "./immutable-snapshot.js";
 import type { CircuitProject, SchematicDocument } from "./schema/types.js";
 import { shareEqualProjectStructure } from "./snapshot-structural-sharing.js";
-import { rememberValidatedCells } from "./validated-cells.js";
+import { isValidatedCell, rememberValidatedCells } from "./validated-cells.js";
 
 const validatedSnapshots = new WeakSet<CircuitProject>();
 const restoredProjects = new WeakMap<object, CircuitProject>();
@@ -37,6 +38,33 @@ export function validateProjectResult(
   return result;
 }
 
+/** Validate an owned placement, including all cross-Cell constraints. */
+export function validatePlacementProjectSnapshot(
+  candidate: CircuitProject,
+  previous: CircuitProject,
+): ReturnType<typeof CircuitProjectSchema.safeParse> {
+  if (!validatedSnapshots.has(previous))
+    return parseCanonicalProject(candidate);
+  const retained = new Set(previous.documents.filter(isValidatedCell));
+  const cell = z.union([
+    z.custom<SchematicDocument>((value) =>
+      retained.has(value as SchematicDocument),
+    ),
+    SchematicDocumentSchema,
+  ]);
+  const result = CircuitProjectSchema.safeExtend({
+    documents: z.array(cell).min(1),
+  }).safeParse(candidate);
+  // Preserve the canonical paths and ordered diagnostics for every refusal.
+  if (!result.success) return parseCanonicalProject(candidate, previous);
+  const snapshot = freezeSnapshot(
+    shareEqualProjectStructure(previous, result.data),
+  );
+  validatedSnapshots.add(snapshot);
+  rememberValidatedCells(snapshot);
+  return { success: true, data: snapshot };
+}
+
 /** Fully validate incoming models; reuse only immutable snapshots owned here. */
 export function validateProjectSnapshot(
   input: unknown,
@@ -65,6 +93,13 @@ export function validateProjectSnapshot(
     validatedSnapshots.add(project);
     return { success: true, data: project };
   }
+  return parseCanonicalProject(input, previous);
+}
+
+function parseCanonicalProject(
+  input: unknown,
+  previous?: CircuitProject,
+): ReturnType<typeof CircuitProjectSchema.safeParse> {
   const result = CircuitProjectSchema.safeParse(input);
   if (!result.success) return result;
   const project = freezeSnapshot(
