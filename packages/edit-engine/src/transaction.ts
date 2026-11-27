@@ -6,6 +6,9 @@ import {
 import {
   cellSymbolArtworkIssues,
   equalJsonValue,
+  isValidatedCell,
+  parseOwnedDocument,
+  prepareOwnedDocument,
   projectCellInterface,
   routeEnd,
   SchematicDocumentSchema,
@@ -141,7 +144,13 @@ export function executeTransaction(
   context: EditExecutionContext = {},
   readMembership?: Parameters<typeof parseRoutingDocument>[1],
 ): EditTransactionResult {
-  return applyTransaction(document, input, context, readMembership, false);
+  return applyTransaction(
+    document,
+    input,
+    context,
+    readMembership,
+    context.resultOwnership === "owned",
+  );
 }
 
 /** Owned candidates are consumed only by synchronous Canvas preparation. */
@@ -268,27 +277,35 @@ export function applyTransaction(
       "mirror_instance",
       "align_instances",
       "set_instance_signal_flow_parameters",
+      "set_instance_style_override",
+      "set_route_style_override",
+      "set_object_document_style",
+      "patch_instance_netlist_parameters",
+      "set_instance_reference",
     ].includes(edit.kind),
   )
-    ? new Set([
-        ...document.routes.flatMap((route) =>
-          [route.start, routeEnd(route)].some(
-            (endpoint) =>
-              endpoint.kind === "terminal" &&
-              transformedInstanceIds.has(endpoint.instanceId),
-          )
-            ? [route.id]
-            : [],
-        ),
-        // Wiring that may travel with the moved parts, Junction to Junction
-        // included (carryTranslatedRouteComponents).
-        ...deriveInternalGroupSelection(document, [...transformedInstanceIds])
-          .routeIds,
-      ])
+    ? transformedInstanceIds.size === 0
+      ? new Set<string>()
+      : new Set([
+          ...document.routes.flatMap((route) =>
+            [route.start, routeEnd(route)].some(
+              (endpoint) =>
+                endpoint.kind === "terminal" &&
+                transformedInstanceIds.has(endpoint.instanceId),
+            )
+              ? [route.id]
+              : [],
+          ),
+          // Wiring that may travel with the moved parts, Junction to Junction
+          // included (carryTranslatedRouteComponents).
+          ...deriveInternalGroupSelection(document, [...transformedInstanceIds])
+            .routeIds,
+        ])
     : undefined;
-  const originalEndpointLookup = resolver
-    ? routingEndpointLookup(document)
-    : undefined;
+  let cachedOriginalEndpointLookup:
+    ReturnType<typeof routingEndpointLookup> | undefined;
+  const getOriginalEndpointLookup = () =>
+    (cachedOriginalEndpointLookup ??= routingEndpointLookup(document));
   const changedRouteIds = new Set<string>();
   let geometryChanged = false;
   let connectivityChanged = false;
@@ -776,7 +793,7 @@ export function applyTransaction(
         resolver,
         transformedInstanceIds,
         movedJunctionIds,
-        originalEndpointLookup,
+        getOriginalEndpointLookup(),
       )
     ) {
       const directContact = reconcileTransformDirectContacts(
@@ -1275,7 +1292,17 @@ export function applyTransaction(
     );
   }
 
-  if (resolver) {
+  if (
+    resolver &&
+    !(
+      routeValidationIds &&
+      routeValidationIds.size === 0 &&
+      changedRouteIds.size === 0 &&
+      !invalidatedBulkDefault &&
+      !reconciledBulkConnectivity
+    )
+  ) {
+    const originalEndpointLookup = getOriginalEndpointLookup();
     const originalPathRead = prepareRoutePathRead(
       document,
       resolver,
@@ -1432,6 +1459,8 @@ export function applyTransaction(
       `${draft.netlist!.name} is drawn with a custom symbol. ${artworkIssue.message}`,
     );
   if (draft.drawingOrder) draft.drawingOrder = resolveDrawingOrder(draft);
+  const canRetainValidatedRows = !fallback && isValidatedCell(document);
+  const ownedResult = keepOwned && transaction.dryRun !== true;
   const candidate =
     keepOwned && changedNetIds
       ? prepareWireCell(
@@ -1441,9 +1470,21 @@ export function applyTransaction(
           changedNetIds,
           context.canvasProject,
         )
-      : readMembership
-        ? parseRoutingDocument(draft, readMembership)
-        : SchematicDocumentSchema.safeParse(draft);
+      : ownedResult && canRetainValidatedRows && !readMembership
+        ? prepareOwnedDocument(draft, document)
+        : readMembership
+          ? parseRoutingDocument(draft, readMembership)
+          : canRetainValidatedRows
+            ? (() => {
+                const parsed = parseOwnedDocument(draft, document);
+                return parsed.success
+                  ? {
+                      success: true as const,
+                      data: structuredClone(parsed.data),
+                    }
+                  : parsed;
+              })()
+            : SchematicDocumentSchema.safeParse(draft);
   if (!candidate.success) {
     return rejectTransaction(
       document,

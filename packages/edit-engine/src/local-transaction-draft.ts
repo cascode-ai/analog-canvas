@@ -1,4 +1,8 @@
-import { isFrozenSnapshot, type SchematicDocument } from "@icm/model";
+import {
+  isFrozenSnapshot,
+  routeEndpoints,
+  type SchematicDocument,
+} from "@icm/model";
 import type { SchematicEdit } from "./edit-schema.js";
 import type { EditExecutionContext } from "./transaction-result.js";
 
@@ -13,12 +17,84 @@ function instanceCaption(annotation: Annotation): boolean {
   );
 }
 
+function isPureAttributeLocalEdit(edit: SchematicEdit): boolean {
+  return (
+    edit.kind === "noop" ||
+    edit.kind === "set_instance_style_override" ||
+    edit.kind === "patch_instance_netlist_parameters" ||
+    edit.kind === "set_instance_reference"
+  );
+}
+
+function isInstanceTransformLocalEdit(edit: SchematicEdit): boolean {
+  return (
+    edit.kind === "move_instance" ||
+    edit.kind === "rotate_instance" ||
+    edit.kind === "mirror_instance"
+  );
+}
+
 function fallbackReason(
   document: SchematicDocument,
   edits: readonly SchematicEdit[],
   context: EditExecutionContext,
 ) {
   if (!isFrozenSnapshot(document)) return "mutable-source";
+  if (
+    edits.length > 0 &&
+    edits.every(
+      (edit) =>
+        isPureAttributeLocalEdit(edit) || isInstanceTransformLocalEdit(edit),
+    )
+  ) {
+    const transformedIds = new Set<string>();
+    for (const edit of edits) {
+      if (
+        edit.kind === "move_instance" ||
+        edit.kind === "rotate_instance" ||
+        edit.kind === "mirror_instance"
+      ) {
+        transformedIds.add(edit.instanceId);
+      }
+    }
+    if (transformedIds.size > 0) {
+      if (context.pinsMovedInstanceIds?.size)
+        return "dependent-document-policy";
+      if (
+        document.routes.some((route) =>
+          routeEndpoints(route).some(
+            (endpoint) =>
+              endpoint.kind === "terminal" &&
+              transformedIds.has(endpoint.instanceId),
+          ),
+        )
+      )
+        return "dependent-document-policy";
+      const touchedNetIds = new Set<string>();
+      for (const net of document.nets) {
+        let hasTransformed = false;
+        let hasOther = false;
+        for (const terminal of net.terminals) {
+          if (transformedIds.has(terminal.instanceId)) hasTransformed = true;
+          else hasOther = true;
+        }
+        if (hasTransformed) {
+          if (hasOther) return "dependent-document-policy";
+          touchedNetIds.add(net.id);
+        }
+      }
+      if (
+        document.junctions.some(
+          (junction) =>
+            touchedNetIds.has(junction.netId) ||
+            (junction.contactAnchor !== undefined &&
+              transformedIds.has(junction.contactAnchor.instanceId)),
+        )
+      )
+        return "dependent-document-policy";
+    }
+    return undefined;
+  }
   const addedInstances = new Set<string>();
   if (
     edits.some((edit) => {

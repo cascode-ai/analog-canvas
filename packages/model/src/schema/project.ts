@@ -16,6 +16,7 @@ import { SchematicDocumentSchema } from "./document.js";
 import { CellSymbolPresentationSchema } from "./presentation.js";
 import { ProjectSimulationFolderSchema } from "./simulation-source.js";
 import { ProjectModelSourceSchema } from "./model-source.js";
+import { isValidatedCell } from "../validated-cells.js";
 import { reportDuplicateIds } from "./validation.js";
 import { projectCellInterface } from "../cell-interface-projection.js";
 import { foldNetName } from "../net-name.js";
@@ -731,14 +732,21 @@ const checkProject =
 export const CircuitProjectSchema = ProjectFields.superRefine(checkProject());
 
 /** Only the snapshot owner supplies a fully validated predecessor. Retained
- * Cells are admitted by identity. All replacement rows still go through the schema. */
+ * and independently validated immutable Cells are admitted by identity; all
+ * cross-Cell checks still run on every non-retained Cell. */
 export function safeParseWithRetainedCells(
   input: unknown,
   previous: ProjectData,
 ) {
   const retained = new Set(previous.documents);
   const cell = z.union([
-    z.custom<ProjectCell>((value) => retained.has(value as ProjectCell)),
+    z.custom<ProjectCell>(
+      (value) =>
+        retained.has(value as ProjectCell) ||
+        (value !== null &&
+          typeof value === "object" &&
+          isValidatedCell(value as ProjectCell)),
+    ),
     SchematicDocumentSchema,
   ]);
   return ProjectFields.extend({ documents: z.array(cell).min(1) })

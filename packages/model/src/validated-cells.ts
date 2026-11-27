@@ -9,6 +9,11 @@ export function rememberValidatedCells(project: CircuitProject): void {
   for (const cell of project.documents) knownCells.add(cell);
 }
 
+/** Register one deeply frozen, schema-validated Cell snapshot. */
+export function rememberValidatedCell(cell: SchematicDocument): void {
+  knownCells.add(cell);
+}
+
 export function isValidatedCell(cell: SchematicDocument): boolean {
   return knownCells.has(cell);
 }

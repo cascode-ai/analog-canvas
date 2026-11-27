@@ -1118,6 +1118,15 @@ export function parseRoutingDocument(
   return checkRoutingDocument(input, readMembership);
 }
 
+/** Internal owned candidate. Only validated, immutable rows of this Cell can be shared. */
+export function parseOwnedDocument(draft: DocumentData, source: DocumentData) {
+  return checkRoutingDocument(
+    draft,
+    undefined,
+    draft.id === source.id && isValidatedCell(source) ? source : undefined,
+  );
+}
+
 /** Internal Wire candidate. Only validated, immutable rows of this Cell can be shared. */
 export function parseOwnedRoutingDocument(
   draft: DocumentData,
@@ -1131,38 +1140,123 @@ export function parseOwnedRoutingDocument(
   );
 }
 
-function retainRoutingRows<S extends z.ZodType>(
+function retainValidatedRows<S extends z.ZodType>(
   schema: S,
   source: readonly z.output<S>[],
 ) {
   const retained = new Set<unknown>(source);
-  return z.array(
-    z.union([z.custom<z.output<S>>((row) => retained.has(row)), schema]),
-  );
+  const item = z.union([
+    z.custom<z.output<S>>((row) => retained.has(row)),
+    schema,
+  ]);
+  return z.union([
+    z.custom<z.output<S>[]>(
+      (value) =>
+        Array.isArray(value) && value.every((row) => retained.has(row)),
+    ),
+    z.array(item),
+  ]);
+}
+
+function retainValidatedValue<S extends z.ZodType>(
+  schema: S,
+  source: z.output<S>,
+) {
+  return z.union([z.custom<z.output<S>>((value) => value === source), schema]);
+}
+
+function retainOptionalValidatedValue<S extends z.ZodType>(
+  schema: S,
+  source: z.output<S> | undefined,
+) {
+  return source === undefined
+    ? schema.optional()
+    : z
+        .union([z.custom<z.output<S>>((value) => value === source), schema])
+        .optional();
 }
 
 function checkRoutingDocument(
   input: unknown,
-  readMembership: (read: ScalarNetReader) => void,
+  readMembership: ((read: ScalarNetReader) => void) | undefined,
   source?: DocumentData,
 ) {
   let validatedReader: ScalarNetReader | undefined;
-  const checks = documentChecks((read) => {
-    validatedReader = read;
-  });
+  const checks = documentChecks(
+    readMembership
+      ? (read) => {
+          validatedReader = read;
+        }
+      : undefined,
+  );
   const canonical = () =>
     SchematicDocumentBaseSchema.superRefine(checks).safeParse(input);
   let result = source
     ? SchematicDocumentBaseSchema.extend({
-        nets: retainRoutingRows(NetSchema, source.nets),
-        routes: retainRoutingRows(RouteBranchSchema, source.routes),
-        junctions: retainRoutingRows(JunctionSchema, source.junctions),
+        instances: retainValidatedRows(InstanceSchema, source.instances),
+        nets: retainValidatedRows(NetSchema, source.nets),
+        routes: retainValidatedRows(RouteBranchSchema, source.routes),
+        junctions: retainValidatedRows(JunctionSchema, source.junctions),
+        annotations: retainValidatedRows(AnnotationSchema, source.annotations),
+        noConnects: retainValidatedRows(
+          NoConnectSchema,
+          source.noConnects,
+        ).default([]),
+        connectivityEvidence: retainValidatedRows(
+          ConnectivityEvidenceSchema,
+          source.connectivityEvidence,
+        ),
+        presentation: retainValidatedValue(
+          PresentationIntentSchema,
+          source.presentation,
+        ),
+        layoutGroups: retainValidatedValue(
+          SchematicDocumentBaseSchema.shape.layoutGroups,
+          source.layoutGroups,
+        ),
+        constraints: retainValidatedValue(
+          SchematicDocumentBaseSchema.shape.constraints,
+          source.constraints,
+        ),
+        netlist: retainOptionalValidatedValue(
+          CellNetlistInterfaceSchema,
+          source.netlist,
+        ),
+        sourceBinding: retainOptionalValidatedValue(
+          SourceBindingSchema,
+          source.sourceBinding,
+        ),
+        importReference: retainOptionalValidatedValue(
+          ImportReferenceSchema,
+          source.importReference,
+        ),
+        instanceGroups: retainOptionalValidatedValue(
+          SchematicDocumentBaseSchema.shape.instanceGroups.unwrap(),
+          source.instanceGroups,
+        ),
+        mosBulkDefaults: retainOptionalValidatedValue(
+          MosBulkDefaultsSchema,
+          source.mosBulkDefaults,
+        ),
+        inductorCouplings: retainOptionalValidatedValue(
+          SchematicDocumentBaseSchema.shape.inductorCouplings.unwrap(),
+          source.inductorCouplings,
+        ),
+        drafting: retainOptionalValidatedValue(
+          DraftingLayerSchema,
+          source.drafting,
+        ),
+        drawingOrder: retainOptionalValidatedValue(
+          SchematicDocumentBaseSchema.shape.drawingOrder.unwrap(),
+          source.drawingOrder,
+        ),
       })
         .superRefine(checks)
         .safeParse(input)
     : canonical();
   // Union errors include the identity branch. Preserve the canonical ordered diagnostics.
   if (!result.success && source) result = canonical();
-  if (result.success && validatedReader) readMembership(validatedReader);
+  if (result.success && readMembership && validatedReader)
+    readMembership(validatedReader);
   return result;
 }

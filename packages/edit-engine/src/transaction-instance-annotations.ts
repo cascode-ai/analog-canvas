@@ -56,6 +56,7 @@ import {
   rotatedInstanceLabelGroupSeat,
   rotatedSide,
 } from "./instance-label-rotation.js";
+import { writableDraftRow } from "./local-transaction-draft.js";
 
 export function translateObjectAnchoredAnnotation(
   annotation: Annotation,
@@ -248,7 +249,8 @@ export function refreshInstanceValueAnnotation(
   );
   if (!instance) return;
   const previous = displayableInstanceValue(before, resolver);
-  for (const annotation of draft.annotations) {
+  for (let index = 0; index < draft.annotations.length; index += 1) {
+    const annotation = draft.annotations[index]!;
     if (
       annotation.kind !== "instance-value" ||
       annotation.anchor.kind !== "object" ||
@@ -274,19 +276,26 @@ export function refreshInstanceValueAnnotation(
           )
         : displayableInstanceValue(instance, resolver);
       if (next.kind !== "displayable") {
-        annotation.visible = false;
+        writableDraftRow(draft, draft.annotations, annotation, index).visible =
+          false;
       } else if (annotation.formatOverride) {
+        const writable = writableDraftRow(
+          draft,
+          draft.annotations,
+          annotation,
+          index,
+        );
         if (previousDisplay.kind === "displayable") {
           const format = renamedLabelFormat(
-            annotation,
+            writable,
             flattenRichText(previousDisplay.content),
             flattenRichText(next.content),
             draft.presentation,
           );
-          if (format) annotation.formatOverride = format;
-          else delete annotation.formatOverride;
+          if (format) writable.formatOverride = format;
+          else delete writable.formatOverride;
         } else {
-          delete annotation.formatOverride;
+          delete writable.formatOverride;
         }
       }
       changedObjectIds.add(annotation.id);
@@ -297,10 +306,16 @@ export function refreshInstanceValueAnnotation(
       continue;
     }
     const next = displayableInstanceValue(instance, resolver);
+    const writable = writableDraftRow(
+      draft,
+      draft.annotations,
+      annotation,
+      index,
+    );
     if (next.kind === "displayable") {
-      annotation.content = structuredClone(next.content);
+      writable.content = structuredClone(next.content);
     } else {
-      annotation.visible = false;
+      writable.visible = false;
     }
     changedObjectIds.add(annotation.id);
   }
@@ -330,7 +345,8 @@ export function refreshInstanceReferenceAnnotation(
   ) {
     return;
   }
-  for (const annotation of draft.annotations) {
+  for (let index = 0; index < draft.annotations.length; index += 1) {
+    const annotation = draft.annotations[index]!;
     if (
       annotation.kind !== "instance-label" ||
       annotation.binding?.kind !== "instance-reference" ||
@@ -342,15 +358,21 @@ export function refreshInstanceReferenceAnnotation(
       // A stored M₁ look follows the new Reference (R₁ renamed RL1 reads
       // R_L1); an authored format keeps its styling around the new text.
       const deviceLetter = referenceDeviceLetter(instance!.symbolId);
-      const format = renamedLabelFormat(
+      const writable = writableDraftRow(
+        draft,
+        draft.annotations,
         annotation,
+        index,
+      );
+      const format = renamedLabelFormat(
+        writable,
         previousReference,
         nextReference,
         draft.presentation,
         deviceLetter ? { deviceLetter } : {},
       );
-      if (format) annotation.formatOverride = format;
-      else delete annotation.formatOverride;
+      if (format) writable.formatOverride = format;
+      else delete writable.formatOverride;
     }
     changedObjectIds.add(annotation.id);
   }
@@ -780,14 +802,19 @@ export function followAttachedAnnotations(
       x: newPosition.x - oldPosition.x,
       y: newPosition.y - oldPosition.y,
     };
-    for (const annotation of draft.annotations) {
+    for (let index = 0; index < draft.annotations.length; index += 1) {
+      const annotation = draft.annotations[index]!;
       if (
         annotation.anchor.kind !== "object" ||
         annotation.anchor.objectId !== instanceId
       ) {
         continue;
       }
-      translateObjectAnchoredAnnotation(annotation, instanceId, delta);
+      translateObjectAnchoredAnnotation(
+        writableDraftRow(draft, draft.annotations, annotation, index),
+        instanceId,
+        delta,
+      );
       changedObjectIds.add(annotation.id);
     }
     return;
@@ -952,14 +979,24 @@ export function followAttachedAnnotations(
   const rotatedGroupIds = new Set(
     rotatedGroup ? [rotatedGroup.name.id, rotatedGroup.value.id] : [],
   );
-  for (const annotation of draft.annotations) {
+  for (let index = 0; index < draft.annotations.length; index += 1) {
+    const existing = draft.annotations[index]!;
     if (
-      annotation.anchor.kind !== "object" ||
-      annotation.anchor.objectId !== instanceId
+      existing.anchor.kind !== "object" ||
+      existing.anchor.objectId !== instanceId
     ) {
       continue;
     }
-    if (rotatedGroupIds.has(annotation.id)) {
+    if (rotatedGroupIds.has(existing.id)) {
+      continue;
+    }
+    const annotation = writableDraftRow(
+      draft,
+      draft.annotations,
+      existing,
+      index,
+    );
+    if (annotation.anchor.kind !== "object") {
       continue;
     }
     if (reflection) {
@@ -1350,10 +1387,12 @@ export function followAttachedAnnotations(
       reflectedValueLabel,
     );
     if (seated)
-      for (const [annotation, target] of [
+      for (const [existing, target] of [
         [reflectedGroup.name, seated.name],
         [reflectedGroup.value, seated.value],
       ] as const) {
+        if (existing.anchor.kind !== "object") continue;
+        const annotation = writableDraftRow(draft, draft.annotations, existing);
         if (annotation.anchor.kind !== "object") continue;
         annotation.anchor = {
           ...annotation.anchor,
@@ -1382,10 +1421,12 @@ export function followAttachedAnnotations(
       nextShift,
     );
     if (placed) {
-      for (const [annotation, target] of [
+      for (const [existing, target] of [
         [rotatedGroup.name, placed.name],
         [rotatedGroup.value, placed.value],
       ] as const) {
+        if (existing.anchor.kind !== "object") continue;
+        const annotation = writableDraftRow(draft, draft.annotations, existing);
         if (annotation.anchor.kind !== "object") continue;
         annotation.anchor = {
           ...annotation.anchor,

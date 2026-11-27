@@ -1,8 +1,9 @@
-import { routeEndpoints } from "@icm/model";
+import { isFrozenSnapshot, routeEndpoints } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import type { EditTransaction } from "./edit-schema.js";
+import { writableDraftRow } from "./local-transaction-draft.js";
 import type { EditMutationOutcome, RejectEdit } from "./transaction-domain.js";
 import { followAttachedAnnotations } from "./transaction-instance-annotations.js";
 import { lockedLayoutOwner } from "./transaction-routing.js";
@@ -33,9 +34,10 @@ export function applyInstanceTransformEdit(
   context: InstanceTransformEditContext,
 ): InstanceTransformEditOutcome {
   const { draft, resolver, changedObjectIds, reject } = context;
-  const instance = draft.instances.find(
+  const instanceIndex = draft.instances.findIndex(
     (candidate) => candidate.id === edit.instanceId,
   );
+  const instance = draft.instances[instanceIndex];
   if (!instance) {
     return {
       ok: false,
@@ -69,7 +71,12 @@ export function applyInstanceTransformEdit(
           ),
         };
       }
-      instance.placement = structuredClone(edit.placement);
+      writableDraftRow(
+        draft,
+        draft.instances,
+        instance,
+        instanceIndex,
+      ).placement = structuredClone(edit.placement);
       changedObjectIds.add(edit.instanceId);
       return { ok: true };
     case "unplace_instance":
@@ -99,7 +106,12 @@ export function applyInstanceTransformEdit(
           ),
         };
       }
-      instance.placement = null;
+      writableDraftRow(
+        draft,
+        draft.instances,
+        instance,
+        instanceIndex,
+      ).placement = null;
       changedObjectIds.add(edit.instanceId);
       return { ok: true };
     case "move_instance":
@@ -114,21 +126,29 @@ export function applyInstanceTransformEdit(
           ),
         };
       }
-      const oldPlacement = structuredClone(instance.placement);
+      const oldPlacement = isFrozenSnapshot(instance.placement)
+        ? instance.placement
+        : structuredClone(instance.placement);
+      const writable = writableDraftRow(
+        draft,
+        draft.instances,
+        instance,
+        instanceIndex,
+      );
       if (edit.kind === "move_instance") {
-        instance.placement.position = structuredClone(edit.position);
+        writable.placement!.position = structuredClone(edit.position);
       } else if (edit.kind === "rotate_instance") {
-        instance.placement.rotation = edit.rotation;
+        writable.placement!.rotation = edit.rotation;
       } else {
-        instance.placement.mirror = edit.mirror;
+        writable.placement!.mirror = edit.mirror;
       }
       followAttachedAnnotations(
         draft,
         edit.instanceId,
         oldPlacement.position,
         oldPlacement,
-        instance.placement.position,
-        instance.placement,
+        writable.placement!.position,
+        writable.placement!,
         changedObjectIds,
         resolver,
       );

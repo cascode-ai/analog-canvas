@@ -37,6 +37,7 @@ export function inheritCellPortFormatting(
   after: SchematicDocument,
   changedObjectIds: Set<string>,
 ): void {
+  if (before.netlist === after.netlist) return;
   const oldPorts = projectCellInterface(before.netlist).ports;
   for (const port of projectCellInterface(after.netlist).ports) {
     const previous = oldPorts.find((item) => item.key === port.key);

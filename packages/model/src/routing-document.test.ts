@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   createEmptyProject,
   freezeSnapshot,
+  isValidatedCell,
+  parseOwnedDocument,
+  prepareOwnedDocument,
   prepareWireCell,
   installPreparedWireCell,
   createRoutePath,
@@ -164,5 +167,42 @@ describe("owned routing candidates", () => {
     const canonical = parseRoutingDocument(source, () => {});
     const candidate = parseOwnedRoutingDocument(source, source, () => {});
     expect(candidate.error?.issues).toEqual(canonical.error?.issues);
+  });
+
+  it("retains unchanged frozen rows across all collections in prepareOwnedDocument", () => {
+    const base = sourceProject();
+    base.documents[0]!.instances.push(
+      { id: "R1", symbolId: "resistor", placement: null },
+      { id: "R2", symbolId: "resistor", placement: null },
+    );
+    const snapshot = parseProjectSnapshot(base);
+    const source = snapshot.documents[0]!;
+    const edited = { ...source.instances[1]!, reference: "R2" };
+    const draft = {
+      ...source,
+      revision: source.revision + 1,
+      instances: [source.instances[0]!, edited],
+    };
+    const owned = prepareOwnedDocument(draft, source);
+    expect(owned.success).toBe(true);
+    if (!owned.success) return;
+    expect(isValidatedCell(owned.data)).toBe(true);
+    expect(owned.data.instances[0]).toBe(source.instances[0]);
+    expect(owned.data.instances[1]).not.toBe(edited);
+    expect(owned.data.routes[0]).toBe(source.routes[0]);
+    expect(owned.data.nets[0]).toBe(source.nets[0]);
+    expect(owned.data.presentation).toBe(source.presentation);
+
+    const invalid = parseOwnedDocument(
+      {
+        ...draft,
+        instances: [
+          source.instances[0]!,
+          { ...edited, extra: "bad" } as (typeof draft.instances)[number],
+        ],
+      },
+      source,
+    );
+    expect(invalid.success).toBe(false);
   });
 });

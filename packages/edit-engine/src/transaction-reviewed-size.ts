@@ -8,6 +8,7 @@ import type {
   ExternalSubcircuitDefinition,
   SchematicDocument,
 } from "@icm/model";
+import { writableDraftRow } from "./local-transaction-draft.js";
 
 /**
  * Keep every part of the Cell that is bound to a device its library models
@@ -26,7 +27,8 @@ export function fitReviewedSizes(
 ): void {
   if (!definitions?.length) return;
   const byId = new Map(definitions.map((item) => [item.id, item]));
-  for (const instance of draft.instances) {
+  for (let index = 0; index < draft.instances.length; index += 1) {
+    const instance = draft.instances[index]!;
     const binding = instance.netlist?.binding;
     if (binding?.kind !== "external-subcircuit") continue;
     const definition = byId.get(binding.definitionId);
@@ -47,7 +49,12 @@ export function fitReviewedSizes(
     );
     const changes = reviewedModelledSizeChanges(reviewed, parameters, kept);
     if (Object.keys(changes).length === 0) continue;
-    instance.netlist!.parameters = { ...parameters, ...changes };
+    writableDraftRow(
+      draft,
+      draft.instances,
+      instance,
+      index,
+    ).netlist!.parameters = { ...parameters, ...changes };
     changedObjectIds.add(instance.id);
   }
 }

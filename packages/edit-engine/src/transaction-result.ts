@@ -106,6 +106,12 @@ export interface EditExecutionContext {
    */
   pinsMovedInstanceIds?: ReadonlySet<string>;
   /**
+   * "owned" permits returning a deeply frozen, validated Cell snapshot sharing
+   * unchanged rows with a validated frozen source Document. Callers that need
+   * a mutable result keep the default "detached" ownership.
+   */
+  resultOwnership?: "detached" | "owned";
+  /**
    * The Project's external definitions, so a part bound to a device its
    * library models only at a few sizes keeps one of them (#1485). Without
    * them no part is fitted.

@@ -539,6 +539,7 @@ export class EditorDocumentController {
           : {}),
         externalSubcircuitDefinitions:
           this.projectValue.externalSubcircuitDefinitions,
+        ...(request.dryRun ? {} : { resultOwnership: "owned" as const }),
       };
       result = prepared
         ? adoptPreparedCanvasTransaction(
@@ -596,7 +597,7 @@ export class EditorDocumentController {
         installed ||
         this.replaceEditedCell(
           before,
-          prepared
+          prepared || isFrozenSnapshot(result.document)
             ? result.document
             : freezeSnapshot(
                 shareEqualDocumentStructure(document, result.document),
