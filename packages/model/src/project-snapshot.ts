@@ -3,6 +3,7 @@ import { SchematicDocumentSchema } from "./schema/document.js";
 import { freezeSnapshot, isFrozenSnapshot } from "./immutable-snapshot.js";
 import type { CircuitProject, SchematicDocument } from "./schema/types.js";
 import { shareEqualProjectStructure } from "./snapshot-structural-sharing.js";
+import { rememberValidatedCells } from "./validated-cells.js";
 
 const validatedSnapshots = new WeakSet<CircuitProject>();
 const restoredProjects = new WeakMap<object, CircuitProject>();
@@ -74,6 +75,7 @@ export function validateProjectSnapshot(
       : result.data,
   );
   validatedSnapshots.add(project);
+  rememberValidatedCells(project);
   return { success: true, data: project };
 }
 

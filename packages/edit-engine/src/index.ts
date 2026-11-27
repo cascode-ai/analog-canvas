@@ -47,7 +47,9 @@ export * from "./cell-selection-deletion.js";
 export * from "./net-name-operation-planner.js";
 export * from "./instance-lifecycle.js";
 export * from "./undrawn-instances.js";
-export * from "./transaction.js";
+export { executeTransaction } from "./transaction.js";
+export * from "./edit-schema.js";
+export * from "./transaction-result.js";
 export {
   prepareTransaction,
   adoptPreparedCanvasTransaction,

@@ -35,6 +35,7 @@ import {
   PresentationIntentSchema,
 } from "./presentation.js";
 import type { GridPoint } from "./types.js";
+import { isValidatedCell } from "../validated-cells.js";
 import { reportDuplicateIds } from "./validation.js";
 import { electricalConnectionGrid } from "../coordinate-domain.js";
 import { routeElectricalConnections } from "../route-path.js";
@@ -1114,12 +1115,54 @@ export function parseRoutingDocument(
   input: unknown,
   readMembership: (read: ScalarNetReader) => void,
 ) {
+  return checkRoutingDocument(input, readMembership);
+}
+
+/** Internal Wire candidate. Only validated, immutable rows of this Cell can be shared. */
+export function parseOwnedRoutingDocument(
+  draft: DocumentData,
+  source: DocumentData,
+  readMembership: (read: ScalarNetReader) => void,
+) {
+  return checkRoutingDocument(
+    draft,
+    readMembership,
+    draft.id === source.id && isValidatedCell(source) ? source : undefined,
+  );
+}
+
+function retainRoutingRows<S extends z.ZodType>(
+  schema: S,
+  source: readonly z.output<S>[],
+) {
+  const retained = new Set<unknown>(source);
+  return z.array(
+    z.union([z.custom<z.output<S>>((row) => retained.has(row)), schema]),
+  );
+}
+
+function checkRoutingDocument(
+  input: unknown,
+  readMembership: (read: ScalarNetReader) => void,
+  source?: DocumentData,
+) {
   let validatedReader: ScalarNetReader | undefined;
-  const result = SchematicDocumentBaseSchema.superRefine(
-    documentChecks((read) => {
-      validatedReader = read;
-    }),
-  ).safeParse(input);
+  const checks = documentChecks((read) => {
+    validatedReader = read;
+  });
+  const canonical = () =>
+    SchematicDocumentBaseSchema.superRefine(checks).safeParse(input);
+  let result = source
+    ? SchematicDocumentBaseSchema.extend({
+        nets: retainRoutingRows(NetSchema, source.nets),
+        routes: retainRoutingRows(RouteBranchSchema, source.routes),
+        junctions: retainRoutingRows(JunctionSchema, source.junctions),
+      })
+        .superRefine(checks)
+        .safeParse(input)
+    : canonical();
+  // Union errors include the identity branch. Preserve the canonical ordered diagnostics.
+  if (!result.success && source) result = canonical();
   if (result.success && validatedReader) readMembership(validatedReader);
   return result;
 }

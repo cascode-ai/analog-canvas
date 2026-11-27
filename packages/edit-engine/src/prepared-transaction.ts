@@ -10,7 +10,7 @@ import {
   type SchematicEdit,
 } from "./edit-schema.js";
 import { rejectTransaction } from "./transaction-result.js";
-import { executeTransaction } from "./transaction.js";
+import { applyTransaction, type executeTransaction } from "./transaction.js";
 import type {
   AppliedTransaction,
   EditExecutionContext,
@@ -120,11 +120,12 @@ function prepare(
       membershipUnchanged: boolean;
       prepared: PreparedTransaction;
     } {
-  const result = executeTransaction(
+  const result = applyTransaction(
     document,
     input,
     context,
     routing?.readMembership,
+    keepOwned,
   );
   if (!result.ok) return { result };
   const transaction = EditTransactionSchema.parse(input);
