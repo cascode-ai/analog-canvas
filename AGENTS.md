@@ -22,6 +22,11 @@ invocation policies, human checkpoints, dependencies and review separation.
 - Implement or validate behavior: docs/testing/README.md.
 - Review changes: CODING_STANDARDS.md and the originating Spec.
 - Deliver or recover Production: docs/deployment.md.
+- Publish, update or curate live Gallery entries: use the Owner API token
+  (`ANALOG_CANVAS_OWNER_TOKEN` or `~/.config/analog-canvas/owner-token`) via
+  the HTTP API (`POST /api/gallery/submissions`, `PUT /api/gallery/<id>`,
+  `PATCH /api/gallery/<id>/curation`, `POST /api/gallery/sources/<key>/entries`)
+  directly; details in docs/specs/community-gallery.md#owner-editing.
 - Change circuit assets or models: packages/components/README.md and the
   circuit/model validation section in docs/testing/README.md.
 
