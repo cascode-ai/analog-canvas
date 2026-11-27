@@ -9,7 +9,6 @@ import {
 } from "@icm/netlist";
 import { resolveSourceSimulationContext } from "./source-context.js";
 import { problem, type Capabilities } from "./contract.js";
-import type { ExecutionInput } from "./executor.js";
 import { sha256 } from "./content-digest.js";
 import { sourceCompilationProblem } from "./source-compilation-problem.js";
 import { netlistRunWarnings } from "./netlist-warnings.js";
@@ -18,6 +17,7 @@ import { inspectNativeAnalyses } from "./native-source-analysis.js";
 import { outputVolumeWarning } from "./result-volume.js";
 import { prepareNgspiceExecutionInput } from "./prepare-ngspice.js";
 import { resolveSimulationEngine } from "./profile-engine.js";
+import { withRawExecutionInputDigestTexts } from "./raw-input-digests.js";
 
 /** Public native Prepare: same source authority for GUI, MCP and session folders. */
 export async function prepareSourceExecutionInput(
@@ -103,24 +103,24 @@ export async function prepareSourceExecutionInput(
     ...new Set(native.projections.map((p) => p.analysis)),
   ].filter((kind) => !caps.analyses.includes(kind));
   const preparedDeck = files[entryIndex]!.text;
-  const input: ExecutionInput & { preparedDeck: string } = {
-    language: "vacask",
-    mode: "raw",
-    // VACASK runs cannot name the drawn circuit in the netlist digest yet
-    // (#1243): validateNativeExecutionInput requires and rewrites an empty
-    // netlist, in the Worker and in the manually deployed host
-    // (containers/vacask/run-job.mjs), and the Worker's receipt checks expect
-    // "" (worker/simulation-vacask.ts). The host must accept one first.
-    netlist: "",
-    testbench: preparedDeck,
-    preparedDeck,
-    inputRevision,
-    environment,
-    entryPath: compiled.entry,
-    files,
-    dependencies,
-    collection: { kind: "native-multi-ascii" },
-  };
+  const generatedPaths = new Set(compiled.generated.map((file) => file.path));
+  const input = withRawExecutionInputDigestTexts(
+    {
+      language: "vacask",
+      mode: "raw",
+      netlist: "",
+      testbench: preparedDeck,
+      preparedDeck,
+      inputRevision,
+      environment,
+      entryPath: compiled.entry,
+      files,
+      dependencies,
+      collection: { kind: "native-multi-ascii" },
+    },
+    generatedPaths,
+    caps.maxInputBytes,
+  );
   return {
     ok: true as const,
     input,

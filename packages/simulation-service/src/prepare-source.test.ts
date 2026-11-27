@@ -17,7 +17,12 @@ import {
   currentFiveTransistorOtaCircuitSource,
   legacyFiveTransistorOta as ota,
 } from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
+import {
+  createSimulationInputMetadata,
+  isValidRawExecutionInputMetadata,
+} from "@icm/spice-run";
 import { CapabilitiesSchema, ProblemSchema } from "./contract.js";
+import { validateNativeExecutionInput } from "./native-execution-input.js";
 import { prepareSourceExecutionInput } from "./prepare-source.js";
 import { sha256 } from "./content-digest.js";
 
@@ -738,5 +743,202 @@ describe("source execution preparation", () => {
     expect((await prepareSourceExecutionInput(circuit, folder, caps)).ok).toBe(
       true,
     );
+  });
+
+  const inputDigests = (prepared: {
+    input: { netlist: string; testbench: string; preparedDeck: string };
+  }) =>
+    createSimulationInputMetadata({
+      netlist: prepared.input.netlist,
+      testbench: prepared.input.testbench,
+      deck: prepared.input.preparedDeck,
+    });
+
+  it("names the drawn circuit in netlistSha256 and all authored files in testbenchSha256 (#1407)", async () => {
+    const { circuit, folder, entry } = native(true);
+    // Place the included file before the entry so non-entry-first authored
+    // file ordering is covered alongside multi-file testbench digests.
+    folder.input.files.unshift({
+      path: "tb/stimuli.inc",
+      text: "// included stimuli\nVaux (aux 0) vsource dc=0.5\n",
+    });
+    entry.text = entry.text.replace(
+      'include "../circuit.inc"',
+      'include "stimuli.inc"\r\ninclude "../circuit.inc"',
+    );
+    const beforeSnapshot = structuredClone({ circuit, folder });
+    const nativePolicy = (maxInputBytes: number) => ({
+      profileId: "candidate",
+      dependencies: caps.profiles[0]!.dependencies ?? [],
+      maxInputFiles: caps.maxInputFiles!,
+      maxInputBytes,
+    });
+
+    const first = await prepareSourceExecutionInput(circuit, folder, caps);
+    if (!first.ok) throw Error(JSON.stringify(first));
+    const [generated] = first.generated;
+    const circuitFile = first.input.files.find(
+      (file) => file.path === generated!.path,
+    )!;
+    expect(first.input.netlist).toBe(circuitFile.text);
+    expect(first.input.testbench).not.toBe(first.input.preparedDeck);
+    expect(first.input.testbench).toContain("Vaux (aux 0) vsource dc=0.5");
+    expect(first.input.testbench).toContain(first.input.preparedDeck);
+    expect(
+      isValidRawExecutionInputMetadata(
+        {
+          netlist: first.input.netlist,
+          testbench: first.input.testbench,
+          deck: first.input.preparedDeck,
+        },
+        first.input.files,
+        first.input.entryPath,
+      ),
+    ).toBe(true);
+    expect(
+      validateNativeExecutionInput(
+        first.input,
+        nativePolicy(caps.maxInputBytes),
+      ),
+    ).toMatchObject({ ok: true });
+    expect({ circuit, folder }).toEqual(beforeSnapshot);
+
+    const before = await inputDigests(first);
+    expect(before.testbenchSha256).not.toBe(before.deckSha256);
+
+    // Editing only an included testbench file moves testbenchSha256 while
+    // keeping netlistSha256 and entry deckSha256 unchanged.
+    const included = folder.input.files.find(
+      (file) => file.path === "tb/stimuli.inc",
+    )!;
+    included.text = "// included stimuli\nVaux (aux 0) vsource dc=0.75\n";
+    const editedTb = await prepareSourceExecutionInput(circuit, folder, caps);
+    if (!editedTb.ok) throw Error(JSON.stringify(editedTb));
+    const afterTb = await inputDigests(editedTb);
+    expect(afterTb.testbenchSha256).not.toBe(before.testbenchSha256);
+    expect(afterTb.netlistSha256).toBe(before.netlistSha256);
+    expect(afterTb.deckSha256).toBe(before.deckSha256);
+
+    // Editing only a drawn device parameter moves netlistSha256 while keeping
+    // testbenchSha256 and entry deckSha256 unchanged.
+    const resized = structuredClone(circuit);
+    resized.documents
+      .flatMap((doc) => doc.instances)
+      .find((i) => i.netlist?.parameters.w)!.netlist!.parameters.w = "33u";
+    const editedCircuit = await prepareSourceExecutionInput(
+      resized,
+      folder,
+      caps,
+    );
+    if (!editedCircuit.ok) throw Error(JSON.stringify(editedCircuit));
+    const afterCircuit = await inputDigests(editedCircuit);
+    expect(afterCircuit.netlistSha256).not.toBe(afterTb.netlistSha256);
+    expect(afterCircuit.testbenchSha256).toBe(afterTb.testbenchSha256);
+    expect(afterCircuit.deckSha256).toBe(afterTb.deckSha256);
+
+    // When only the multi-file testbench copy would exceed maxInputBytes, it
+    // falls back to the executed entry deck while netlist keeps fitting.
+    const withoutExtraTestbench = new TextEncoder().encode(
+      JSON.stringify({
+        ...editedCircuit.input,
+        testbench: editedCircuit.input.preparedDeck,
+      }),
+    ).length;
+    const tightTb = await prepareSourceExecutionInput(resized, folder, {
+      ...caps,
+      maxInputBytes: withoutExtraTestbench,
+    });
+    if (!tightTb.ok) throw Error(JSON.stringify(tightTb));
+    expect(tightTb.input.netlist).toBe(editedCircuit.input.netlist);
+    expect(tightTb.input.testbench).toBe(tightTb.input.preparedDeck);
+    expect(
+      validateNativeExecutionInput(
+        tightTb.input,
+        nativePolicy(withoutExtraTestbench),
+      ),
+    ).toMatchObject({ ok: true });
+
+    // When netlist is too large for maxInputBytes but the multi-file testbench
+    // still fits, netlist falls back to "" while testbench stays multi-file.
+    const withoutNetlistOnly = new TextEncoder().encode(
+      JSON.stringify({
+        ...editedCircuit.input,
+        netlist: "",
+      }),
+    ).length;
+    if (withoutNetlistOnly < withoutExtraTestbench) {
+      const tightNetlist = await prepareSourceExecutionInput(resized, folder, {
+        ...caps,
+        maxInputBytes: withoutNetlistOnly,
+      });
+      if (!tightNetlist.ok) throw Error(JSON.stringify(tightNetlist));
+      expect(tightNetlist.input.netlist).toBe("");
+      expect(tightNetlist.input.testbench).toBe(editedCircuit.input.testbench);
+      expect(
+        validateNativeExecutionInput(
+          tightNetlist.input,
+          nativePolicy(withoutNetlistOnly),
+        ),
+      ).toMatchObject({ ok: true });
+    }
+
+    // When neither extra copy fits maxInputBytes, both fall back cleanly.
+    const withoutEitherCopy = new TextEncoder().encode(
+      JSON.stringify({
+        ...editedCircuit.input,
+        netlist: "",
+        testbench: editedCircuit.input.preparedDeck,
+      }),
+    ).length;
+    const tightBoth = await prepareSourceExecutionInput(resized, folder, {
+      ...caps,
+      maxInputBytes: withoutEitherCopy,
+    });
+    if (!tightBoth.ok) throw Error(JSON.stringify(tightBoth));
+    expect(tightBoth.input.netlist).toBe("");
+    expect(tightBoth.input.testbench).toBe(tightBoth.input.preparedDeck);
+    expect(
+      validateNativeExecutionInput(
+        tightBoth.input,
+        nativePolicy(withoutEitherCopy),
+      ),
+    ).toMatchObject({ ok: true });
+
+    // Code-only folders with no drawn circuit keep an empty netlist digest.
+    const codeOnly = native(false);
+    const preparedCodeOnly = await prepareSourceExecutionInput(
+      codeOnly.circuit,
+      codeOnly.folder,
+      caps,
+    );
+    if (!preparedCodeOnly.ok) throw Error(JSON.stringify(preparedCodeOnly));
+    expect(preparedCodeOnly.input.netlist).toBe("");
+    expect(preparedCodeOnly.input.testbench).toBe(
+      preparedCodeOnly.input.preparedDeck,
+    );
+    expect(
+      validateNativeExecutionInput(
+        preparedCodeOnly.input,
+        nativePolicy(caps.maxInputBytes),
+      ),
+    ).toMatchObject({ ok: true });
+
+    // An empty entry file must not pair with a non-empty multi-file testbench.
+    const emptyEntryCase = native(false);
+    emptyEntryCase.folder.input.files.push({
+      path: "tb/helper.inc",
+      text: "// unused sibling\n",
+    });
+    emptyEntryCase.entry.text = "";
+    const emptyEntry = await prepareSourceExecutionInput(
+      emptyEntryCase.circuit,
+      emptyEntryCase.folder,
+      caps,
+    );
+    if (emptyEntry.ok) {
+      expect(emptyEntry.input.preparedDeck).toBe("");
+      expect(emptyEntry.input.netlist).toBe("");
+      expect(emptyEntry.input.testbench).toBe("");
+    }
   });
 });

@@ -224,13 +224,11 @@ type ModelLibrarySelection =
 
 - `inputRevision` is opaque freshness state.
 - `netlistSha256` covers the drawn circuit as sent (generated files joined by
-  newlines in compile order), or the empty netlist when there is none, when an
-  ngspice input would exceed its budget, or for VACASK. For ngspice,
-  `testbenchSha256` covers the authored testbench files as sent (joined by
-  newlines in compile order, falling back to the executed entry when an input
-  would exceed its budget) and `deckSha256` covers the executed entry; for
-  VACASK both cover the executed entry. `catalog.files` holds every other file's
-  SHA-256.
+  newlines in compile order), or the empty netlist when there is none or when an
+  input would exceed its budget. `testbenchSha256` covers the authored testbench
+  files as sent (joined by newlines in compile order, falling back to the
+  executed entry when an input would exceed its budget), and `deckSha256` covers
+  the executed entry. `catalog.files` holds every other file's SHA-256.
 - Hosted executors report `pinned` only after matching the Profile, the browser
   executor only after matching its `browser` section; nothing is fabricated.
   Metadata is provenance, not correctness.

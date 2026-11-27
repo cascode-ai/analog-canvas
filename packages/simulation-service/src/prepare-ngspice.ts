@@ -22,7 +22,6 @@ import {
   formatModelLibrarySelection,
 } from "@icm/spice-run";
 import { problem, type Capabilities } from "./contract.js";
-import type { ExecutionInput } from "./executor.js";
 import { sha256 } from "./content-digest.js";
 import { sourceCompilationProblem } from "./source-compilation-problem.js";
 import { netlistRunWarnings } from "./netlist-warnings.js";
@@ -32,6 +31,7 @@ import {
   sourceOutputVolumeWarning,
 } from "./source-analysis.js";
 import { ngspicePreparationWarnings } from "./ngspice-advisories.js";
+import { withRawExecutionInputDigestTexts } from "./raw-input-digests.js";
 
 function librarySectionRange(
   text: string,
@@ -650,48 +650,27 @@ export async function prepareNgspiceExecutionInput(
   });
   const preparedDeck = files[entryIndex]!.text;
   const signals = simulationSignals(project, folder.input);
-  const input: ExecutionInput & { preparedDeck: string } = {
-    mode: "raw",
-    netlist: "",
-    testbench: preparedDeck,
-    preparedDeck,
-    inputRevision,
-    environment: {
-      ...config.environment,
-      ...(variant?.environment?.temperatureC === undefined
-        ? {}
-        : { temperatureC: variant.environment.temperatureC }),
+  const input = withRawExecutionInputDigestTexts(
+    {
+      mode: "raw",
+      netlist: "",
+      testbench: preparedDeck,
+      preparedDeck,
+      inputRevision,
+      environment: {
+        ...config.environment,
+        ...(variant?.environment?.temperatureC === undefined
+          ? {}
+          : { temperatureC: variant.environment.temperatureC }),
+      },
+      entryPath: compiled.entry,
+      files,
+      dependencies,
+      collection: config.collection,
     },
-    entryPath: compiled.entry,
-    files,
-    dependencies,
-    collection: config.collection,
-  };
-  // The drawn circuit and authored testbench files as sent are what the run's
-  // netlist and testbench digests name (#1243, #1407). A raw run executes the
-  // entry deck and its files alone, so these copies feed only the run's
-  // digests (input metadata and the prepared digest). Each is sent only while
-  // the whole serialized input stays within the input budget.
-  const encoder = new TextEncoder();
-  const fitsInputBudget = (candidate: ExecutionInput) =>
-    encoder.encode(JSON.stringify(candidate)).length <= caps.maxInputBytes;
-  const drawnCircuit = files
-    .filter((file) => generatedPaths.has(file.path))
-    .map((file) => file.text)
-    .join("\n");
-  if (drawnCircuit && fitsInputBudget({ ...input, netlist: drawnCircuit }))
-    input.netlist = drawnCircuit;
-  const authoredTestbench = files
-    .filter((file) => !generatedPaths.has(file.path))
-    .map((file) => file.text)
-    .join("\n");
-  if (
-    preparedDeck &&
-    authoredTestbench &&
-    authoredTestbench !== preparedDeck &&
-    fitsInputBudget({ ...input, testbench: authoredTestbench })
-  )
-    input.testbench = authoredTestbench;
+    generatedPaths,
+    caps.maxInputBytes,
+  );
   return {
     ok: true as const,
     input,
