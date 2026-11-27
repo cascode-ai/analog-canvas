@@ -4445,6 +4445,7 @@ function WorkspaceEditor({
     useSignalMemberInspection({
       model: {
         document,
+        documentConnectivity,
         resolver,
         selectedEndpoint,
         visibleEndpoints,
