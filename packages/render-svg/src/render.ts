@@ -1,7 +1,13 @@
 /** Scene assembly: a Document's formal SVG scene and the SVG file around it. */
 import { renderFractionText } from "./fraction-text.js";
-import { RectSchema, SchematicDocumentSchema } from "@icm/model";
 import {
+  RectSchema,
+  SchematicDocumentSchema,
+  documentContentSource,
+  isValidatedCell,
+} from "@icm/model";
+import {
+  cachedDocumentConnectivityIndex,
   contactRequiresJunctionDot,
   junctionForContact,
   deriveDocumentContactEvidence,
@@ -21,6 +27,7 @@ import {
 } from "@icm/derived";
 import type {
   CoincidentContact,
+  DocumentConnectivityIndex,
   DocumentContactEvidence,
   DocumentStyleKeeper,
   ResolvedDocumentRoutingGeometry,
@@ -34,6 +41,7 @@ import type {
   SchematicDocument,
 } from "@icm/model";
 import {
+  InMemorySymbolResolver,
   resolveInstanceSymbol,
   signalFlowBodyUsesLabelTypography,
 } from "@icm/symbols";
@@ -119,7 +127,33 @@ export function buildSvgScene(
   resolver: SymbolResolver,
   options: SvgRenderOptions = {},
 ): SvgScene {
-  const document = SchematicDocumentSchema.parse(input);
+  return assembleScene(SchematicDocumentSchema.parse(input), resolver, options);
+}
+
+/** Only the committed Canvas supplies the shared, revision-scoped read model. */
+export function buildCommittedCanvasScene(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  connectivity: DocumentConnectivityIndex | undefined,
+  canvasPaintRuns: boolean | string,
+): SvgScene {
+  if (
+    !connectivity ||
+    !isValidatedCell(documentContentSource(document)) ||
+    !InMemorySymbolResolver.hasStableDefinitions(resolver) ||
+    cachedDocumentConnectivityIndex(document, resolver, "committed") !==
+      connectivity
+  )
+    return buildSvgScene(document, resolver, { canvasPaintRuns });
+  return assembleScene(document, resolver, { canvasPaintRuns }, connectivity);
+}
+
+function assembleScene(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  options: SvgRenderOptions,
+  connectivity?: DocumentConnectivityIndex,
+): SvgScene {
   const groupDisplay = instanceGroupDisplay(document);
   const objectIds = instanceGroupVisibleIds(
     document,
@@ -134,6 +168,7 @@ export function buildSvgScene(
     throw new Error("SVG margin must be a non-negative integer");
   }
   const routingGeometry =
+    connectivity?.routingGeometry ??
     options.routingGeometry ??
     resolveDocumentRoutingGeometry(document, resolver);
   if (
@@ -142,15 +177,19 @@ export function buildSvgScene(
   ) {
     throw new Error("SVG renderer received stale routing geometry");
   }
-  const instancesById = new Map(
-    document.instances.map((instance) => [instance.id, instance] as const),
-  );
-  const routesById = new Map(
-    document.routes.map((route) => [route.id, route] as const),
-  );
-  const junctionsById = new Map(
-    document.junctions.map((junction) => [junction.id, junction] as const),
-  );
+  const instancesById =
+    connectivity?.instancesById ??
+    new Map(
+      document.instances.map((instance) => [instance.id, instance] as const),
+    );
+  const routesById =
+    connectivity?.routesById ??
+    new Map(document.routes.map((route) => [route.id, route] as const));
+  const junctionsById =
+    connectivity?.junctionsById ??
+    new Map(
+      document.junctions.map((junction) => [junction.id, junction] as const),
+    );
   const routesAtJunction = new Map<string, RouteBranch[]>();
   for (const route of document.routes) {
     const end = route.legs.at(-1)?.to;
@@ -198,7 +237,8 @@ export function buildSvgScene(
       ),
     );
   };
-  const logicalNets = resolveDocumentLogicalNets(document);
+  const logicalNets =
+    connectivity?.logicalNetResolution ?? resolveDocumentLogicalNets(document);
   const powerRailNetIds = new Set(
     document.routes.flatMap((route) => {
       if (route.presentation !== "power-rail") return [];
@@ -250,6 +290,7 @@ export function buildSvgScene(
     });
   }
   const contactEvidence =
+    connectivity?.contactEvidence ??
     options.contactEvidence ??
     deriveDocumentContactEvidence(document, resolver, routingGeometry);
   // The contacts this drawing paints a dot at; the bounds count a Junction
