@@ -44,6 +44,47 @@ function hierarchicalProject() {
 }
 
 describe("EditorDocumentController", () => {
+  it("retains the sibling Cell for Canvas placement and detaches an ordinary receipt with the same transaction ID", () => {
+    const input = createEmptyProject("mos", "MOS", "top");
+    input.documents.push(createEmptyDocument("peer", "Peer"));
+    const controller = new EditorDocumentController(input);
+    const peer = controller.project.documents[1];
+    const request = {
+      actor: { kind: "human" as const, id: "local" },
+      transactionId: "place-component",
+      projectId: input.id,
+      expectedStructureRevision: 0,
+      edits: [
+        {
+          kind: "transact_document" as const,
+          documentId: "top",
+          expectedRevision: 0,
+          edits: [
+            {
+              kind: "add_instance" as const,
+              instance: { id: "M1", symbolId: "nmos", placement: null },
+            },
+          ],
+        },
+      ],
+    };
+    const placed = controller.dispatchProjectTransaction(
+      request,
+      "top",
+      "top",
+      "canvas-placement",
+    );
+    expect(placed.ok).toBe(true);
+    expect(placed.project.documents[1]).toBe(peer);
+    expect(controller.project.documents[1]).toBe(peer);
+    const other = new EditorDocumentController(input);
+    const ordinary = other.dispatchProjectTransaction(request);
+    expect(ordinary.ok).toBe(true);
+    ordinary.project.documents[1]!.name = "Edited response";
+    expect(other.project.documents[1]!.name).toBe("Peer");
+    expect(other.project).toEqual(controller.project);
+  });
+
   it("records the actual split and merged conductors on the installed snapshot only", () => {
     const input = createEmptyProject("journal", "Journal");
     const doc = input.documents[0]!;

@@ -23,6 +23,7 @@ import {
   type RouteEndpoint,
   type SchematicDocument,
 } from "@icm/model";
+import { createPlacementProjectDraft } from "./placement-project-draft.js";
 import { routeEnd } from "@icm/model";
 import {
   bindsProjectCell,
@@ -67,6 +68,7 @@ import {
 import {
   parseProjectSnapshot,
   validateProjectResult,
+  validatePlacementProjectSnapshot,
 } from "./project-snapshot.js";
 import type { PreparedTransaction } from "./prepared-transaction.js";
 import { planInstanceSymbolGeometryRouteFollow } from "./transaction-route-follow.js";
@@ -646,6 +648,8 @@ function withRedrawnCallers(
 }
 
 export interface ProjectTransactionOptions {
+  /** A synchronous Canvas placement can retain its frozen commit receipt. */
+  readonly resultOwnership?: "canvas-placement" | "detached";
   /** In-process, engine-owned document calculations from a compound planner. */
   readonly preparedTransactions?: readonly PreparedTransaction[];
   /**
@@ -725,7 +729,11 @@ function applyProjectTransaction(
     );
   }
 
-  const candidate = structuredClone(project);
+  const placementDraft =
+    options.resultOwnership === "canvas-placement"
+      ? createPlacementProjectDraft(project, transaction)
+      : undefined;
+  const candidate = placementDraft ?? structuredClone(project);
   const changedDocumentIds = new Set<string>();
   const documentResults: EditTransactionResult[] = [];
   const explicitlyTouchedDocumentIds = new Set<string>();
@@ -1710,7 +1718,9 @@ function applyProjectTransaction(
       `${clash[1]} names both a Cell and an external circuit; rename one of them`,
     );
   }
-  const validated = validateProjectResult(candidate);
+  const validated = placementDraft
+    ? validatePlacementProjectSnapshot(candidate, project)
+    : validateProjectResult(candidate);
   if (!validated.success) {
     return rejectProjectTransaction(
       project,

@@ -8,6 +8,7 @@ import type {
   ProjectStructureEdit,
   ProjectTransaction,
   ProjectTransactionResult,
+  ProjectTransactionOptions,
   SchematicEdit,
   ExpectedElectricalEffect,
   RoutingOperationIntent,
@@ -46,6 +47,7 @@ export interface EditorTransactionCommandDependencies {
   dispatchProjectTransaction: (
     request: ProjectTransaction,
     activeDocumentId?: string,
+    resultOwnership?: ProjectTransactionOptions["resultOwnership"],
   ) => ProjectTransactionResult;
   transactDocument: (
     edits: readonly SchematicEdit[],
@@ -102,6 +104,7 @@ export function createEditorTransactionCommands({
     transactionId: string,
     edits: ProjectStructureEdit[],
     activeDocumentId = document.id,
+    resultOwnership: ProjectTransactionOptions["resultOwnership"] = "detached",
   ): ProjectTransactionResult =>
     dispatchProjectTransaction(
       {
@@ -112,6 +115,7 @@ export function createEditorTransactionCommands({
         edits,
       },
       activeDocumentId,
+      resultOwnership,
     );
 
   const reportStructureResult = (result: ProjectTransactionResult): boolean => {
@@ -272,7 +276,12 @@ export function createEditorTransactionCommands({
       finalDocument: placement.evaluated.finalDocument,
     });
     if (filled) {
-      const result = transactStructure("place-component", filled);
+      const result = transactStructure(
+        "place-component",
+        filled,
+        document.id,
+        "canvas-placement",
+      );
       if (result.ok) return reportStructureResult(result);
       // A failed optional fill may leave the new part with a missing-model
       // finding. Only the independent planner can distinguish that case from

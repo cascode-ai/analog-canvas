@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   createEmptyProject,
+  createEmptyDocument,
+  parseProjectSnapshot,
   deriveStableId,
   type CircuitProject,
 } from "@icm/model";
@@ -54,6 +56,26 @@ function documentEdits(
 }
 
 describe("ordered netlist planning projection", () => {
+  it("borrows an immutable sibling and isolates a later stage that targets it", () => {
+    const project = fixture();
+    project.documents.push(createEmptyDocument("peer", "Peer"));
+    const source = parseProjectSnapshot(project);
+    const [placed, peer] = source.documents;
+    const projection = createNetlistPlanningProjection(source, placed);
+    expect(projection.project.documents[1]).toBe(peer);
+    const edits: ProjectStructureEdit[] = [
+      {
+        kind: "transact_document",
+        documentId: "peer",
+        expectedRevision: 0,
+        edits: [{ kind: "create_base_net", netId: "added" }],
+      },
+    ];
+    projection.stage(edits);
+    expect(projection.project).toEqual(full(source, edits));
+    expect(peer!.nets).toEqual([]);
+  });
+
   it("matches real intermediate transactions without mutating the source", () => {
     const source = fixture(),
       before = structuredClone(source);

@@ -245,6 +245,7 @@ describe("editor transaction commands", () => {
         edits: [{ kind: "rename_project", name: "Next" }],
       },
       input.document.id,
+      "detached",
     );
     expect(input.setStatus).toHaveBeenCalledWith(
       "Could not update Cell structure: specific structural failure",
