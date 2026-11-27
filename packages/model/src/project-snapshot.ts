@@ -1,10 +1,27 @@
 import { z } from "zod";
 import { CircuitProjectSchema } from "./schema/project.js";
-import { SchematicDocumentSchema } from "./schema/document.js";
+import {
+  SchematicDocumentSchema,
+  parseOwnedRoutingDocument,
+} from "./schema/document.js";
 import { freezeSnapshot, isFrozenSnapshot } from "./immutable-snapshot.js";
 import type { CircuitProject, SchematicDocument } from "./schema/types.js";
-import { shareEqualProjectStructure } from "./snapshot-structural-sharing.js";
-import { isValidatedCell, rememberValidatedCells } from "./validated-cells.js";
+import {
+  shareEqualDocumentStructure,
+  shareEqualProjectStructure,
+} from "./snapshot-structural-sharing.js";
+import {
+  hasValidatedCells,
+  isValidatedCell,
+  rememberValidatedCells,
+} from "./validated-cells.js";
+
+// Record candidates under their source Project so a live successor cannot
+// retain a chain of predecessor Projects beyond the bounded history.
+const wireSources = new WeakMap<
+  CircuitProject,
+  WeakMap<SchematicDocument, SchematicDocument>
+>();
 
 const validatedSnapshots = new WeakSet<CircuitProject>();
 const restoredProjects = new WeakMap<object, CircuitProject>();
@@ -36,6 +53,81 @@ export function validateProjectResult(
   if (result.success)
     validatedResults.set(result.data, { source: JSON.stringify(result.data) });
   return result;
+}
+
+/** Validate the Cell once and retain its exact source through Canvas commit. */
+export function prepareWireCell(
+  draft: SchematicDocument,
+  source: SchematicDocument,
+  readMembership: Parameters<typeof parseOwnedRoutingDocument>[2],
+  changedNetIds: Set<string>,
+  project?: CircuitProject,
+) {
+  const result = parseOwnedRoutingDocument(draft, source, readMembership);
+  if (!result.success || !isFrozenSnapshot(source)) return result;
+  const cell = freezeSnapshot(
+    shareEqualDocumentStructure(source, result.data, changedNetIds),
+  );
+  if (
+    project &&
+    hasValidatedCells(project) &&
+    project.documents.includes(source)
+  ) {
+    const candidates = wireSources.get(project) ?? new WeakMap();
+    candidates.set(cell, source);
+    wireSources.set(project, candidates);
+  }
+  return { success: true as const, data: cell };
+}
+
+const wireFields: ReadonlySet<keyof SchematicDocument> = new Set([
+  "revision",
+  "sourceStatus",
+  "nets",
+  "routes",
+  "junctions",
+  "connectivityEvidence",
+  "drawingOrder",
+]);
+
+/** A scalar routing-only edit preserves symbol dependencies and all other Cells.
+ * Interface membership and hierarchical terminal references require the normal Project checks. */
+export function installPreparedWireCell(
+  project: CircuitProject,
+  source: SchematicDocument,
+  cell: SchematicDocument,
+): CircuitProject | undefined {
+  if (wireSources.get(project)?.get(cell) !== source) return undefined;
+  const fields = Object.keys({
+    ...source,
+    ...cell,
+  }) as (keyof SchematicDocument)[];
+  if (fields.some((key) => !wireFields.has(key) && cell[key] !== source[key]))
+    return undefined;
+  if (fields.every((key) => key === "revision" || cell[key] === source[key]))
+    return project;
+  if (
+    cell.revision !== source.revision + 1 ||
+    source.instances.some(
+      (instance) => instance.netlist?.binding?.kind === "subcircuit",
+    ) ||
+    source.netlist?.terminals.some(
+      (terminal) => terminal.signal?.members.length,
+    ) ||
+    cell.nets.some((net) =>
+      net.terminals.some((terminal) => terminal.memberId !== undefined),
+    )
+  )
+    return undefined;
+  const snapshot = freezeSnapshot({
+    ...project,
+    documents: project.documents.map((previous) =>
+      previous === source ? cell : previous,
+    ),
+  });
+  validatedSnapshots.add(snapshot);
+  rememberValidatedCells(snapshot);
+  return snapshot;
 }
 
 /** Validate an owned placement, including all cross-Cell constraints. */
@@ -123,6 +215,9 @@ export function shareProjectSnapshot(
   if (!validatedSnapshots.has(before)) return validated;
   const project = freezeSnapshot(shareEqualProjectStructure(before, validated));
   validatedSnapshots.add(project);
+  if (hasValidatedCells(before) && hasValidatedCells(validated)) {
+    rememberValidatedCells(project);
+  }
   return project;
 }
 
@@ -155,6 +250,9 @@ export function restoreProjectSnapshot(
   const snapshot = freezeSnapshot(next);
   restoredProjects.set(snapshot, restoredProjects.get(source) ?? source);
   validatedSnapshots.add(snapshot);
+  if (hasValidatedCells(source)) {
+    rememberValidatedCells(snapshot);
+  }
   return snapshot;
 }
 

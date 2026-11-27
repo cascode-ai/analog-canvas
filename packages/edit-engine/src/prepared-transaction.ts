@@ -126,6 +126,7 @@ function prepare(
     context,
     routing?.readMembership,
     keepOwned,
+    routing?.changedNetIds,
   );
   if (!result.ok) return { result };
   const transaction = EditTransactionSchema.parse(input);
@@ -138,7 +139,7 @@ function prepare(
   // commit. Keep the mutable Map private, and copy it for each consumer.
   const { coalescedEndpoints, ...content } = result;
   const detached = keepOwned ? content : structuredClone(content);
-  if (isFrozenSnapshot(document))
+  if (isFrozenSnapshot(document) && !isFrozenSnapshot(detached.document))
     detached.document = shareEqualDocumentStructure(
       document,
       detached.document,

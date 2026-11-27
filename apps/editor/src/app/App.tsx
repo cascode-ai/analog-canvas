@@ -3086,7 +3086,7 @@ function WorkspaceEditor({
     model: {
       document,
       resolver,
-      externalSubcircuitDefinitions: project.externalSubcircuitDefinitions,
+      project,
       visibleEndpoints: wireContactEndpoints,
       routeGeometryRecords,
       contactComponents,

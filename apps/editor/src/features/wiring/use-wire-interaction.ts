@@ -127,7 +127,7 @@ export interface UseWireInteractionOptions {
   model: {
     document: SchematicDocument;
     resolver: SymbolResolver;
-    externalSubcircuitDefinitions: CircuitProject["externalSubcircuitDefinitions"];
+    project: CircuitProject;
     visibleEndpoints: WireContacts;
     routeGeometryRecords: readonly RouteGeometryRecord[];
     contactComponents: Parameters<typeof resolveElectricalContactTargets>[3];
@@ -332,7 +332,9 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
   ): TransactionResult => {
     const gate = gateCanvasWireCommit(options.document, proposal, {
       symbolResolver: options.resolver,
-      externalSubcircuitDefinitions: options.externalSubcircuitDefinitions,
+      canvasProject: options.project,
+      externalSubcircuitDefinitions:
+        options.project.externalSubcircuitDefinitions,
     });
     if (!gate.ok) {
       options.setStatus(gate.message);
@@ -517,7 +519,7 @@ export function useWireInteraction(capabilities: UseWireInteractionOptions) {
             {
               symbolResolver: options.resolver,
               externalSubcircuitDefinitions:
-                options.externalSubcircuitDefinitions,
+                options.project.externalSubcircuitDefinitions,
             },
           )
         : edits;
