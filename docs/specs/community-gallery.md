@@ -399,7 +399,12 @@ aiGenerated,netlistable,simulatable}`; `simulatable`: it carries a
   Byline and status are kept; the preview and marks are recomputed; 200
   `{id, status, previewRevision}`. `aiGenerated` sets the mark, omission keeps
   it (seat entries always keep it); the mark belongs to the entry, not a
-  version. `ownerUserId` in the detail tells the editor who may update.
+  version. Optional `parentEntryId` (`null` to detach, or a public top-level
+  community parent id) is accepted from the entry's owner (who must also own
+  the target parent) or a curator/Owner, preserving the stored parent when
+  omitted and answering 403 `forbidden` or 400 `invalid-parent` (including
+  self-parenting, nested parents, or parenting an entry that already has
+  subcomponents). `ownerUserId` in the detail tells the editor who may update.
 - `PATCH /api/gallery/<id>` (same-origin) `{name, description}` changes them
   alone under the same rules for its owner, admins and moderators (others 403,
   a dataset's entry 403 `dataset-read-only`): the drawing, preview and marks

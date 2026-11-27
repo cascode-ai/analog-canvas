@@ -29,6 +29,7 @@ import {
   environment,
   formulaProjectText,
   makerOf,
+  ownerAccountOf,
   previousRouteVersionText,
   previousVersionText,
   projectText,
@@ -1322,6 +1323,321 @@ describe("direct publishing (the review queue is retired)", () => {
       await route(env, new Request(`${ORIGIN}/api/gallery/${aiChildId}?summary=1`))
     ).json()) as { entry: { aiGenerated?: boolean } };
     expect(aiChild.entry.aiGenerated).toBe(true);
+  });
+
+  it("updates and clears community parentEntryId via PUT with permissions and nesting guards (#2658)", async () => {
+    const env = environment();
+    const authorCookie = await makerOf(env);
+    const strangerCookie = await signIn(env.authDurable, "stranger@example.com");
+    const adminCookie = await adminOf(env);
+    const parentId = await submitOne(env, "Parent SAR ADC", {
+      cookie: authorCookie,
+    });
+    const otherParentId = await submitOne(env, "Other SAR ADC", {
+      cookie: authorCookie,
+    });
+    const strangerParentId = await submitOne(env, "Stranger Parent", {
+      cookie: strangerCookie,
+    });
+    const childProject = projectText("Comparator");
+    const childRes = await route(
+      env,
+      submissionRequest(
+        {
+          name: "Parent SAR ADC · Comparator",
+          description: "Dynamic comparator cell",
+          tags: ["comparator"],
+          projectText: childProject,
+        },
+        { cookie: authorCookie },
+      ),
+    );
+    expect(childRes.status).toBe(201);
+    const { id: childId } = (await childRes.json()) as { id: string };
+    const childBefore = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${childId}?summary=1`))
+    ).json()) as { entry: { author: string }; ownerUserId: string };
+
+    const putEntry = (id: string, cookie: string, body: object) =>
+      route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${id}`, {
+          method: "PUT",
+          headers: {
+            Origin: ORIGIN,
+            Cookie: cookie,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            name: "Parent SAR ADC · Comparator",
+            description: "Dynamic comparator cell",
+            tags: ["comparator"],
+            projectText: childProject,
+            ...body,
+          }),
+        }),
+      );
+
+    // A non-owner cannot set parentEntryId via PUT.
+    const strangerPut = await putEntry(childId, strangerCookie, {
+      parentEntryId: parentId,
+    });
+    expect(strangerPut.status).toBe(403);
+    expect(await strangerPut.json()).toEqual({ error: "forbidden" });
+
+    // The entry owner cannot link to a parent owned by someone else.
+    const crossOwnerPut = await putEntry(childId, authorCookie, {
+      parentEntryId: strangerParentId,
+    });
+    expect(crossOwnerPut.status).toBe(403);
+    expect(await crossOwnerPut.json()).toEqual({ error: "forbidden" });
+
+    // An Owner Bearer token (no Origin, no cookie) can attach parentEntryId
+    // without re-attributing author/ownership or adding fixedBy on an unchanged drawing.
+    const ownerCookie = await ownerAccountOf(env);
+    const mintRes = await env.authDurable.fetch(
+      new Request(`${ORIGIN}/api/auth/owner-tokens`, {
+        method: "POST",
+        headers: {
+          Origin: ORIGIN,
+          Cookie: ownerCookie,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ label: "subcomponent-backfill" }),
+      }),
+    );
+    expect(mintRes.status).toBe(201);
+    const { token: ownerToken } = (await mintRes.json()) as { token: string };
+    const ownerAttach = await route(
+      env,
+      new Request(`${ORIGIN}/api/gallery/${childId}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${ownerToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          name: "Parent SAR ADC · Comparator",
+          description: "Dynamic comparator cell",
+          tags: ["comparator"],
+          projectText: childProject,
+          parentEntryId: parentId,
+        }),
+      }),
+    );
+    expect(ownerAttach.status).toBe(200);
+    const attachedDetail = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${childId}?summary=1`))
+    ).json()) as {
+      entry: {
+        author: string;
+        fixedBy?: string[];
+        parentEntryId?: string;
+        parentEntry?: { id: string; name: string };
+      };
+      ownerUserId: string;
+    };
+    expect(attachedDetail.entry.author).toBe(childBefore.entry.author);
+    expect(attachedDetail.ownerUserId).toBe(childBefore.ownerUserId);
+    expect(attachedDetail.entry.parentEntryId).toBe(parentId);
+    expect(attachedDetail.entry.parentEntry).toEqual({
+      id: parentId,
+      name: "Parent SAR ADC",
+    });
+    expect(attachedDetail.entry.fixedBy).toBeUndefined();
+    const parentAfterAttach = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${parentId}?summary=1`))
+    ).json()) as { entry: { subcomponents?: { id: string; name: string }[] } };
+    expect(parentAfterAttach.entry.subcomponents).toEqual([
+      { id: childId, name: "Parent SAR ADC · Comparator" },
+    ]);
+
+    // A non-owner cannot detach an existing parent link via parentEntryId: null.
+    const strangerDetach = await putEntry(childId, strangerCookie, {
+      parentEntryId: null,
+    });
+    expect(strangerDetach.status).toBe(403);
+    expect(await strangerDetach.json()).toEqual({ error: "forbidden" });
+
+    // Omitting parentEntryId on a subsequent PUT preserves the existing link.
+    const preservePut = await putEntry(childId, authorCookie, {
+      description: "Updated description",
+    });
+    expect(preservePut.status).toBe(200);
+    const preservedDetail = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${childId}?summary=1`))
+    ).json()) as { entry: { parentEntryId?: string } };
+    expect(preservedDetail.entry.parentEntryId).toBe(parentId);
+
+    // Non-public (recycled) parents are rejected with 400 invalid-parent.
+    const recycledParentId = await submitOne(env, "Recycled Parent", {
+      cookie: authorCookie,
+    });
+    expect(
+      (
+        await route(
+          env,
+          new Request(`${ORIGIN}/api/gallery/${recycledParentId}/recycle`, {
+            method: "POST",
+            headers: { Origin: ORIGIN, Cookie: authorCookie },
+          }),
+        )
+      ).status,
+    ).toBe(200);
+    for (const cookie of [authorCookie, adminCookie]) {
+      const recycledPut = await putEntry(childId, cookie, {
+        parentEntryId: recycledParentId,
+      });
+      expect(recycledPut.status).toBe(400);
+      expect(await recycledPut.json()).toEqual({ error: "invalid-parent" });
+    }
+
+    // Invalid parents (self, missing, dataset, nested subcomponent, empty, non-string) are refused.
+    for (const badParent of [childId, "missing-id", "ag-1070", "", 42]) {
+      const bad = await putEntry(childId, adminCookie, {
+        parentEntryId: badParent,
+      });
+      expect(bad.status).toBe(400);
+      expect(await bad.json()).toEqual({ error: "invalid-parent" });
+    }
+    // Direct DO replace-entry rejects malformed non-null parentEntryId without detaching.
+    const directMalformed = await env.GALLERY.getByName("gallery").fetch(
+      "https://gallery/replace-entry",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: childId,
+          userId: childBefore.ownerUserId,
+          name: "Parent SAR ADC · Comparator",
+          author: childBefore.entry.author,
+          description: "Updated description",
+          projectText: childProject,
+          svgText: "<svg/>",
+          schemaVersion: CURRENT_PROJECT_FILE_VERSION,
+          netlistable: 0,
+          componentCount: 0,
+          tags: ",comparator,",
+          parentEntryId: "",
+        }),
+      },
+    );
+    expect(directMalformed.status).toBe(400);
+    expect(await directMalformed.json()).toEqual({ error: "invalid-parent" });
+    const stillAttached = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${childId}?summary=1`))
+    ).json()) as { entry: { parentEntryId?: string } };
+    expect(stillAttached.entry.parentEntryId).toBe(parentId);
+
+    const nestedChildRes = await route(
+      env,
+      submissionRequest(
+        {
+          name: "Nested Candidate",
+          projectText: projectText("Nested Candidate"),
+        },
+        { cookie: authorCookie },
+      ),
+    );
+    const { id: nestedCandidateId } = (await nestedChildRes.json()) as {
+      id: string;
+    };
+    const nestedPut = await putEntry(nestedCandidateId, adminCookie, {
+      parentEntryId: childId,
+    });
+    expect(nestedPut.status).toBe(400);
+    expect(await nestedPut.json()).toEqual({ error: "invalid-parent" });
+
+    // An entry that already has subcomponents cannot itself become a subcomponent.
+    const parentAsChild = await putEntry(parentId, adminCookie, {
+      name: "Parent SAR ADC",
+      projectText: projectText("Parent SAR ADC"),
+      parentEntryId: otherParentId,
+    });
+    expect(parentAsChild.status).toBe(400);
+    expect(await parentAsChild.json()).toEqual({ error: "invalid-parent" });
+
+    // The owner can reparent to another of their own top-level circuits, and detach with null,
+    // updating both parents' subcomponents lists.
+    const reparentPut = await putEntry(childId, authorCookie, {
+      parentEntryId: otherParentId,
+    });
+    expect(reparentPut.status).toBe(200);
+    const reparentedDetail = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${childId}?summary=1`))
+    ).json()) as { entry: { parentEntryId?: string } };
+    expect(reparentedDetail.entry.parentEntryId).toBe(otherParentId);
+    const oldParentAfterReparent = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${parentId}?summary=1`))
+    ).json()) as { entry: { subcomponents?: unknown } };
+    expect(oldParentAfterReparent.entry.subcomponents).toBeUndefined();
+    const newParentAfterReparent = (await (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${otherParentId}?summary=1`),
+      )
+    ).json()) as { entry: { subcomponents?: { id: string; name: string }[] } };
+    expect(newParentAfterReparent.entry.subcomponents).toEqual([
+      { id: childId, name: "Parent SAR ADC · Comparator" },
+    ]);
+
+    const detachPut = await putEntry(childId, authorCookie, {
+      parentEntryId: null,
+    });
+    expect(detachPut.status).toBe(200);
+    const detachedDetail = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${childId}?summary=1`))
+    ).json()) as { entry: { parentEntryId?: string; parentEntry?: unknown } };
+    expect(detachedDetail.entry.parentEntryId).toBeUndefined();
+    expect(detachedDetail.entry.parentEntry).toBeUndefined();
+    const newParentAfterDetach = (await (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${otherParentId}?summary=1`),
+      )
+    ).json()) as { entry: { subcomponents?: unknown } };
+    expect(newParentAfterDetach.entry.subcomponents).toBeUndefined();
+
+    // An AI seat takeOver cannot change parentEntryId and preserves it when omitted.
+    const firstSeat = await seatOf(env, 0);
+    const secondSeat = await seatOf(env, 1);
+    const seatParentId = await submitOne(env, "Seat Parent", {
+      cookie: firstSeat,
+    });
+    const seatChildRes = await route(
+      env,
+      submissionRequest(
+        {
+          name: "Seat Parent · Cell",
+          projectText: projectText("Seat Cell"),
+          parentEntryId: seatParentId,
+        },
+        { cookie: firstSeat },
+      ),
+    );
+    expect(seatChildRes.status).toBe(201);
+    const { id: seatChildId } = (await seatChildRes.json()) as { id: string };
+    const takeOverWithParent = await putEntry(seatChildId, secondSeat, {
+      name: "Seat Parent · Cell",
+      projectText: projectText("Seat Cell"),
+      takeOver: true,
+      parentEntryId: null,
+    });
+    expect(takeOverWithParent.status).toBe(403);
+    expect(await takeOverWithParent.json()).toEqual({ error: "forbidden" });
+    const takeOverClean = await putEntry(seatChildId, secondSeat, {
+      name: "Seat Parent · Cell",
+      projectText: projectText("Seat Cell"),
+      takeOver: true,
+    });
+    expect(takeOverClean.status).toBe(200);
+    const takenOverDetail = (await (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${seatChildId}?summary=1`),
+      )
+    ).json()) as { entry: { parentEntryId?: string } };
+    expect(takenOverDetail.entry.parentEntryId).toBe(seatParentId);
   });
 });
 
