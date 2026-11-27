@@ -133,6 +133,71 @@ function coveringDrafting(project: CircuitProject): Response | null {
 }
 
 /**
+ * Validate a community subcomponent's target parent id and caller permission
+ * (#2658): public, top-level community entry, owned by the caller unless
+ * privileged.
+ */
+async function resolveCommunityParent(
+  env: GalleryEnv,
+  user: { id: string },
+  privileged: boolean,
+  rawParentId: unknown,
+  selfId?: string,
+): Promise<
+  | {
+      ok: true;
+      parentId: string;
+      author: string | undefined;
+      ownerUserId: string | null;
+      aiGenerated: boolean;
+    }
+  | { ok: false; response: Response }
+> {
+  if (
+    typeof rawParentId !== "string" ||
+    rawParentId.length === 0 ||
+    rawParentId === selfId ||
+    gallerySourceOfEntryId(rawParentId) !== null
+  ) {
+    return {
+      ok: false,
+      response: Response.json({ error: "invalid-parent" }, { status: 400 }),
+    };
+  }
+  const parent = await callGallery<{
+    entry?: { author?: string; parentEntryId?: string; aiGenerated?: boolean };
+    status?: string;
+    ownerUserId?: string | null;
+  }>(env, "any-entry", { id: rawParentId });
+  if (
+    parent.status !== 200 ||
+    parent.payload.status !== "public" ||
+    parent.payload.entry?.parentEntryId
+  ) {
+    return {
+      ok: false,
+      response: Response.json({ error: "invalid-parent" }, { status: 400 }),
+    };
+  }
+  const ownsParent =
+    parent.payload.ownerUserId != null &&
+    parent.payload.ownerUserId === user.id;
+  if (!privileged && !ownsParent) {
+    return {
+      ok: false,
+      response: Response.json({ error: "forbidden" }, { status: 403 }),
+    };
+  }
+  return {
+    ok: true,
+    parentId: rawParentId,
+    author: parent.payload.entry?.author,
+    ownerUserId: parent.payload.ownerUserId ?? null,
+    aiGenerated: parent.payload.entry?.aiGenerated === true,
+  };
+}
+
+/**
  * A fix of a reference dataset's drawing from the editor. Only the drawing
  * changes: the dataset's name, description, tags and byline stay, and the
  * fixer is recorded (an `edit` fix) and named beside the byline.
@@ -267,38 +332,17 @@ export async function handleSubmission(
     return Response.json({ error: "invalid-fields" }, { status: 400 });
   }
   if (body.parentEntryId !== undefined && body.parentEntryId !== null) {
-    if (
-      typeof body.parentEntryId !== "string" ||
-      body.parentEntryId.length === 0 ||
-      gallerySourceOfEntryId(body.parentEntryId) !== null
-    ) {
-      return Response.json({ error: "invalid-parent" }, { status: 400 });
-    }
-    const parent = await callGallery<{
-      entry?: { author?: string; parentEntryId?: string; aiGenerated?: boolean };
-      status?: string;
-      ownerUserId?: string | null;
-    }>(env, "any-entry", { id: body.parentEntryId });
-    if (
-      parent.status !== 200 ||
-      parent.payload.status !== "public" ||
-      parent.payload.entry?.parentEntryId
-    ) {
-      return Response.json({ error: "invalid-parent" }, { status: 400 });
-    }
-    const ownsParent =
-      parent.payload.ownerUserId != null &&
-      parent.payload.ownerUserId === user.id;
-    if (!privileged && !ownsParent) {
-      return Response.json({ error: "forbidden" }, { status: 403 });
-    }
-    parentEntryId = body.parentEntryId;
-    author = (parent.payload.entry?.author ?? author).slice(
-      0,
-      GALLERY_MAX_AUTHOR_LENGTH,
+    const resolved = await resolveCommunityParent(
+      env,
+      user,
+      privileged,
+      body.parentEntryId,
     );
-    ownerUserId = parent.payload.ownerUserId ?? null;
-    parentAiGenerated = parent.payload.entry?.aiGenerated === true;
+    if (!resolved.ok) return resolved.response;
+    parentEntryId = resolved.parentId;
+    author = (resolved.author ?? author).slice(0, GALLERY_MAX_AUTHOR_LENGTH);
+    ownerUserId = resolved.ownerUserId;
+    parentAiGenerated = resolved.aiGenerated;
   }
   const binding = publicationBindingFields(body);
   if (!binding)
@@ -483,6 +527,7 @@ export async function handleEntryUpdate(
     expectedGalleryEntryId?: unknown;
     aiGenerated?: unknown;
     takeOver?: unknown;
+    parentEntryId?: unknown;
   } | null;
   // An AI account takes over another AI account's circuit as its update
   // lands (#1499; all are the Owner's), a rejected one too, which stays
@@ -503,6 +548,25 @@ export async function handleEntryUpdate(
   // Someone else's drawing, fixed in place as a dataset's is: only the
   // drawing changes, and its fixer is named beside the byline.
   const fixing = !privileged && !owner && !takingOver;
+  let parentEntryIdUpdate: string | null | undefined;
+  if (body?.parentEntryId !== undefined) {
+    if (!privileged && !owner) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    if (body.parentEntryId === null) {
+      parentEntryIdUpdate = null;
+    } else {
+      const resolved = await resolveCommunityParent(
+        env,
+        user,
+        privileged,
+        body.parentEntryId,
+        id,
+      );
+      if (!resolved.ok) return resolved.response;
+      parentEntryIdUpdate = resolved.parentId;
+    }
+  }
   if (fixing) {
     const access = await fixAccess(env, user);
     if (!access.allowed)
@@ -592,6 +656,9 @@ export async function handleEntryUpdate(
         ? {}
         : { aiGenerated }),
     ...(takingOver ? { ownerUserId: user.id } : {}),
+    ...(parentEntryIdUpdate !== undefined
+      ? { parentEntryId: parentEntryIdUpdate }
+      : {}),
   });
   return Response.json(
     takingOver && status === 200

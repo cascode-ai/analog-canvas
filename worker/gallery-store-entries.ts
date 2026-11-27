@@ -524,7 +524,25 @@ export function replaceEntry(
   const svgText = String(body.svgText);
   const previewRevision = sha256Hex(svgText);
   const previewDimensions = svgPreviewDimensions(svgText);
-  state.storage.transactionSync(() => {
+  const hasParentUpdate = body.parentEntryId !== undefined;
+  const invalidParentValue =
+    hasParentUpdate &&
+    body.parentEntryId !== null &&
+    (typeof body.parentEntryId !== "string" || body.parentEntryId.length === 0);
+  const nextParentEntryId = hasParentUpdate
+    ? typeof body.parentEntryId === "string"
+      ? body.parentEntryId
+      : null
+    : (row.parent_entry_id ?? null);
+  const outcome = state.storage.transactionSync(() => {
+    if (
+      invalidParentValue ||
+      (hasParentUpdate &&
+        nextParentEntryId &&
+        !validParentEntry(sql, row.id, nextParentEntryId))
+    ) {
+      return { status: "invalid-parent" as const };
+    }
     bindPublication(sql, body, row.id);
     snapshotEntry(sql, row, String(body.at ?? row.created_at));
     recordFix(sql, {
@@ -561,7 +579,8 @@ export function replaceEntry(
            tags = ?, netlistable = ?, netlistable_version = ?,
            component_count = ?, component_count_version = ?,
            preview_revision = ?, preview_width = ?, preview_height = ?,
-           curation_json = ?, ai_generated = COALESCE(?, ai_generated)
+           curation_json = ?, ai_generated = COALESCE(?, ai_generated),
+           parent_entry_id = ?
        WHERE id = ?`,
       String(body.name),
       currentProfileByline(
@@ -587,9 +606,14 @@ export function replaceEntry(
       previewDimensions?.height ?? null,
       advanceCurationRevision(row, String(body.at ?? row.created_at)),
       typeof body.aiGenerated === "boolean" ? Number(body.aiGenerated) : null,
+      nextParentEntryId,
       row.id,
     );
+    return { status: "stored" as const };
   });
+  if (outcome.status === "invalid-parent") {
+    return Response.json({ error: "invalid-parent" }, { status: 400 });
+  }
   return publicationResult({ id: row.id, status: row.status, previewRevision });
 }
 
