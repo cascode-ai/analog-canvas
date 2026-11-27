@@ -1,5 +1,6 @@
 import { isFrozenSnapshot } from "@icm/model";
 import type {
+  CircuitProject,
   ExternalSubcircuitDefinition,
   SchematicDocument,
 } from "@icm/model";
@@ -87,6 +88,8 @@ export interface ContactEvidenceHint {
 }
 
 export interface EditExecutionContext {
+  /** Current immutable Project for a synchronous Canvas wire preparation. */
+  canvasProject?: CircuitProject;
   /** Internal calculation hints. Unregistered or changed inputs execute normally. */
   preparedTransactions?: readonly PreparedTransaction[];
   symbolResolver?: SymbolResolver;

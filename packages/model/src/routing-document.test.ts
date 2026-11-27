@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   createEmptyProject,
+  freezeSnapshot,
+  prepareWireCell,
+  installPreparedWireCell,
   createRoutePath,
   parseProjectSnapshot,
   parseRoutingDocument,
@@ -54,6 +57,75 @@ describe("owned routing candidates", () => {
     expect(publicResult.data).toEqual(result.data);
     expect(publicResult.data?.routes[0]).not.toBe(source.routes[0]);
   });
+  it("installs only the checked Cell from this exact Project and refuses changes to project-level facts", () => {
+    const project = parseProjectSnapshot(sourceProject());
+    const source = project.documents[0]!;
+    const draft = {
+      ...source,
+      revision: 1,
+      junctions: source.junctions.map((row) => ({
+        ...row,
+        position: { ...row.position, y: 20 },
+      })),
+    };
+    const checked = prepareWireCell(
+      draft,
+      source,
+      () => {},
+      new Set(),
+      project,
+    );
+    if (!checked.success) throw checked.error;
+    expect(
+      installPreparedWireCell(project, source, checked.data)?.documents[0],
+    ).toBe(checked.data);
+    expect(
+      installPreparedWireCell(
+        project,
+        source,
+        freezeSnapshot(structuredClone(checked.data)),
+      ),
+    ).toBeUndefined();
+    const siblingWrite = parseProjectSnapshot(
+      { ...project, name: "Renamed" },
+      project,
+    );
+    expect(siblingWrite.documents[0]).toBe(source);
+    expect(
+      installPreparedWireCell(siblingWrite, source, checked.data),
+    ).toBeUndefined();
+    const weak = validateProjectResult(sourceProject());
+    if (!weak.success) throw weak.error;
+    Object.assign(weak.data, { unknown: undefined });
+    const imported = parseProjectSnapshot(weak.data);
+    const old = imported.documents[0]!;
+    const unowned = prepareWireCell(draft, old, () => {}, new Set(), imported);
+    if (!unowned.success) throw unowned.error;
+    expect(
+      installPreparedWireCell(imported, old, unowned.data),
+    ).toBeUndefined();
+    for (const other of [
+      { ...draft, revision: source.revision + 2 },
+      { ...draft, name: "Other" },
+      {
+        ...draft,
+        instances: [{ id: "X", symbolId: "resistor", placement: null }],
+      },
+    ]) {
+      const changed = prepareWireCell(
+        other,
+        source,
+        () => {},
+        new Set(),
+        project,
+      );
+      if (!changed.success) throw changed.error;
+      expect(
+        installPreparedWireCell(project, source, changed.data),
+      ).toBeUndefined();
+    }
+  });
+
   it("preserves canonical errors for edited rows, invalid relationships and untrusted sources", () => {
     const original = sourceProject(),
       source = parseProjectSnapshot(original).documents[0]!;

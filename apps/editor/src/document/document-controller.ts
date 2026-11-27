@@ -29,6 +29,7 @@ import {
   ComponentDefinitionSchema,
   freezeSnapshot,
   restoreProjectSnapshot,
+  installPreparedWireCell,
 } from "@icm/model";
 import type { CircuitProject, SchematicDocument } from "@icm/model";
 import type { DocumentContactEvidence } from "@icm/derived";
@@ -553,7 +554,14 @@ export class EditorDocumentController {
       );
     if (!result.applied && (!request.dryRun || !withExternalCallers))
       return result;
-    if (sameDocumentJson(result.document, document, true))
+    const before = this.projectValue;
+    const installed =
+      prepared && installPreparedWireCell(before, document, result.document);
+    if (
+      installed
+        ? installed === before
+        : sameDocumentJson(result.document, document, true)
+    )
       return {
         ...result,
         applied: false,
@@ -566,32 +574,17 @@ export class EditorDocumentController {
           changedObjectIds: [],
         },
       };
-    const before = this.projectValue;
     try {
-      const definitions = new Map(
-        (before.componentDefinitions ?? []).map((item) => [
-          item.symbol.id,
-          item,
-        ]),
-      );
-      for (const [id, definition] of this.availableComponents)
-        if (!definitions.has(id)) definitions.set(id, definition);
-      const next = this.shareDocuments(
-        before,
-        withProjectComponentDefinitions(
-          replaceProjectDocument(
-            freezeSnapshot({
-              ...before,
-              componentDefinitions: [...definitions.values()],
-            }),
-            prepared
-              ? result.document
-              : freezeSnapshot(
-                  shareEqualDocumentStructure(document, result.document),
-                ),
-          ),
-        ),
-      );
+      const next =
+        installed ||
+        this.replaceEditedCell(
+          before,
+          prepared
+            ? result.document
+            : freezeSnapshot(
+                shareEqualDocumentStructure(document, result.document),
+              ),
+        );
       const candidate = next.documents.find(
         ({ id }) => id === request.documentId,
       )!;
@@ -619,9 +612,10 @@ export class EditorDocumentController {
           );
       }
       if (!result.applied) return result;
-      const resolver = this.needsResolver(before, next)
-        ? this.projectResolver(next)
-        : this.resolverValue;
+      const resolver =
+        !installed && this.needsResolver(before, next)
+          ? this.projectResolver(next)
+          : this.resolverValue;
       this.projectValue = next;
       this.resolverValue = resolver;
       this.record(before, request.documentId, false);
@@ -636,6 +630,29 @@ export class EditorDocumentController {
         `Committed document could not be re-validated into a Project: ${error instanceof Error ? error.message : "unknown failure"}`,
       );
     }
+  }
+
+  private replaceEditedCell(
+    before: CircuitProject,
+    cell: SchematicDocument,
+  ): CircuitProject {
+    const definitions = new Map(
+      (before.componentDefinitions ?? []).map((item) => [item.symbol.id, item]),
+    );
+    for (const [id, definition] of this.availableComponents)
+      if (!definitions.has(id)) definitions.set(id, definition);
+    return this.shareDocuments(
+      before,
+      withProjectComponentDefinitions(
+        replaceProjectDocument(
+          freezeSnapshot({
+            ...before,
+            componentDefinitions: [...definitions.values()],
+          }),
+          cell,
+        ),
+      ),
+    );
   }
 
   private needsResolver(

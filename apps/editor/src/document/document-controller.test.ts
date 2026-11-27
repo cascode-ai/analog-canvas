@@ -2,6 +2,7 @@ import { createRoutePath } from "@icm/model";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  CircuitProjectSchema,
   createEmptyDocument,
   createEmptyProject,
   semanticTextDocument,
@@ -9,11 +10,14 @@ import {
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 import {
+  buildProjectConnectivityIndex,
   diagnoseProjectSnapshot,
   deriveDocumentContactEvidence,
 } from "@icm/derived";
 import { hierarchicalSymbolId } from "@icm/symbols";
 import {
+  createRoutingOperationPlan,
+  gateCanvasWireCommit,
   planSetCellSymbolPresentation,
   prepareTransaction,
   proposeBlockSymbolLayout,
@@ -44,6 +48,86 @@ function hierarchicalProject() {
 }
 
 describe("EditorDocumentController", () => {
+  it("installs two scalar Canvas wires without reparsing the Project and restores each complete file", () => {
+    const input = hierarchicalProject();
+    for (const [i, id] of ["a", "b", "c"].entries()) {
+      input.documents[0]!.nets.push({ id, terminals: [] });
+      input.documents[0]!.junctions.push({
+        id: "J" + id,
+        netId: id,
+        position: { x: i * 100, y: 0 },
+      });
+    }
+    const controller = new EditorDocumentController(input);
+    const reference = new EditorDocumentController(input);
+    const peer = controller.project.documents[1];
+    const files = [serializeProject(controller.project)];
+    for (const sourceNetId of ["b", "c"]) {
+      const document = controller.document;
+      buildProjectConnectivityIndex(controller.project, controller.resolver);
+      const plan = createRoutingOperationPlan(document, {
+        intent: "connect",
+        diagnostics: [],
+        edits: [
+          { kind: "merge_nets", targetNetId: "a", sourceNetId },
+          {
+            kind: "connect_endpoints",
+            from: { kind: "junction", junctionId: "Ja" },
+            to: { kind: "junction", junctionId: "J" + sourceNetId },
+          },
+        ],
+      });
+      const context = {
+        canvasProject: controller.project,
+        symbolResolver: controller.resolver,
+      };
+      const gate = gateCanvasWireCommit(document, plan, context);
+      if (!gate.ok) throw new Error(gate.message);
+      const parse = vi.spyOn(CircuitProjectSchema, "safeParse");
+      try {
+        const commit = controller.commitPreparedCanvasTransaction(
+          gate.edits,
+          gate.preparedTransaction,
+        );
+        expect(commit).toMatchObject({
+          ok: true,
+          applied: true,
+          revision: files.length,
+        });
+        expect(parse).not.toHaveBeenCalled();
+      } finally {
+        parse.mockRestore();
+      }
+      expect(controller.project.documents[1]).toBe(peer);
+      expect(CircuitProjectSchema.parse(controller.project)).toEqual(
+        controller.project,
+      );
+      expect(reference.transact(gate.edits)).toMatchObject({
+        ok: true,
+        applied: true,
+      });
+      const file = serializeProject(controller.project);
+      expect(file).toEqual(serializeProject(reference.project));
+      files.push(file);
+    }
+    const history = [
+      ["undo", 1],
+      ["undo", 0],
+      ["redo", 1],
+      ["redo", 2],
+    ] as const;
+    for (const [index, [kind, saved]] of history.entries()) {
+      const result = controller.transact([{ kind }]);
+      expect(result).toMatchObject({ ok: true, revision: 3 + index });
+      const expected = parseProject(files[saved]!);
+      expected.documents[0]!.revision = result.revision;
+
+      expect(serializeProject(expected)).toEqual(
+        serializeProject(controller.project),
+      );
+    }
+  });
+
   it("retains the sibling Cell for Canvas placement and detaches an ordinary receipt with the same transaction ID", () => {
     const input = createEmptyProject("mos", "MOS", "top");
     input.documents.push(createEmptyDocument("peer", "Peer"));

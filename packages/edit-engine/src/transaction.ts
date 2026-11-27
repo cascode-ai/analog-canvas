@@ -9,7 +9,7 @@ import {
   routeEnd,
   SchematicDocumentSchema,
   parseRoutingDocument,
-  parseOwnedRoutingDocument,
+  prepareWireCell,
   resolveDrawingOrder,
 } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
@@ -150,6 +150,7 @@ export function applyTransaction(
   context: EditExecutionContext,
   readMembership: Parameters<typeof parseRoutingDocument>[1] | undefined,
   keepOwned: boolean,
+  changedNetIds?: Set<string>,
 ): EditTransactionResult {
   const parsed = EditTransactionSchema.safeParse(input);
   if (!parsed.success) {
@@ -1428,11 +1429,18 @@ export function applyTransaction(
       `${draft.netlist!.name} is drawn with a custom symbol. ${artworkIssue.message}`,
     );
   if (draft.drawingOrder) draft.drawingOrder = resolveDrawingOrder(draft);
-  const candidate = readMembership
-    ? keepOwned
-      ? parseOwnedRoutingDocument(draft, document, readMembership)
-      : parseRoutingDocument(draft, readMembership)
-    : SchematicDocumentSchema.safeParse(draft);
+  const candidate =
+    keepOwned && changedNetIds
+      ? prepareWireCell(
+          draft,
+          document,
+          readMembership ?? (() => {}),
+          changedNetIds,
+          context.canvasProject,
+        )
+      : readMembership
+        ? parseRoutingDocument(draft, readMembership)
+        : SchematicDocumentSchema.safeParse(draft);
   if (!candidate.success) {
     return rejectTransaction(
       document,
