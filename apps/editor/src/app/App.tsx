@@ -6,7 +6,7 @@ import {
 } from "../features/hierarchy/project-hierarchy";
 import { buildProjectHierarchy, reconcileHierarchyPath } from "@icm/derived";
 import { evaluateSubmissionGates, instanceGroupDisplay } from "@icm/derived";
-import { collapsedArrayReference } from "@icm/model";
+import { collapsedArrayReference, rotateOrientation } from "@icm/model";
 import {
   canCreateInstanceArray,
   instanceArrayRange,
@@ -126,7 +126,6 @@ import type {
   DerivedPoint,
   GridRect,
   Point,
-  Rotation,
   SchematicDocument,
 } from "@icm/model";
 import { buildCommittedCanvasScene, buildSvgScene } from "@icm/render-svg";
@@ -3391,12 +3390,12 @@ function WorkspaceEditor({
       return true;
     }
     if (armedVerb === "rotate") {
-      const next = (instance.placement.rotation + 90) % 360;
+      const next = rotateOrientation(instance.placement, 90).rotation;
       const applied = transact([
         {
           kind: "rotate_instance",
           instanceId,
-          rotation: next as Rotation,
+          rotation: next,
         },
       ]);
       if (applied.ok) {

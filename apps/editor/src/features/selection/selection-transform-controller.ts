@@ -1,6 +1,7 @@
 import {
   planRoutingTransform,
   reflectedAnnotationPlacement,
+  rotatedAnnotationPlacement,
   type SchematicEdit,
 } from "@icm/edit-engine";
 import {
@@ -11,12 +12,13 @@ import {
   resolveDraftingObjectGeometry,
 } from "@icm/derived";
 import type { SchematicStyleProfile } from "@icm/derived";
-import type { Point, SchematicDocument } from "@icm/model";
+import type { Point, RotationDelta, SchematicDocument } from "@icm/model";
 import type { SymbolResolver } from "@icm/symbols";
 
 import {
   mirrorDraftingObject,
   rotateDraftingObject,
+  rotateDraftingObjectAboutPivot,
 } from "../drafting/drafting-manipulation";
 import { draggedAnnotationAtPosition } from "../text-editing/annotation-drag-model";
 import {
@@ -58,70 +60,7 @@ export function createSelectionTransformController({
       ),
     );
 
-  const rotate = (
-    deltaDegrees: 45 | -45 | 90 | -90 | 135 | -135 | 180 = 90,
-  ): void => {
-    const placedSelection = placedInstanceIds();
-    const routingPlan = planRoutingTransform(
-      document,
-      resolver,
-      {
-        instanceIds: placedSelection,
-        routeIds: selection.routeIds,
-        junctionIds: selection.junctionIds,
-        annotationIds: selection.annotationIds,
-      },
-      {
-        kind: "rotate",
-        degrees:
-          deltaDegrees === -45
-            ? 315
-            : deltaDegrees === -90
-              ? 270
-              : deltaDegrees === -135
-                ? 225
-                : deltaDegrees,
-      },
-    );
-    const blocking = routingPlan.diagnostics.find(
-      (item) => item.severity === "error",
-    );
-    if (blocking) {
-      setStatus(blocking.message);
-      return;
-    }
-    const draftingEdits = selection.draftingIds.flatMap(
-      (id): SchematicEdit[] => {
-        const object = document.drafting?.objects.find(
-          (candidate) => candidate.id === id,
-        );
-        if (!object) return [];
-        const next = rotateDraftingObject(
-          object,
-          resolveDraftingObjectGeometry(document, resolver, object),
-          deltaDegrees,
-          document.presentation.grid,
-        );
-        return next ? [{ kind: "upsert_drafting_object", object: next }] : [];
-      },
-    );
-    const edits = [...routingPlan.edits, ...draftingEdits];
-    if (edits.length === 0 || !transact(edits).ok) return;
-    setStatus(
-      placedSelection.length > 1
-        ? `Turned ${placedSelection.length} parts as one group`
-        : "Turned the selection in place",
-    );
-  };
-
-  /**
-   * Mirror the whole selection as one drawing: parts, the wires and
-   * Junctions between them, their labels, and drawing objects all reflect
-   * about one axis, and every connection stays exactly as it was. Wires
-   * alone mirror too. A wire that leaves the selection keeps its far end and
-   * stretches, as it does when the selection moves.
-   */
-  const mirror = (direction: ScreenFlip = "left-right"): void => {
+  const collectTransformParticipants = (pivotStep: number) => {
     const placedSelection = placedInstanceIds();
     const seed = {
       instanceIds: placedSelection,
@@ -143,16 +82,14 @@ export function createSelectionTransformController({
       return annotation && !annotation.locked ? [annotation] : [];
     });
     const routingGeometry = resolveDocumentRoutingGeometry(document, resolver);
-    const pivot = mirrorPivot(
-      document,
-      [
-        ...placedSelection.flatMap((id) => {
-          const position = document.instances.find(
-            (candidate) => candidate.id === id,
-          )?.placement?.position;
-          return position ? [position] : [];
-        }),
-      ],
+    const pivot = groupPivot(
+      pivotStep,
+      placedSelection.flatMap((id) => {
+        const position = document.instances.find(
+          (candidate) => candidate.id === id,
+        )?.placement?.position;
+        return position ? [position] : [];
+      }),
       closure.internalJunctions.flatMap((id) => {
         const junction = document.junctions.find(
           (candidate) => candidate.id === id,
@@ -176,6 +113,199 @@ export function createSelectionTransformController({
         ),
       ],
     );
+    const hostIds = new Set([
+      ...placedSelection,
+      ...closure.internalJunctions,
+      ...closure.internalRoutes,
+      ...draftingObjects.map((object) => object.id),
+    ]);
+    const selectedDraftingIds = new Set(
+      draftingObjects.map((object) => object.id),
+    );
+    const attachedDraftingLabels = (document.drafting?.objects ?? []).filter(
+      (object) => {
+        const ownerId = draftingLabelOwnerId(object);
+        return (
+          !object.locked &&
+          ownerId !== undefined &&
+          !selectedDraftingIds.has(object.id) &&
+          hostIds.has(ownerId)
+        );
+      },
+    );
+    return {
+      placedSelection,
+      seed,
+      closure,
+      draftingObjects,
+      attachedDraftingLabels,
+      labels,
+      routingGeometry,
+      pivot,
+      hostIds,
+    };
+  };
+
+  const uncarriedLabelEdits = (
+    labels: readonly SchematicDocument["annotations"][number][],
+    planEdits: readonly SchematicEdit[],
+    placedSelection: readonly string[],
+    placeLabel: (annotation: SchematicDocument["annotations"][number]) => {
+      position: Point;
+      alignment: SchematicDocument["annotations"][number]["alignment"];
+    },
+  ): SchematicEdit[] => {
+    const carried = new Set(
+      planEdits.flatMap((edit) =>
+        edit.kind === "upsert_schematic_annotation" ? [edit.annotation.id] : [],
+      ),
+    );
+    const partIds = new Set(placedSelection);
+    const labelContext = {
+      document,
+      // Transforms keep every label's fine offset; a coarser annotation grid
+      // would pull members of the group apart.
+      annotationGrid: 1,
+      resolver,
+      routeGeometryRecords,
+    };
+    return labels.flatMap((annotation): SchematicEdit[] => {
+      if (carried.has(annotation.id)) return [];
+      if (
+        annotation.anchor.kind === "object" &&
+        partIds.has(annotation.anchor.objectId)
+      ) {
+        return [];
+      }
+      const placement = placeLabel(annotation);
+      return [
+        {
+          kind: "upsert_schematic_annotation",
+          annotation: draggedAnnotationAtPosition(
+            labelContext,
+            { ...annotation, alignment: placement.alignment },
+            placement.position,
+          ),
+        },
+      ];
+    });
+  };
+
+  const rotate = (deltaDegrees: RotationDelta = 90): void => {
+    const {
+      placedSelection,
+      seed,
+      closure,
+      draftingObjects,
+      attachedDraftingLabels,
+      labels,
+      routingGeometry,
+      pivot,
+      hostIds,
+    } = collectTransformParticipants(document.presentation.grid);
+    const routingPlan = planRoutingTransform(document, resolver, seed, {
+      kind: "rotate",
+      ...(pivot ? { center: pivot } : {}),
+      degrees:
+        deltaDegrees === -45
+          ? 315
+          : deltaDegrees === -90
+            ? 270
+            : deltaDegrees === -135
+              ? 225
+              : deltaDegrees,
+    });
+    const blocking = routingPlan.diagnostics.find(
+      (item) => item.severity === "error",
+    );
+    if (blocking) {
+      setStatus(blocking.message);
+      return;
+    }
+    const labelEdits = pivot
+      ? uncarriedLabelEdits(
+          labels,
+          routingPlan.edits,
+          placedSelection,
+          (annotation) =>
+            rotatedAnnotationPlacement(
+              document,
+              resolver,
+              annotation,
+              pivot,
+              deltaDegrees,
+              routingGeometry,
+            ),
+        )
+      : [];
+    const standaloneDrafting =
+      placedSelection.length === 0 &&
+      closure.internalJunctions.length === 0 &&
+      labels.length === 0 &&
+      draftingObjects.length === 1 &&
+      attachedDraftingLabels.length === 0
+        ? draftingObjects[0]
+        : undefined;
+    const draftingEdits = standaloneDrafting
+      ? (() => {
+          const next = rotateDraftingObject(
+            standaloneDrafting,
+            resolveDraftingObjectGeometry(
+              document,
+              resolver,
+              standaloneDrafting,
+            ),
+            deltaDegrees,
+            document.presentation.grid,
+          );
+          return next
+            ? [{ kind: "upsert_drafting_object" as const, object: next }]
+            : [];
+        })()
+      : pivot
+        ? [...draftingObjects, ...attachedDraftingLabels].flatMap(
+            (object): SchematicEdit[] => {
+              const next = rotateDraftingObjectAboutPivot(
+                object,
+                pivot,
+                deltaDegrees,
+                hostIds,
+                (candidate) =>
+                  resolveDraftingObjectGeometry(document, resolver, candidate),
+              );
+              return next
+                ? [{ kind: "upsert_drafting_object", object: next }]
+                : [];
+            },
+          )
+        : [];
+    const edits = [...routingPlan.edits, ...labelEdits, ...draftingEdits];
+    if (edits.length === 0 || !transact(edits).ok) return;
+    setStatus(
+      placedSelection.length > 1
+        ? `Turned ${placedSelection.length} parts as one group`
+        : "Turned the selection in place",
+    );
+  };
+
+  /**
+   * Mirror the whole selection as one drawing: parts, the wires and
+   * Junctions between them, their labels, and drawing objects all reflect
+   * about one axis, and every connection stays exactly as it was. Wires
+   * alone mirror too. A wire that leaves the selection keeps its far end and
+   * stretches, as it does when the selection moves.
+   */
+  const mirror = (direction: ScreenFlip = "left-right"): void => {
+    const {
+      placedSelection,
+      seed,
+      draftingObjects,
+      attachedDraftingLabels,
+      labels,
+      routingGeometry,
+      pivot,
+      hostIds,
+    } = collectTransformParticipants(document.presentation.grid / 2);
     // Say why rather than doing nothing: a wire on a part that is not
     // selected cannot move without leaving that part's pin.
     const nothingToMirror = () =>
@@ -196,68 +326,19 @@ export function createSelectionTransformController({
       setStatus(blocking.message);
       return;
     }
-    // Labels the plan already carries — on the mirrored wires and Junctions —
-    // and labels riding a mirrored part are not moved a second time.
-    const carried = new Set(
-      plan.edits.flatMap((edit) =>
-        edit.kind === "upsert_schematic_annotation" ? [edit.annotation.id] : [],
-      ),
-    );
-    const partIds = new Set(placedSelection);
-    const labelContext = {
-      document,
-      // Mirroring keeps every label's fine offset; a coarser annotation grid
-      // would pull members of the group apart.
-      annotationGrid: 1,
-      resolver,
-      routeGeometryRecords,
-    };
-    const labelEdits = labels.flatMap((annotation): SchematicEdit[] => {
-      if (carried.has(annotation.id)) return [];
-      if (
-        annotation.anchor.kind === "object" &&
-        partIds.has(annotation.anchor.objectId)
-      ) {
-        return [];
-      }
-      const placement = reflectedAnnotationPlacement(
-        document,
-        resolver,
-        annotation,
-        pivot,
-        direction,
-        routingGeometry,
-      );
-      return [
-        {
-          kind: "upsert_schematic_annotation",
-          annotation: draggedAnnotationAtPosition(
-            labelContext,
-            { ...annotation, alignment: placement.alignment },
-            placement.position,
-          ),
-        },
-      ];
-    });
-    const mirroredHostIds = new Set([
-      ...placedSelection,
-      ...closure.internalJunctions,
-      ...closure.internalRoutes,
-      ...draftingObjects.map((object) => object.id),
-    ]);
-    const selectedDraftingIds = new Set(
-      draftingObjects.map((object) => object.id),
-    );
-    const attachedDraftingLabels = (document.drafting?.objects ?? []).filter(
-      (object) => {
-        const ownerId = draftingLabelOwnerId(object);
-        return (
-          !object.locked &&
-          ownerId !== undefined &&
-          !selectedDraftingIds.has(object.id) &&
-          mirroredHostIds.has(ownerId)
-        );
-      },
+    const labelEdits = uncarriedLabelEdits(
+      labels,
+      plan.edits,
+      placedSelection,
+      (annotation) =>
+        reflectedAnnotationPlacement(
+          document,
+          resolver,
+          annotation,
+          pivot,
+          direction,
+          routingGeometry,
+        ),
     );
     const draftingEdits = [
       ...draftingObjects,
@@ -267,7 +348,7 @@ export function createSelectionTransformController({
         object,
         pivot,
         direction,
-        mirroredHostIds,
+        hostIds,
         (candidate) =>
           resolveDraftingObjectGeometry(document, resolver, candidate),
       );
@@ -322,15 +403,8 @@ export function createSelectionTransformController({
   };
 }
 
-/**
- * The axis a mirrored selection reflects about. Parts decide it when there
- * are any, then the Junctions a selection of wires carries, then the boxes of
- * drawing objects and labels. The axis sits on a half-grid line through the
- * centre, so every grid point still lands on the grid and a second mirror
- * returns the drawing to where it was.
- */
-function mirrorPivot(
-  document: SchematicDocument,
+function groupPivot(
+  step: number,
   partPositions: readonly Point[],
   junctionPositions: readonly Point[],
   boxes: readonly { x: number; y: number; width: number; height: number }[],
@@ -345,7 +419,6 @@ function mirrorPivot(
             { x: box.x + box.width, y: box.y + box.height },
           ]);
   if (points.length === 0) return null;
-  const step = document.presentation.grid / 2;
   const snap = (value: number): number =>
     step > 0 ? Math.round(value / step) * step : value;
   const xs = points.map((point) => point.x);

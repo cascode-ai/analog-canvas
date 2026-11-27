@@ -254,8 +254,6 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   Definition, Enter Cell and Couple inductors are top-level when applicable.
   Hover, click, or press `→` or `Enter` on a group to open it. `↑`/`↓` move
   within the current menu, and `←` or `Esc` in a submenu return to its trigger.
-- Rotate (`R`) switches free drawing text between reading across and reading
-  up the page. A half turn returns to the same reading orientation.
 - Hit testing skips objects under an opaque region before applying selection
   priority. Repeat `Alt`-click to cycle through candidates at the same point,
   including covered objects.
@@ -324,18 +322,24 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   centerline), right-to-left crossing; a Junction is its point; Route tests use
   actual segments; native text selection is suppressed.
 
-## Selection mirror
+## Selection rotation and mirror
 
-- `Shift+R`, `Ctrl/Cmd+R` and the menu mirror the selection as one drawing about
-  one axis without changing connectivity; the movement closure decides what
-  travels. If nothing can move, the status says why.
-- The axis passes through selected Instance positions, else carried Junctions,
-  else selected boxes, on a half-grid line so mirroring twice restores.
+- `R`, `Shift+R`, `Ctrl/Cmd+R` and the menu turn or mirror the selection as one
+  drawing about one pivot/axis without changing connectivity; the movement
+  closure decides what travels. If nothing can move, the status says why.
+- The pivot/axis passes through selected Instance positions, else carried
+  Junctions, else selected boxes (on a half-grid line for mirrors so mirroring
+  twice restores).
 - Glyphs never mirror: text boxes reflect and `start`/`end` swap along the
   reading axis; Route labels keep `t` and take the mirrored side; a part's
   grouped name/value stay a group (name first); arrows keep their head end;
   attached ends mirror their offset. One undo; Agent `transform` mirror without
   a centre takes the same path.
+- Rotating (`R`) applies screen-space clockwise rotation (including mirrored
+  parts), preserves side-seated part name/value groups (name over value) on any
+  side, carries route-anchored, Junction-anchored, free and drafting labels
+  around the shared pivot with upright wire clearance, and switches lone free
+  drawing text between reading across and up the page.
 
 ## No-reroute movement boundary
 

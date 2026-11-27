@@ -357,7 +357,7 @@ function horizontalSideAwayFromPin(
   return pinWorld.x > centerWorld.x ? "left" : "right";
 }
 
-function transformedSide(
+export function transformedSide(
   side: InstanceLabelSide,
   instance: SchematicDocument["instances"][number],
 ): InstanceLabelSide | null {

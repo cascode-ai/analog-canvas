@@ -2,6 +2,7 @@ import {
   createRoutePath,
   routeEnd,
   routeModes,
+  transformPoint,
   type Point,
   type RouteEndpoint,
   type RoutePresentation,
@@ -1410,7 +1411,17 @@ describe("routing Edit Engine", () => {
     expect(placement("A").position).toEqual({ x: 300, y: 140 });
     expect(placement("B").position).toEqual({ x: 300, y: 460 });
     expect(placement("A").rotation).toBe(90);
-    expect(placement("B").rotation).toBe(90);
+    // B carries mirror: "horizontal" in the fixture, so turning its drawn body
+    // 90° clockwise in screen space yields local rotation 270° (body pointing
+    // south away from A, matching A's body pointing north away from B).
+    expect(placement("B").rotation).toBe(270);
+    expect(placement("B").mirror).toBe("horizontal");
+    expect(
+      transformPoint({ x: -14, y: 0 }, placement("A").position, placement("A")),
+    ).toEqual({ x: 300, y: 126 });
+    expect(
+      transformPoint({ x: -14, y: 0 }, placement("B").position, placement("B")),
+    ).toEqual({ x: 300, y: 474 });
   });
 
   it("flips a quarter each way back to where it started", () => {

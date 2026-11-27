@@ -83,8 +83,10 @@ export interface JunctionMoveProposal {
 export interface AnnotationMoveProposal {
   annotationId: string;
   anchor: SchematicDocument["annotations"][number]["anchor"];
-  /** A mirror reverses the side a start- or end-aligned label grows from. */
+  /** A mirror or turn reverses the side a start- or end-aligned label grows from. */
   alignment?: TextAlignment;
+  /** Updated glyph rotation when a turned wire label rotates between 0° and 270°. */
+  rotation?: SchematicDocument["annotations"][number]["rotation"];
 }
 
 export interface GroupMoveProposal {

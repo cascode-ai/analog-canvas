@@ -12,6 +12,7 @@ import {
 } from "@icm/model";
 import {
   resolveAnnotationPresentation,
+  resolveDocumentRoutingGeometry,
   resolveDocumentStyleProfile,
 } from "@icm/derived";
 import { InMemorySymbolResolver, builtInSymbols } from "@icm/symbols";
@@ -335,5 +336,261 @@ describe("group mirror", () => {
       expect(moved.nets).toEqual(document.nets);
       expect(routeBends(moved.routes[0]!)).toEqual([]);
     }
+  });
+
+  it("rotates an RC group with its route-anchored and free Net labels clear of wires through 360°", () => {
+    const document = createEmptyDocument("rc-group", "RC group rotation");
+    document.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        reference: "R1",
+        placement: {
+          position: { x: 100, y: 100 },
+          rotation: 270,
+          mirror: "none",
+        },
+        netlist: { parameters: { value: "10k" } },
+      },
+      {
+        id: "C1",
+        symbolId: "capacitor",
+        reference: "C1",
+        placement: {
+          position: { x: 240, y: 120 },
+          rotation: 0,
+          mirror: "none",
+        },
+        netlist: { parameters: { value: "10n" } },
+      },
+    );
+    document.nets.push({
+      id: "net-out",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "C1", pinName: "1" },
+      ],
+    });
+    const wire = createRoutePath({
+      id: "W1",
+      netId: "net-out",
+      start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+      end: { kind: "terminal", instanceId: "C1", pinName: "1" },
+      bends: [],
+      modes: ["manual"],
+    });
+    document.routes.push(wire);
+    document.annotations.push(
+      {
+        id: "net-label-out",
+        kind: "net-label",
+        netId: "net-out",
+        binding: { kind: "net-name", netId: "net-out" },
+        anchor: {
+          kind: "route",
+          routeId: "W1",
+          legId: wire.legs[0]!.id,
+          t: 0.5,
+          normalOffset: -10,
+          direction: "forward",
+          orientation: "horizontal",
+          fallbackPosition: { x: 180, y: 90 },
+        },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      },
+      {
+        id: "free-label-out",
+        kind: "net-label",
+        netId: "net-out",
+        binding: { kind: "net-name", netId: "net-out" },
+        anchor: { kind: "free", position: { x: 190, y: 60 } },
+        alignment: "start",
+        rotation: 0,
+        locked: false,
+      },
+    );
+    document.connectivityEvidence.push({
+      id: "claim-out",
+      kind: "name-claim",
+      netId: "net-out",
+      name: "Vout",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "net-label-out" },
+    });
+
+    const seed = {
+      instanceIds: ["R1", "C1"],
+      routeIds: ["W1"],
+      junctionIds: [],
+      annotationIds: ["net-label-out", "free-label-out"],
+    };
+    const styleProfile = resolveDocumentStyleProfile(document.presentation);
+    let current = document;
+    for (let step = 0; step < 4; step += 1) {
+      const plan = planRoutingTransform(current, resolver, seed, {
+        kind: "rotate",
+        degrees: 90,
+      });
+      expect(plan.diagnostics).toEqual([]);
+      current = apply(current, plan.edits);
+
+      const geometry = resolveDocumentRoutingGeometry(current, resolver);
+      const segment = geometry.routes.get("W1")!.segments[0]!;
+      const routeLabel = current.annotations.find(
+        (annotation) => annotation.id === "net-label-out",
+      )!;
+      const ink = resolveAnnotationPresentation(
+        current,
+        resolver,
+        routeLabel,
+        styleProfile,
+        geometry,
+      ).inkBounds;
+      const wireMinX = Math.min(segment.from.x, segment.to.x);
+      const wireMaxX = Math.max(segment.from.x, segment.to.x);
+      const wireMinY = Math.min(segment.from.y, segment.to.y);
+      const wireMaxY = Math.max(segment.from.y, segment.to.y);
+      // The wire label must stay clear of its wire at every quarter turn.
+      const crossesWire =
+        ink.x <= wireMaxX &&
+        ink.x + ink.width >= wireMinX &&
+        ink.y <= wireMaxY &&
+        ink.y + ink.height >= wireMinY;
+      expect(crossesWire, `step ${step + 1}`).toBe(false);
+    }
+
+    expect(current.instances.map((instance) => instance.placement)).toEqual(
+      document.instances.map((instance) => instance.placement),
+    );
+    const freeAfter = current.annotations.find(
+      (annotation) => annotation.id === "free-label-out",
+    )!;
+    const freeBefore = document.annotations.find(
+      (annotation) => annotation.id === "free-label-out",
+    )!;
+    expect(freeAfter.alignment).toBe(freeBefore.alignment);
+    expect(freeAfter.anchor).toEqual(freeBefore.anchor);
+  });
+
+  it("rotates a 270° vertical wire label cleanly with its wire without crossing it", () => {
+    const document = createEmptyDocument("vert-wire-rot", "Vertical wire rot");
+    document.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        reference: "R1",
+        placement: {
+          position: { x: 200, y: 100 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+      {
+        id: "C1",
+        symbolId: "capacitor",
+        reference: "C1",
+        placement: {
+          position: { x: 200, y: 240 },
+          rotation: 0,
+          mirror: "none",
+        },
+      },
+    );
+    document.nets.push({
+      id: "net-v",
+      terminals: [
+        { instanceId: "R1", pinName: "2" },
+        { instanceId: "C1", pinName: "1" },
+      ],
+    });
+    const wire = createRoutePath({
+      id: "W_vert",
+      netId: "net-v",
+      start: { kind: "terminal", instanceId: "R1", pinName: "2" },
+      end: { kind: "terminal", instanceId: "C1", pinName: "1" },
+      bends: [],
+      modes: ["manual"],
+    });
+    document.routes.push(wire);
+    document.annotations.push({
+      id: "net-label-vert",
+      kind: "net-label",
+      netId: "net-v",
+      binding: { kind: "net-name", netId: "net-v" },
+      anchor: {
+        kind: "route",
+        routeId: "W_vert",
+        legId: wire.legs[0]!.id,
+        t: 0.5,
+        normalOffset: -10,
+        direction: "forward",
+        orientation: "follow",
+        fallbackPosition: { x: 190, y: 170 },
+      },
+      alignment: "middle",
+      rotation: 270,
+      locked: false,
+    });
+    document.connectivityEvidence.push({
+      id: "claim-v",
+      kind: "name-claim",
+      netId: "net-v",
+      name: "Vmid",
+      scope: "local",
+      owner: { kind: "net-label", annotationId: "net-label-vert" },
+    });
+
+    const seed = {
+      instanceIds: ["R1", "C1"],
+      routeIds: ["W_vert"],
+      junctionIds: [],
+      annotationIds: ["net-label-vert"],
+    };
+    const styleProfile = resolveDocumentStyleProfile(document.presentation);
+    let current = document;
+    for (let step = 0; step < 4; step += 1) {
+      const plan = planRoutingTransform(current, resolver, seed, {
+        kind: "rotate",
+        degrees: 90,
+      });
+      expect(plan.diagnostics).toEqual([]);
+      current = apply(current, plan.edits);
+
+      const geometry = resolveDocumentRoutingGeometry(current, resolver);
+      const segment = geometry.routes.get("W_vert")!.segments[0]!;
+      const label = current.annotations.find((a) => a.id === "net-label-vert")!;
+      expect(label.rotation, `step ${step + 1}`).toBe(0);
+      const ink = resolveAnnotationPresentation(
+        current,
+        resolver,
+        label,
+        styleProfile,
+        geometry,
+      ).inkBounds;
+      const wireMinX = Math.min(segment.from.x, segment.to.x);
+      const wireMaxX = Math.max(segment.from.x, segment.to.x);
+      const wireMinY = Math.min(segment.from.y, segment.to.y);
+      const wireMaxY = Math.max(segment.from.y, segment.to.y);
+      const crossesWire =
+        ink.x <= wireMaxX &&
+        ink.x + ink.width >= wireMinX &&
+        ink.y <= wireMaxY &&
+        ink.y + ink.height >= wireMinY;
+      expect(crossesWire, `step ${step + 1}`).toBe(false);
+    }
+
+    const halfTurnPlan = planRoutingTransform(document, resolver, seed, {
+      kind: "rotate",
+      degrees: 180,
+    });
+    expect(halfTurnPlan.diagnostics).toEqual([]);
+    const halfTurned = apply(document, halfTurnPlan.edits);
+    const halfTurnLabel = halfTurned.annotations.find(
+      (a) => a.id === "net-label-vert",
+    )!;
+    expect(halfTurnLabel.rotation).toBe(270);
+    expect(halfTurnLabel.alignment).toBe("end");
   });
 });

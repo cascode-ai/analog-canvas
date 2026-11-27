@@ -1,6 +1,7 @@
 import {
   createEmptyDocument,
   reflectOrientation,
+  rotateOrientation,
   SchematicDocumentSchema,
   transformPoint,
 } from "@icm/model";
@@ -1121,5 +1122,309 @@ describe("a part's name and value through a top-bottom flip (#1384)", () => {
       flipped,
     );
     expect(afterInk.y + afterInk.height).toBeLessThanOrEqual(afterObstacle.y);
+  });
+});
+
+function rectsIntersect(left: Rect, right: Rect): boolean {
+  return (
+    left.x < right.x + right.width &&
+    left.x + left.width > right.x &&
+    left.y < right.y + right.height &&
+    left.y + left.height > right.y
+  );
+}
+
+describe("rotating R/C instances with labels", () => {
+  it.each([
+    {
+      name: "resistor name+value seated on the left side",
+      symbolId: "resistor",
+      reference: "R1",
+      value: "10k",
+      initialOrientation: { rotation: 0 as const, mirror: "none" as const },
+      nameOffset: { x: -9, y: 5 },
+      valueOffset: { x: -9, y: 25 },
+      alignment: "end" as const,
+    },
+    {
+      name: "resistor name+value seated on top (horizontal)",
+      symbolId: "resistor",
+      reference: "R1",
+      value: "10k",
+      initialOrientation: { rotation: 90 as const, mirror: "none" as const },
+      nameOffset: { x: 0, y: -34 },
+      valueOffset: { x: 0, y: -14 },
+      alignment: "middle" as const,
+    },
+    {
+      name: "resistor name+value slid up 10 units on the left side",
+      symbolId: "resistor",
+      reference: "R1",
+      value: "10k",
+      initialOrientation: { rotation: 180 as const, mirror: "none" as const },
+      nameOffset: { x: -9, y: -5 },
+      valueOffset: { x: -9, y: 15 },
+      alignment: "end" as const,
+    },
+    {
+      name: "resistor name+value slid along top (horizontal)",
+      symbolId: "resistor",
+      reference: "R1",
+      value: "10k",
+      initialOrientation: { rotation: 90 as const, mirror: "none" as const },
+      nameOffset: { x: -10, y: -34 },
+      valueOffset: { x: -10, y: -14 },
+      alignment: "middle" as const,
+    },
+    {
+      name: "capacitor name+value snapped onto the 5-unit annotation grid",
+      symbolId: "capacitor",
+      reference: "C1",
+      value: "10p",
+      initialOrientation: { rotation: 0 as const, mirror: "none" as const },
+      nameOffset: { x: 15, y: 5 },
+      valueOffset: { x: 15, y: 25 },
+      alignment: "start" as const,
+    },
+    {
+      name: "mirrored capacitor name+value rotated clockwise through 360°",
+      symbolId: "capacitor",
+      reference: "C2",
+      value: "1p",
+      initialOrientation: {
+        rotation: 0 as const,
+        mirror: "horizontal" as const,
+      },
+      nameOffset: { x: -12, y: 5 },
+      valueOffset: { x: -12, y: 25 },
+      alignment: "end" as const,
+    },
+  ])(
+    "keeps name over value and clears the symbol through four 90° turns: $name",
+    ({
+      symbolId,
+      reference,
+      value,
+      initialOrientation,
+      nameOffset,
+      valueOffset,
+      alignment,
+    }) => {
+      const document = createEmptyDocument("rc-rot", "RC rotation");
+      const position = { x: 200, y: 200 };
+      document.instances.push({
+        id: reference,
+        symbolId,
+        reference,
+        placement: { position, ...initialOrientation },
+        netlist: { parameters: { value } },
+      });
+      const nameAnn: Annotation = {
+        id: `label-${reference}`,
+        kind: "instance-label",
+        binding: { kind: "instance-reference", instanceId: reference },
+        anchor: {
+          kind: "object",
+          objectId: reference,
+          localOffset: { ...nameOffset },
+          fallbackPosition: {
+            x: position.x + nameOffset.x,
+            y: position.y + nameOffset.y,
+          },
+        },
+        alignment,
+        rotation: 0,
+        locked: false,
+      };
+      const valueAnn: Annotation = {
+        id: `value-${reference}`,
+        kind: "instance-value",
+        binding: { kind: "instance-value", instanceId: reference },
+        anchor: {
+          kind: "object",
+          objectId: reference,
+          localOffset: { ...valueOffset },
+          fallbackPosition: {
+            x: position.x + valueOffset.x,
+            y: position.y + valueOffset.y,
+          },
+        },
+        alignment,
+        rotation: 0,
+        locked: false,
+      };
+      document.annotations.push(nameAnn, valueAnn);
+      const initialName = structuredClone(nameAnn);
+      const initialValue = structuredClone(valueAnn);
+      const resolved = resolver.resolve(symbolId)!;
+      const symbolInk = instanceLabelInkBounds(resolved);
+
+      let orientation: Orientation = initialOrientation;
+      for (let step = 0; step < 4; step += 1) {
+        const next = rotateOrientation(orientation, 90);
+        document.instances[0]!.placement = { position, ...next };
+        followAttachedAnnotations(
+          document,
+          reference,
+          position,
+          orientation,
+          position,
+          next,
+          new Set(),
+          resolver,
+        );
+        orientation = next;
+
+        const nameBox = labelBox(document, nameAnn);
+        const valueBox = labelBox(document, valueAnn);
+        const bodyBox = placedBounds(symbolInk, position, orientation);
+        // Name always reads above value, never side-by-side or overlapping.
+        expect(nameBox.y + nameBox.height).toBeLessThan(valueBox.y);
+        expect(rectsIntersect(nameBox, valueBox)).toBe(false);
+        expect(rectsIntersect(nameBox, bodyBox)).toBe(false);
+        expect(rectsIntersect(valueBox, bodyBox)).toBe(false);
+        expect(nameAnn.alignment).toBe(valueAnn.alignment);
+        expect(nameAnn.rotation).toBe(0);
+        expect(valueAnn.rotation).toBe(0);
+      }
+
+      expect(nameAnn).toEqual(initialName);
+      expect(valueAnn).toEqual(initialValue);
+    },
+  );
+
+  it.each([
+    {
+      symbolId: "resistor",
+      reference: "R1",
+      initialRotation: 0 as const,
+      mirror: "horizontal" as const,
+    },
+    {
+      symbolId: "capacitor",
+      reference: "C1",
+      initialRotation: 0 as const,
+      mirror: "none" as const,
+    },
+  ])(
+    "keeps a canonical single $symbolId label clear and restores it after 360°",
+    ({ symbolId, reference, initialRotation, mirror }) => {
+      const document = createEmptyDocument("rc-single", "RC single label");
+      const position = { x: 200, y: 200 };
+      const initialOrientation: Orientation = {
+        rotation: initialRotation,
+        mirror,
+      };
+      const instance = {
+        id: reference,
+        symbolId,
+        reference,
+        placement: { position, ...initialOrientation },
+      };
+      document.instances.push(instance);
+      const resolved = resolver.resolve(symbolId)!;
+      const profile = resolveDocumentStyleProfile(document.presentation);
+      const initialPlacement = defaultInstanceLabelPlacement(
+        instance,
+        resolved,
+        profile,
+        10,
+        "reference",
+      )!;
+      const label: Annotation = {
+        id: `label-${reference}`,
+        kind: "instance-label",
+        binding: { kind: "instance-reference", instanceId: reference },
+        anchor: {
+          kind: "object",
+          objectId: reference,
+          localOffset: {
+            x: initialPlacement.position.x - position.x,
+            y: initialPlacement.position.y - position.y,
+          },
+          fallbackPosition: initialPlacement.position,
+        },
+        alignment: initialPlacement.alignment,
+        rotation: 0,
+        locked: false,
+      };
+      document.annotations.push(label);
+      const before = structuredClone(label);
+      const symbolInk = instanceLabelInkBounds(resolved);
+
+      let orientation: Orientation = initialOrientation;
+      for (let step = 0; step < 4; step += 1) {
+        const next = rotateOrientation(orientation, 90);
+        document.instances[0]!.placement = { position, ...next };
+        followAttachedAnnotations(
+          document,
+          reference,
+          position,
+          orientation,
+          position,
+          next,
+          new Set(),
+          resolver,
+        );
+        orientation = next;
+
+        const ink = labelBox(document, label);
+        const body = placedBounds(symbolInk, position, orientation);
+        expect(rectsIntersect(ink, body)).toBe(false);
+        expect(label.rotation).toBe(0);
+      }
+
+      expect(label).toEqual(before);
+    },
+  );
+
+  it("rigidly rotates a far user-placed label instead of snapping it back onto the part side", () => {
+    const document = createEmptyDocument("far-label", "Far label");
+    const position = { x: 200, y: 200 };
+    document.instances.push({
+      id: "R1",
+      symbolId: "resistor",
+      reference: "R1",
+      placement: { position, rotation: 0, mirror: "none" },
+    });
+    const label: Annotation = {
+      id: "label-r1-far",
+      kind: "instance-label",
+      binding: { kind: "instance-reference", instanceId: "R1" },
+      anchor: {
+        kind: "object",
+        objectId: "R1",
+        localOffset: { x: 15, y: 70 },
+        fallbackPosition: { x: 215, y: 270 },
+      },
+      alignment: "start",
+      rotation: 0,
+      locked: false,
+    };
+    document.annotations.push(label);
+
+    document.instances[0]!.placement = {
+      position,
+      rotation: 90,
+      mirror: "none",
+    };
+    followAttachedAnnotations(
+      document,
+      "R1",
+      position,
+      { rotation: 0, mirror: "none" },
+      position,
+      { rotation: 90, mirror: "none" },
+      new Set(),
+      resolver,
+    );
+
+    // A label far along the symbol axis (shift = 70 > 3 * grid) must stay far
+    // away via rigid rotation rather than snapping into the side seat.
+    expect(label.anchor.kind).toBe("object");
+    if (label.anchor.kind !== "object") return;
+    expect(
+      Math.hypot(label.anchor.localOffset.x, label.anchor.localOffset.y),
+    ).toBeGreaterThan(50);
   });
 });
