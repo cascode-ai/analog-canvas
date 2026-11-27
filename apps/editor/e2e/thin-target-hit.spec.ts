@@ -32,7 +32,7 @@ test("Analog Block hit boxes closely enclose browser-rendered artwork", async ({
         symbol.id,
       ) || ["transconductance", "adc", "dac"].includes(symbol.id),
   );
-  expect(blocks).toHaveLength(39);
+  expect(blocks).toHaveLength(45);
   const instances: SchematicDocument["instances"] = blocks.map(
     (symbol, index) =>
       placedInstance(
