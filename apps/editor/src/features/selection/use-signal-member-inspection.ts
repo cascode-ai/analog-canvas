@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { endpointKey, resolveDocumentLogicalNets } from "@icm/derived";
+import {
+  endpointKey,
+  resolveDocumentLogicalNets,
+  type DocumentConnectivityIndex,
+} from "@icm/derived";
 import {
   selectWireMember,
   planSetNoConnect,
@@ -17,6 +21,7 @@ export function useSignalMemberInspection({
 }: {
   model: {
     document: SchematicDocument;
+    documentConnectivity: DocumentConnectivityIndex | undefined;
     resolver: SymbolResolver;
     selectedEndpoint: WireSource | null;
     visibleEndpoints: readonly WireSource[];
@@ -35,13 +40,13 @@ export function useSignalMemberInspection({
 }) {
   const {
     document,
+    documentConnectivity,
     resolver,
     selectedEndpoint,
     visibleEndpoints,
     selectedRoute,
   } = model;
   const { setSelectedEndpoint, highlightNet, transact, setStatus } = actions;
-  const logical = resolveDocumentLogicalNets(document);
   const [inspectedRouteMember, setInspectedRouteMember] = useState<{
     routeId: string;
     memberId: string;
@@ -53,6 +58,11 @@ export function useSignalMemberInspection({
         endpointKey({ ...source.endpoint, memberId: undefined }) ===
         endpointKey({ ...selectedEndpoint.endpoint, memberId: undefined }),
     );
+  const logical =
+    selectedBusSource?.members || selectedRoute?.members
+      ? (documentConnectivity?.logicalNetResolution ??
+        resolveDocumentLogicalNets(document))
+      : undefined;
   const endpointSignalInspection = selectedBusSource?.members
     ? {
         members: selectedBusSource.members.map((member) => {
@@ -64,7 +74,7 @@ export function useSignalMemberInspection({
           return {
             id: member.id,
             name:
-              (netId ? logical.byBaseNetId.get(netId)?.name : undefined) ??
+              (netId ? logical?.byBaseNetId.get(netId)?.name : undefined) ??
               member.name ??
               member.id,
             hasNet: netId !== null,
@@ -113,7 +123,7 @@ export function useSignalMemberInspection({
     ? {
         members: selectedRoute.members.map((member) => ({
           id: member.id,
-          name: logical.byBaseNetId.get(member.netId)?.name ?? member.id,
+          name: logical?.byBaseNetId.get(member.netId)?.name ?? member.id,
           hasNet: true,
           noConnect: false,
         })),

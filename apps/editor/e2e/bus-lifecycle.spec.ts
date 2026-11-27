@@ -11,7 +11,8 @@ import {
   revealPropertiesShelf,
   editComponentPropertyCode,
 } from "./editor-fixtures.js";
-import { placedInstance } from "./canvas-fixtures.js";
+import { clickRoute, placedInstance } from "./canvas-fixtures.js";
+import { openSelectionShelf } from "./manual-editor-fixtures.js";
 
 function legacyLabelProject() {
   const project = createEmptyProject("legacy-label-ui", "Legacy Label");
@@ -128,6 +129,14 @@ test("explicitly converts a legacy Label, cancels safely, and preserves migratio
   const ids = converted.documents[0]!.routes.find(
     (route) => route.id === "wire",
   )!.members!.map((member) => member.id);
+  const memberMenu = page.getByLabel("Inspect member", { exact: true });
+  await clickRoute(page, "wire");
+  await openSelectionShelf(page);
+  await expect(memberMenu.getByRole("option")).toHaveText([
+    "Choose a member…",
+    "DATA<1> · On a Net",
+    "DATA<0> · On a Net",
+  ]);
   await page.getByTestId("annotation-hit-label").dblclick();
   await page
     .getByRole("textbox", { name: "Canvas text editor" })
@@ -151,6 +160,19 @@ test("explicitly converts a legacy Label, cancels safely, and preserves migratio
       (route) => route.id === "wire",
     )!.members!.map((member) => member.id),
   ).toEqual([ids[1], ids[0]]);
+  await clickRoute(page, "wire");
+  await openSelectionShelf(page);
+  await expect(memberMenu.getByRole("option")).toHaveText([
+    "Choose a member…",
+    "INPUT<0> · On a Net",
+    "INPUT<1> · On a Net",
+  ]);
+  await memberMenu.selectOption({ label: "INPUT<1> · On a Net" });
+  await expect(memberMenu).toHaveValue(ids[0]!);
+  await page.getByRole("button", { name: "Trace member" }).click();
+  await expect(
+    page.getByText("Highlighted Net old-net", { exact: true }),
+  ).toBeVisible();
   await page.getByTestId("annotation-hit-label").dblclick();
   await page
     .getByRole("textbox", { name: "Canvas text editor" })
