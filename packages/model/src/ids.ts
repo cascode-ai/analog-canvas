@@ -2,6 +2,7 @@ const ID_PREFIX_PATTERN = /^[a-z][a-z0-9-]*$/;
 const FNV_OFFSET_BASIS_64 = 0xcbf29ce484222325n;
 const FNV_PRIME_64 = 0x100000001b3n;
 const UINT64_MASK = 0xffffffffffffffffn;
+const UTF8_ENCODER = new TextEncoder();
 
 function assertPrefix(prefix: string): void {
   if (!ID_PREFIX_PATTERN.test(prefix)) {
@@ -11,7 +12,7 @@ function assertPrefix(prefix: string): void {
 
 function fnv1a64(value: string): string {
   let hash = FNV_OFFSET_BASIS_64;
-  for (const byte of new TextEncoder().encode(value)) {
+  for (const byte of UTF8_ENCODER.encode(value)) {
     hash ^= BigInt(byte);
     hash = (hash * FNV_PRIME_64) & UINT64_MASK;
   }

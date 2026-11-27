@@ -1,4 +1,4 @@
-import { InstanceStyleOverrideSchema } from "@icm/model";
+import { equalJsonValue, InstanceStyleOverrideSchema } from "@icm/model";
 import type { SchematicDocument } from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
@@ -72,10 +72,7 @@ export function applyInstanceStyleOverrideEdit(
   }
 
   // No-op check: compare current vs new.
-  if (
-    JSON.stringify(instance.styleOverride ?? null) ===
-    JSON.stringify(newOverride ?? null)
-  ) {
+  if (equalJsonValue(instance.styleOverride ?? null, newOverride ?? null)) {
     return {
       ok: false,
       rejection: reject(

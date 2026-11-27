@@ -1,4 +1,4 @@
-import { foldNetName } from "@icm/model";
+import { equalJsonValue, foldNetName } from "@icm/model";
 import type { ConnectivityEvidence } from "@icm/model";
 
 import type { SchematicEdit } from "./edit-schema.js";
@@ -86,7 +86,7 @@ export function planEnsureNamedNet(
     (item) => item.id === evidence.id,
   );
   const edits: SchematicEdit[] = [];
-  if (JSON.stringify(existingEvidence) !== JSON.stringify(evidence)) {
+  if (!equalJsonValue(existingEvidence, evidence)) {
     edits.push({ kind: "upsert_connectivity_evidence", evidence });
   }
   return { ok: true, netId: candidate.id, name, edits };

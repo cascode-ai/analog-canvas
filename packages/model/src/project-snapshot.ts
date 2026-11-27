@@ -9,6 +9,7 @@ import {
 import { freezeSnapshot, isFrozenSnapshot } from "./immutable-snapshot.js";
 import type { CircuitProject, SchematicDocument } from "./schema/types.js";
 import {
+  detachAndShareProjectStructure,
   shareEqualDocumentStructure,
   shareEqualProjectStructure,
 } from "./snapshot-structural-sharing.js";
@@ -25,8 +26,21 @@ const wireSources = new WeakMap<
 >();
 
 const validatedSnapshots = new WeakSet<CircuitProject>();
+const sharedSnapshots = new WeakMap<CircuitProject, WeakSet<CircuitProject>>();
 const restoredProjects = new WeakMap<object, CircuitProject>();
 const restoredContent = new WeakMap<SchematicDocument, SchematicDocument>();
+
+function recordSharedSnapshot(
+  snapshot: CircuitProject,
+  before: CircuitProject,
+): void {
+  let sources = sharedSnapshots.get(snapshot);
+  if (!sources) {
+    sources = new WeakSet();
+    sharedSnapshots.set(snapshot, sources);
+  }
+  sources.add(before);
+}
 
 /** The immutable document whose content history restored, apart from revision. */
 export function documentContentSource(
@@ -156,12 +170,13 @@ export function validateProjectSnapshot(
       : undefined;
   if (known && known.source === JSON.stringify(input)) {
     if (!known.snapshot) {
-      const detached = structuredClone(input as CircuitProject);
+      const share = Boolean(previous && validatedSnapshots.has(previous));
       known.snapshot = freezeSnapshot(
-        previous && validatedSnapshots.has(previous)
-          ? shareEqualProjectStructure(previous, detached)
-          : detached,
+        share
+          ? detachAndShareProjectStructure(previous!, input as CircuitProject)
+          : structuredClone(input as CircuitProject),
       );
+      if (share) recordSharedSnapshot(known.snapshot, previous!);
     }
     const project = known.snapshot;
     validatedSnapshots.add(project);
@@ -184,13 +199,15 @@ function validateProjectCandidate(
     ? retained
     : CircuitProjectSchema.safeParse(input);
   if (!result.success) return result;
-  const project = freezeSnapshot(
+  const share = Boolean(
     previous &&
-      (validatedSnapshots.has(previous) ||
-        (previous === input && isFrozenSnapshot(previous)))
-      ? shareEqualProjectStructure(previous, result.data)
-      : result.data,
+    (validatedSnapshots.has(previous) ||
+      (previous === input && isFrozenSnapshot(previous))),
   );
+  const project = freezeSnapshot(
+    share ? shareEqualProjectStructure(previous!, result.data) : result.data,
+  );
+  if (share) recordSharedSnapshot(project, previous!);
   validatedSnapshots.add(project);
   rememberValidatedCells(project);
   return { success: true, data: project };
@@ -202,9 +219,14 @@ export function shareProjectSnapshot(
   after: CircuitProject,
 ): CircuitProject {
   const validated = parseProjectSnapshot(after, before);
-  if (!validatedSnapshots.has(before)) return validated;
+  if (
+    !validatedSnapshots.has(before) ||
+    sharedSnapshots.get(validated)?.has(before)
+  )
+    return validated;
   const project = freezeSnapshot(shareEqualProjectStructure(before, validated));
   validatedSnapshots.add(project);
+  recordSharedSnapshot(project, before);
   if (hasValidatedCells(before) && hasValidatedCells(validated)) {
     rememberValidatedCells(project);
   }

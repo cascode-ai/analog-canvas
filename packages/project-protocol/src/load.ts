@@ -1,6 +1,7 @@
 import {
   CircuitProjectSchema,
   CURRENT_MODEL_SCHEMA_VERSION,
+  isFrozenSnapshot,
   validateProjectSnapshot,
 } from "@icm/model";
 import type { CircuitProject } from "@icm/model";
@@ -48,7 +49,7 @@ import { repairAdcBodySnapshots } from "./transforms/adc-body.js";
 import { repairSymbolBodySnapshots } from "./transforms/symbol-body.js";
 import { repairVocmPinSnapshots } from "./transforms/vocm-pin.js";
 import { upgradeRetiredSymbolLibraryLock } from "./transforms/symbol-library-lock.js";
-import { rejectClosedBodyGeometry } from "./closed-body-envelope.js";
+import { enforceLegacySchemaFeatureGates } from "./schema-version-gates.js";
 import { OLDEST_SUPPORTED_PROJECT_SCHEMA_VERSION } from "./version.js";
 import { upgradeSchema49To50 } from "./transforms/simulation-folders.js";
 import { upgradeSchema50To51 } from "./transforms/drafting-shape-paint.js";
@@ -62,12 +63,6 @@ import {
   CURRENT_PROJECT_FILE_VERSION,
   MAX_READABLE_PROJECT_FILE_VERSION,
   decodeProjectFile,
-  rejectModelSelection,
-  rejectDraftingArcs,
-  rejectKeptDocumentStyle,
-  rejectSignalMembers,
-  rejectOrderedSignals,
-  rejectMemberNoConnect,
 } from "./owned-project-file.js";
 
 /**
@@ -119,42 +114,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Whether any Cell symbol presentation in the file carries `field`. */
-function hasCellSymbolField(
-  project: Record<string, unknown>,
-  field: "bodyBounds" | "artwork",
-): boolean {
-  const items = (value: unknown): Record<string, unknown>[] =>
-    Array.isArray(value) ? value.filter(isRecord) : [];
-  const presentationHasBody = (value: unknown) =>
-    isRecord(value) && Object.hasOwn(value, field);
-  const artworkHasBody = (value: unknown) =>
-    isRecord(value) &&
-    isRecord(value.generatedFrom) &&
-    presentationHasBody(value.generatedFrom.presentation);
-  return (
-    items(project.documents).some(
-      (document) =>
-        isRecord(document.presentation) &&
-        presentationHasBody(document.presentation.cellSymbol),
-    ) ||
-    items(project.externalSubcircuitDefinitions).some((definition) =>
-      presentationHasBody(definition.presentation),
-    ) ||
-    items(project.componentDefinitions).some(artworkHasBody) ||
-    items(project.modelSources).some(
-      (source) =>
-        isRecord(source.draft) &&
-        items(source.draft.authoring).some(
-          (candidate) =>
-            presentationHasBody(candidate.presentation) ||
-            artworkHasBody(candidate.lastValidArtwork) ||
-            (isRecord(candidate.legacyRepair) &&
-              artworkHasBody(candidate.legacyRepair.baseline)),
-        ),
-    )
-  );
-}
+const checkedReadSnapshots = new WeakSet<CircuitProject>();
 
 export function tryValidateProject(input: unknown): ProjectLoadResult {
   return checkedProject(CircuitProjectSchema.safeParse(input));
@@ -162,8 +122,22 @@ export function tryValidateProject(input: unknown): ProjectLoadResult {
 
 /** Canonical read path; the model alone owns immutable validation provenance. */
 export function validateProjectReadSnapshot(input: unknown): CircuitProject {
-  const result = checkedProject(validateProjectSnapshot(input));
+  if (
+    typeof input === "object" &&
+    input !== null &&
+    checkedReadSnapshots.has(input as CircuitProject)
+  ) {
+    return input as CircuitProject;
+  }
+  const snapshot = validateProjectSnapshot(input);
+  if (snapshot.success && checkedReadSnapshots.has(snapshot.data)) {
+    return snapshot.data;
+  }
+  const result = checkedProject(snapshot);
   if (!result.ok) throw new ProjectFormatError(result.diagnostics);
+  if (!result.migrated && isFrozenSnapshot(result.project)) {
+    checkedReadSnapshots.add(result.project);
+  }
   return result.project;
 }
 
@@ -269,274 +243,7 @@ export function tryParseProjectWithMetadata(
 
   let current: Record<string, unknown>;
   try {
-    if (sourceSchemaVersion < 82) rejectClosedBodyGeometry(parsed);
-    if (sourceSchemaVersion < 81 && Array.isArray(parsed.documents)) {
-      for (const [index, item] of parsed.documents.entries()) {
-        if (!isRecord(item)) continue;
-        if (Object.hasOwn(item, "drawingOrder"))
-          throw new ProjectFormatError([
-            {
-              code: "INVALID_PROJECT",
-              message: "A drawing order requires Project schema 81",
-              path: ["documents", index, "drawingOrder"],
-            },
-          ]);
-        if (Array.isArray(item.instances))
-          for (const [instanceIndex, instance] of item.instances.entries())
-            if (isRecord(instance) && Object.hasOwn(instance, "bodyFill"))
-              throw new ProjectFormatError([
-                {
-                  code: "INVALID_PROJECT",
-                  message: "A symbol body fill requires Project schema 81",
-                  path: [
-                    "documents",
-                    index,
-                    "instances",
-                    instanceIndex,
-                    "bodyFill",
-                  ],
-                },
-              ]);
-      }
-    }
-    if (sourceSchemaVersion < 75) rejectSignalMembers(parsed);
-    if (sourceSchemaVersion < 76) rejectOrderedSignals(parsed);
-    if (sourceSchemaVersion < 77) rejectMemberNoConnect(parsed);
-    if (
-      sourceSchemaVersion < 78 &&
-      Array.isArray(parsed.documents) &&
-      parsed.documents.some(
-        (document: unknown) =>
-          isRecord(document) &&
-          isRecord(document.presentation) &&
-          Object.hasOwn(document.presentation, "crossingStyle"),
-      )
-    )
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          message: "Wire hops require Project schema 78",
-          path: ["documents"],
-        },
-      ]);
-    if (sourceSchemaVersion < 74 && hasCellSymbolField(parsed, "bodyBounds"))
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          message: "An explicit Cell symbol body requires Project schema 74",
-          path: ["schemaVersion"],
-        },
-      ]);
-    if (sourceSchemaVersion < 80 && hasCellSymbolField(parsed, "artwork"))
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          message: "A Cell's custom symbol artwork requires Project schema 80",
-          path: ["schemaVersion"],
-        },
-      ]);
-    if (
-      sourceSchemaVersion < 73 &&
-      Array.isArray(parsed.documents) &&
-      parsed.documents.some(
-        (document: unknown) =>
-          isRecord(document) &&
-          Array.isArray(document.junctions) &&
-          document.junctions.some(
-            (junction: unknown) =>
-              isRecord(junction) &&
-              (Object.hasOwn(junction, "styleOverride") ||
-                Object.hasOwn(junction, "contactAnchor") ||
-                junction.role === "style-anchor"),
-          ),
-      )
-    )
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          path: ["documents"],
-          message: "Junction colors require Project schema 73",
-        },
-      ]);
-    if (
-      sourceSchemaVersion < 72 &&
-      Array.isArray(parsed.documents) &&
-      parsed.documents.some(
-        (document: unknown) =>
-          isRecord(document) &&
-          isRecord(document.presentation) &&
-          Object.hasOwn(document.presentation, "textFace"),
-      )
-    )
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          message: "A Document font requires Project schema 72",
-          path: ["documents"],
-        },
-      ]);
-    if (
-      sourceSchemaVersion < 79 &&
-      Array.isArray(parsed.documents) &&
-      parsed.documents.some(
-        (document: unknown) =>
-          isRecord(document) &&
-          isRecord(document.presentation) &&
-          Object.hasOwn(document.presentation, "textFace") &&
-          document.presentation.textFace !== "serif",
-      )
-    )
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          message:
-            "A Document font other than the serif requires Project schema 79",
-          path: ["documents"],
-        },
-      ]);
-    if (
-      sourceSchemaVersion < 71 &&
-      Array.isArray(parsed.modelSources) &&
-      parsed.modelSources.some(
-        (source) =>
-          isRecord(source) &&
-          isRecord(source.draft) &&
-          Array.isArray(source.draft.authoring) &&
-          source.draft.authoring.some(
-            (candidate) =>
-              isRecord(candidate) &&
-              Object.hasOwn(candidate, "artworkInitialized"),
-          ),
-      )
-    )
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          message: "Custom artwork initialization requires Project schema 71",
-          path: ["modelSources"],
-        },
-      ]);
-    if (
-      sourceSchemaVersion < 68 &&
-      (Object.hasOwn(parsed, "componentAuthoringDrafts") ||
-        (Array.isArray(parsed.modelSources) &&
-          parsed.modelSources.some(
-            (source) =>
-              isRecord(source) &&
-              isRecord(source.draft) &&
-              Object.hasOwn(source.draft, "authoring"),
-          )))
-    )
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          message: "Component authoring drafts require Project schema 68",
-          path: ["schemaVersion"],
-        },
-      ]);
-    if (
-      sourceSchemaVersion < 67 &&
-      Array.isArray(parsed.modelSources) &&
-      parsed.modelSources.some(
-        (s: unknown) =>
-          isRecord(s) &&
-          (s.language === "spectre" ||
-            (isRecord(s.draft) && Object.hasOwn(s.draft, "language"))),
-      )
-    )
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          message: "Native model languages require Project schema 67",
-          path: ["modelSources"],
-        },
-      ]);
-    if (
-      sourceSchemaVersion < 66 &&
-      (Object.hasOwn(parsed, "modelSources") ||
-        (Array.isArray(parsed.externalSubcircuitDefinitions) &&
-          parsed.externalSubcircuitDefinitions.some(
-            (d: unknown) => isRecord(d) && Object.hasOwn(d, "implementation"),
-          )))
-    ) {
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          message: "Project model source ownership requires Project schema 66",
-          path: ["modelSources"],
-        },
-      ]);
-    }
-    if (
-      sourceSchemaVersion < 69 &&
-      [parsed.componentDefinitions, parsed.externalSubcircuitDefinitions].some(
-        (definitions) =>
-          Array.isArray(definitions) &&
-          definitions.some(
-            (definition: unknown) =>
-              isRecord(definition) &&
-              Object.hasOwn(definition, "libraryOrigin"),
-          ),
-      )
-    )
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          message: "Component library provenance requires Project schema 69",
-          path: ["componentDefinitions"],
-        },
-      ]);
-    if (
-      sourceSchemaVersion < 70 &&
-      Array.isArray(parsed.documents) &&
-      parsed.documents.some(
-        (document: unknown) =>
-          isRecord(document) && Object.hasOwn(document, "inductorCouplings"),
-      )
-    )
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          message: "Inductor couplings require Project schema 70",
-          path: ["documents"],
-        },
-      ]);
-    if (sourceSchemaVersion < 64) rejectKeptDocumentStyle(parsed);
-    if (
-      sourceSchemaVersion < 84 &&
-      Array.isArray(parsed.documents) &&
-      parsed.documents.some(
-        (document) => document?.instanceGroups !== undefined,
-      )
-    )
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          message: "Instance groups require Project schema 84",
-          path: ["documents"],
-        },
-      ]);
-    if (sourceSchemaVersion < 85) rejectModelSelection(parsed);
-    if (
-      sourceSchemaVersion < 86 &&
-      Array.isArray(parsed.documents) &&
-      parsed.documents.some(
-        (document) =>
-          Array.isArray(document?.instanceGroups) &&
-          document.instanceGroups.some(
-            (group: unknown) =>
-              isRecord(group) && Object.hasOwn(group, "referencePrefix"),
-          ),
-      )
-    )
-      throw new ProjectFormatError([
-        {
-          code: "INVALID_PROJECT",
-          path: ["documents"],
-          message: "An array reference prefix requires Project schema 86",
-        },
-      ]);
-    if (sourceSchemaVersion < 87) rejectDraftingArcs(parsed);
+    enforceLegacySchemaFeatureGates(parsed, sourceSchemaVersion);
     current = sourceSchemaVersion >= 59 ? decodeProjectFile(parsed) : parsed;
     for (
       let version = current.schemaVersion as number;
@@ -604,23 +311,14 @@ export function tryParseProjectWithMetadata(
       ]),
     );
     for (const document of project.documents) {
-      const uses = [
-        ...document.instances.map((instance) => ({
-          id: instance.symbolId,
-          variant: instance.symbolVariantId,
-        })),
-        ...(document.drafting?.objects ?? []).flatMap((object) =>
-          object.kind === "floating-symbol"
-            ? [{ id: object.symbolId, variant: undefined }]
-            : [],
-        ),
-      ];
-      for (const use of uses) {
-        const definition = definitions.get(use.id);
+      for (const instance of document.instances) {
+        const definition = definitions.get(instance.symbolId);
         if (
           !definition ||
-          (use.variant &&
-            !definition.variants.some((variant) => variant.id === use.variant))
+          (instance.symbolVariantId &&
+            !definition.variants.some(
+              (variant) => variant.id === instance.symbolVariantId,
+            ))
         )
           return {
             ok: false,
@@ -628,7 +326,21 @@ export function tryParseProjectWithMetadata(
               {
                 code: "INVALID_PROJECT",
                 path: ["componentDefinitions"],
-                message: `Missing included component definition or variant: ${use.id}${use.variant ? `/${use.variant}` : ""}`,
+                message: `Missing included component definition or variant: ${instance.symbolId}${instance.symbolVariantId ? `/${instance.symbolVariantId}` : ""}`,
+              },
+            ],
+          };
+      }
+      for (const object of document.drafting?.objects ?? []) {
+        if (object.kind !== "floating-symbol") continue;
+        if (!definitions.has(object.symbolId))
+          return {
+            ok: false,
+            diagnostics: [
+              {
+                code: "INVALID_PROJECT",
+                path: ["componentDefinitions"],
+                message: `Missing included component definition or variant: ${object.symbolId}`,
               },
             ],
           };

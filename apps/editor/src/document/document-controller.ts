@@ -27,6 +27,8 @@ import {
   recordCommittedDocumentChanges,
   isFrozenSnapshot,
   ComponentDefinitionSchema,
+  equalJsonKeyOrder,
+  equalJsonValue,
   freezeSnapshot,
   restoreProjectSnapshot,
   installPreparedWireCell,
@@ -67,43 +69,58 @@ function sameDocumentJson(
 ): boolean {
   if (left === right) return true;
   if (!left || !right) return false;
-  const keys = (document: SchematicDocument) =>
-    Object.keys(document).filter(
-      (key) => Reflect.get(document, key) !== undefined,
-    );
-  const leftKeys = keys(left),
-    rightKeys = keys(right);
-  if (
-    leftKeys.length !== rightKeys.length ||
-    leftKeys.some((key, index) => key !== rightKeys[index])
-  )
-    return false;
-  return leftKeys.every((key) => {
-    if (ignoreRevision && key === "revision") return true;
-    const before = Reflect.get(left, key),
-      after = Reflect.get(right, key);
-    return before === after || JSON.stringify(before) === JSON.stringify(after);
-  });
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  let li = 0;
+  let ri = 0;
+  while (true) {
+    while (
+      li < leftKeys.length &&
+      Reflect.get(left, leftKeys[li]!) === undefined
+    )
+      li += 1;
+    while (
+      ri < rightKeys.length &&
+      Reflect.get(right, rightKeys[ri]!) === undefined
+    )
+      ri += 1;
+    if (li === leftKeys.length || ri === rightKeys.length) {
+      return li === leftKeys.length && ri === rightKeys.length;
+    }
+    const key = leftKeys[li]!;
+    if (key !== rightKeys[ri]!) return false;
+    if (
+      (!ignoreRevision || key !== "revision") &&
+      !equalJsonKeyOrder(Reflect.get(left, key), Reflect.get(right, key))
+    )
+      return false;
+    li += 1;
+    ri += 1;
+  }
 }
 
 function documentResolverContextChanged(
   before: SchematicDocument,
   after: SchematicDocument,
 ): boolean {
+  if (before === after) return false;
   return (
     before.name !== after.name ||
-    JSON.stringify(before.sourceBinding) !==
-      JSON.stringify(after.sourceBinding) ||
-    JSON.stringify(before.netlist?.name) !==
-      JSON.stringify(after.netlist?.name) ||
-    JSON.stringify(before.netlist?.formalParameters) !==
-      JSON.stringify(after.netlist?.formalParameters) ||
-    JSON.stringify(before.netlist?.terminals) !==
-      JSON.stringify(after.netlist?.terminals) ||
-    JSON.stringify(before.presentation.cellSymbol) !==
-      JSON.stringify(after.presentation.cellSymbol) ||
-    JSON.stringify(projectCellSymbolTerminals(before)) !==
-      JSON.stringify(projectCellSymbolTerminals(after))
+    !equalJsonValue(before.sourceBinding, after.sourceBinding) ||
+    before.netlist?.name !== after.netlist?.name ||
+    !equalJsonValue(
+      before.netlist?.formalParameters,
+      after.netlist?.formalParameters,
+    ) ||
+    !equalJsonValue(before.netlist?.terminals, after.netlist?.terminals) ||
+    !equalJsonValue(
+      before.presentation.cellSymbol,
+      after.presentation.cellSymbol,
+    ) ||
+    !equalJsonValue(
+      projectCellSymbolTerminals(before),
+      projectCellSymbolTerminals(after),
+    )
   );
 }
 
@@ -192,7 +209,7 @@ export class EditorDocumentController {
       this.projectValue.componentDefinitions?.find(
         (item) => item.symbol.id === definition.symbol.id,
       ) ?? this.availableComponents.get(definition.symbol.id);
-    if (existing && JSON.stringify(existing) !== JSON.stringify(definition))
+    if (existing && !equalJsonValue(existing, definition))
       throw new Error("A placed component version cannot be overwritten");
     this.availableComponents.set(definition.symbol.id, definition);
     this.availableCatalog = new InMemorySymbolResolver(
@@ -673,10 +690,11 @@ export class EditorDocumentController {
     if (
       [...ids].some(
         (id) =>
-          JSON.stringify(
+          !equalJsonValue(
             definitions.get(id) ??
               builtInSymbols.find((item) => item.id === id),
-          ) !== JSON.stringify(this.resolverValue.resolve(id)?.definition),
+            this.resolverValue.resolve(id)?.definition,
+          ),
       ) ||
       before.documents.length !== after.documents.length
     )

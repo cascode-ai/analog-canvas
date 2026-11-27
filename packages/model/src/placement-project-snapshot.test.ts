@@ -3,6 +3,7 @@ import {
   createEmptyDocument,
   createEmptyProject,
   parseProjectSnapshot,
+  shareProjectSnapshot,
   validateProjectSnapshot,
   validateProjectResult,
   CircuitProjectSchema,
@@ -55,5 +56,25 @@ describe("owned placement snapshot", () => {
     expect(
       validatePlacementProjectSnapshot(crossCell, previous).error?.issues,
     ).toEqual(validateProjectSnapshot(crossCell).error?.issues);
+  });
+  it("detaches changed branches while reusing unchanged Cells when sharing a public receipt", () => {
+    const base = createEmptyProject("p", "Drawing", "top");
+    base.documents.push(createEmptyDocument("peer", "Peer"));
+    const previous = parseProjectSnapshot(base);
+    const mutable = validateProjectResult({
+      ...structuredClone(base),
+      documents: [
+        { ...structuredClone(base.documents[0]!), name: "Edited Top" },
+        structuredClone(base.documents[1]!),
+      ],
+    });
+    if (!mutable.success) throw mutable.error;
+    const shared = shareProjectSnapshot(previous, mutable.data);
+    // Unchanged peer Cell is reference-shared with previous; changed top Cell is detached.
+    expect(shared.documents[1]).toBe(previous.documents[1]);
+    expect(shared.documents[0]).not.toBe(mutable.data.documents[0]);
+    expect(Object.isFrozen(shared.documents[0])).toBe(true);
+    mutable.data.documents[0]!.name = "Mutated After Share";
+    expect(shared.documents[0]!.name).toBe("Edited Top");
   });
 });

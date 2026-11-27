@@ -2,6 +2,7 @@ import {
   ProjectWriteNameSchema,
   ComponentDefinitionSchema,
   ComponentLibraryOriginSchema,
+  equalJsonValue,
   isFrozenSnapshot,
   ComponentAuthoringDraftSchema,
   ExternalSubcircuitDefinitionSchema,
@@ -788,7 +789,7 @@ function applyProjectTransaction(
       if (
         !source ||
         source.revision !== edit.expectedRevision ||
-        JSON.stringify(source.draft) !== JSON.stringify(edit.expectedDraft)
+        !equalJsonValue(source.draft, edit.expectedDraft)
       )
         return rejectProjectTransaction(
           project,
@@ -1073,17 +1074,14 @@ function applyProjectTransaction(
       const definition = owner ?? captured;
       if (
         !definition ||
-        JSON.stringify(definition.libraryOrigin ?? null) !==
-          JSON.stringify(edit.expectedOrigin)
+        !equalJsonValue(definition.libraryOrigin ?? null, edit.expectedOrigin)
       )
         return rejectProjectTransaction(
           project,
           "EDIT_PRECONDITION",
           "Component publication association changed; reread before associating.",
         );
-      if (
-        JSON.stringify(definition.libraryOrigin) !== JSON.stringify(edit.origin)
-      ) {
+      if (!equalJsonValue(definition.libraryOrigin, edit.origin)) {
         definition.libraryOrigin = structuredClone(edit.origin);
         structuralChange = true;
       }
@@ -1094,8 +1092,7 @@ function applyProjectTransaction(
         (definition) => definition.symbol.id === edit.definition.symbol.id,
       );
       if (previous) {
-        if (JSON.stringify(previous) === JSON.stringify(edit.definition))
-          continue;
+        if (equalJsonValue(previous, edit.definition)) continue;
         return rejectProjectTransaction(
           project,
           "EDIT_PRECONDITION",
@@ -1114,11 +1111,7 @@ function applyProjectTransaction(
       candidate.modelSources ??= [];
       const index = candidate.modelSources.findIndex((s) => s.id === source.id);
       if (index >= 0 && !plannedModelWrites.has(edit)) {
-        if (
-          JSON.stringify(candidate.modelSources[index]) ===
-          JSON.stringify(source)
-        )
-          continue;
+        if (equalJsonValue(candidate.modelSources[index], source)) continue;
         return rejectProjectTransaction(
           project,
           "EDIT_PRECONDITION",
@@ -1273,8 +1266,7 @@ function applyProjectTransaction(
       );
       if (
         index >= 0 &&
-        JSON.stringify(candidate.simulationFolders[index]) ===
-          JSON.stringify(edit.folder)
+        equalJsonValue(candidate.simulationFolders[index], edit.folder)
       )
         continue;
       if (index >= 0)
@@ -1522,12 +1514,10 @@ function applyProjectTransaction(
         );
         return (
           before &&
-          JSON.stringify(
+          !equalJsonValue(
             originalResolver.resolve(before.symbolId, before.symbolVariantId),
-          ) !==
-            JSON.stringify(
-              resolver.resolve(instance.symbolId, instance.symbolVariantId),
-            )
+            resolver.resolve(instance.symbolId, instance.symbolVariantId),
+          )
         );
       });
       // A grown body can strike labels without moving a contact. Reflow that

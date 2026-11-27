@@ -1,4 +1,8 @@
-import { renamedLabelFormat, richTextPresentsIdentifier } from "@icm/model";
+import {
+  equalJsonValue,
+  renamedLabelFormat,
+  richTextPresentsIdentifier,
+} from "@icm/model";
 import { CellNetlistTerminalSchema, projectCellInterface } from "@icm/model";
 import type { CellSymbolPresentation, SchematicDocument } from "@icm/model";
 
@@ -92,7 +96,7 @@ export function applyCellInterfaceEdit(
         previous && placements.find((item) => item.terminalId === previous.id);
       return placement ? [{ ...placement, terminalId: port.id }] : [];
     });
-    if (JSON.stringify(placements) !== JSON.stringify(retained)) {
+    if (!equalJsonValue(placements, retained)) {
       if (retained.length)
         draft.presentation.cellSymbol!.pinPlacements = retained;
       else delete draft.presentation.cellSymbol!.pinPlacements;
@@ -121,7 +125,7 @@ export function applyCellInterfaceEdit(
           : [],
       ),
     );
-    if (JSON.stringify(artwork.terminals) !== JSON.stringify(mapped)) {
+    if (!equalJsonValue(artwork.terminals, mapped)) {
       draft.presentation.cellSymbol!.artwork = {
         symbol: departed.size
           ? withoutSymbolPins(artwork.symbol, departed)
@@ -237,7 +241,7 @@ function mutateCellInterface(
         (terminal.signal || edit.signal) &&
         ((edit.name !== undefined && edit.name !== terminal.name) ||
           (edit.signal !== undefined &&
-            JSON.stringify(edit.signal) !== JSON.stringify(terminal.signal)));
+            !equalJsonValue(edit.signal, terminal.signal)));
       const nextMember = edit.signal?.members[0];
       const preservesScalarIdentity =
         (terminal.signal?.members.length ?? 1) === 1 &&

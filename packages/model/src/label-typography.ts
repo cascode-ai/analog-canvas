@@ -1,4 +1,5 @@
 import { boundAnnotationName } from "./schema/bound-annotation-text.js";
+import { equalJsonValue } from "./json-equal.js";
 import type {
   Annotation,
   RichTextDocument,
@@ -89,7 +90,7 @@ export function formatLabelFirstLetter(
     if (
       run.kind === "text" &&
       previous?.run.kind === "text" &&
-      JSON.stringify(previous.styles) === JSON.stringify(styles)
+      equalJsonValue(previous.styles, styles)
     )
       previous.run.value += run.value;
     else groups.push({ run, styles });
@@ -261,8 +262,7 @@ export function isAutomaticPinLabelLook(
 ): boolean {
   return (
     !formatOverride ||
-    JSON.stringify(formatOverride) ===
-      JSON.stringify(semanticTextDocument(name, "formal-port"))
+    equalJsonValue(formatOverride, semanticTextDocument(name, "formal-port"))
   );
 }
 
@@ -446,9 +446,21 @@ export interface LabelLookChangeOptions {
   readonly deviceLetterOf?: (annotation: Annotation) => string | undefined;
 }
 
+function hasScriptRun(runs: readonly RichTextRun[]): boolean {
+  for (const run of runs) {
+    if (
+      run.kind === "span" &&
+      (run.style === "subscript" ||
+        run.style === "superscript" ||
+        hasScriptRun(run.children))
+    )
+      return true;
+  }
+  return false;
+}
+
 const drawsScripts = (document: RichTextDocument): boolean =>
-  JSON.stringify(document).includes('"subscript"') ||
-  JSON.stringify(document).includes('"superscript"');
+  hasScriptRun(document.runs);
 
 /**
  * How an existing drawing's labels would reach the standard: drawn supply,

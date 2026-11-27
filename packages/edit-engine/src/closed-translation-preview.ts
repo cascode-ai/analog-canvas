@@ -1,4 +1,5 @@
 import {
+  equalJsonValue,
   isFrozenSnapshot,
   routeEndpoints,
   SchematicDocumentSchema,
@@ -123,8 +124,10 @@ export function prepareClosedTranslationPreview(
   );
   if (
     !baseline.ok ||
-    JSON.stringify({ ...baseline.document, revision: document.revision }) !==
-      JSON.stringify(parsed.data)
+    !equalJsonValue(
+      { ...baseline.document, revision: document.revision },
+      parsed.data,
+    )
   )
     return refuse;
   const affectedNets = new Set(
@@ -338,8 +341,7 @@ export function prepareClosedTranslationPreview(
                 : leg.to,
           })),
         };
-        if (JSON.stringify(translated) !== JSON.stringify(edit.route))
-          return false;
+        if (!equalJsonValue(translated, edit.route)) return false;
         seenRoutes.add(original.id);
       } else if (
         edit.kind !== "upsert_schematic_annotation" &&

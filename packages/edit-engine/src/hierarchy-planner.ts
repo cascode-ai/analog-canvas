@@ -11,6 +11,7 @@ import type {
 import {
   cellSymbolPinFitsBody,
   circuitComponentIssues,
+  equalJsonValue,
   foldNetName,
   routeEnd,
 } from "@icm/model";
@@ -257,7 +258,7 @@ function firstPlacementSymbol(
   if (placedCellDocumentIds(project).has(child.id)) return [];
   const next = unplacedCellSymbol(child);
   const current = child.presentation.cellSymbol;
-  if (!next || JSON.stringify(next) === JSON.stringify(current)) return [];
+  if (!next || equalJsonValue(next, current)) return [];
   return [
     transactDocument(project, child.id, [
       { kind: "set_cell_symbol_presentation", presentation: next },
@@ -311,10 +312,8 @@ export function reviewedExternalDefinitionEditIssue(
     ) &&
     (definition.implementation ||
       definition.name !== previous.name ||
-      JSON.stringify(definition.terminals) !==
-        JSON.stringify(previous.terminals) ||
-      JSON.stringify(definition.formalParameters) !==
-        JSON.stringify(previous.formalParameters))
+      !equalJsonValue(definition.terminals, previous.terminals) ||
+      !equalJsonValue(definition.formalParameters, previous.formalParameters))
   )
     return "Reviewed PDK interfaces and implementations are fixed. Create a new definition for an explicit model fork.";
   return undefined;
@@ -647,7 +646,6 @@ export function planSetCellSymbolSize(
       `${cell}'s Pins${bounds ? "" : " and their names"} need a body at least ${fits.width} wide and ${fits.height} high; ${size.width} x ${size.height} is too small. Nothing was changed.`,
     );
   const next = resizeCellSymbolPresentation(layout, size);
-  if (JSON.stringify(next) === JSON.stringify(document.presentation.cellSymbol))
-    return [];
+  if (equalJsonValue(next, document.presentation.cellSymbol)) return [];
   return planSetCellSymbolPresentation(project, documentId, next);
 }

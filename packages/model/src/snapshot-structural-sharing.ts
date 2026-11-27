@@ -1,3 +1,4 @@
+import { isFrozenSnapshot } from "./immutable-snapshot.js";
 import type { CircuitProject, SchematicDocument } from "./schema/types.js";
 
 type JsonRecord = Record<string, unknown>;
@@ -15,6 +16,7 @@ function shareArray<T>(
   before: T[],
   after: T[],
   changed?: (row: T) => void,
+  detach = false,
 ): unknown[] {
   const beforeById = new Map<string, T>();
   for (const value of before) {
@@ -25,7 +27,7 @@ function shareArray<T>(
   const shared = after.map((value, index) => {
     const id = stableId(value);
     const prior = id === undefined ? undefined : beforeById.get(id);
-    const result = shareJsonStructure(prior ?? before[index], value);
+    const result = shareJsonStructure(prior ?? before[index], value, detach);
     // Only top-level, schema-validated objects with unique IDs are observed.
     if (changed && id !== undefined) {
       beforeById.delete(id);
@@ -44,7 +46,7 @@ function shareArray<T>(
   ) {
     return before;
   }
-  return shared.every((value, index) => value === after[index])
+  return !detach && shared.every((value, index) => value === after[index])
     ? after
     : shared;
 }
@@ -53,6 +55,7 @@ function shareRecord(
   before: JsonRecord,
   after: JsonRecord,
   shareField?: (key: string) => unknown,
+  detach = false,
 ): JsonRecord {
   const beforeKeys = Object.keys(before);
   const afterKeys = Object.keys(after);
@@ -63,7 +66,7 @@ function shareRecord(
   for (const key of afterKeys) {
     const value = shareField
       ? shareField(key)
-      : shareJsonStructure(before[key], after[key]);
+      : shareJsonStructure(before[key], after[key], detach);
     shared[key] = value;
     if (value !== after[key]) unchangedAfter = false;
     if (!Object.hasOwn(before, key) || value !== before[key]) {
@@ -71,7 +74,7 @@ function shareRecord(
     }
   }
 
-  return unchanged ? before : unchangedAfter ? after : shared;
+  return unchanged ? before : !detach && unchangedAfter ? after : shared;
 }
 
 /**
@@ -83,13 +86,29 @@ function shareRecord(
  * schema. It is a storage optimization: the returned tree is value-equivalent
  * to `after` and changed nodes never reuse their previous object.
  */
-function shareJsonStructure(before: unknown, after: unknown): unknown {
-  if (Object.is(before, after)) return before;
+function shareJsonStructure(
+  before: unknown,
+  after: unknown,
+  detach = false,
+): unknown {
+  if (Object.is(before, after)) {
+    if (
+      !detach ||
+      before === null ||
+      typeof before !== "object" ||
+      isFrozenSnapshot(before)
+    )
+      return before;
+    return structuredClone(before);
+  }
   if (Array.isArray(before) && Array.isArray(after)) {
-    return shareArray(before, after);
+    return shareArray(before, after, undefined, detach);
   }
   if (isRecord(before) && isRecord(after)) {
-    return shareRecord(before, after);
+    return shareRecord(before, after, undefined, detach);
+  }
+  if (detach && after !== null && typeof after === "object") {
+    return isFrozenSnapshot(after) ? after : structuredClone(after);
   }
   return after;
 }
@@ -131,4 +150,16 @@ export function shareEqualProjectStructure(
   after: CircuitProject,
 ): CircuitProject {
   return shareJsonStructure(before, after) as CircuitProject;
+}
+
+/**
+ * Share unchanged frozen subtrees from `before` while detaching any changed
+ * branches from a mutable `after` tree in a single pass, avoiding a full-tree
+ * `structuredClone` before sharing.
+ */
+export function detachAndShareProjectStructure(
+  before: CircuitProject,
+  after: CircuitProject,
+): CircuitProject {
+  return shareJsonStructure(before, after, true) as CircuitProject;
 }

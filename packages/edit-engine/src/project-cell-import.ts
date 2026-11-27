@@ -1,6 +1,7 @@
 import {
   CircuitProjectSchema,
   deriveStableId,
+  equalJsonValue,
   SymbolDefinitionSchema,
   type CircuitProject,
   type SchematicDocument,
@@ -240,10 +241,7 @@ function keptGeneratedArtwork(
       captured.generatedFrom,
       identifierMap,
     );
-    if (
-      JSON.stringify(generatedFrom) !== JSON.stringify(expected.get(symbolId))
-    )
-      continue;
+    if (!equalJsonValue(generatedFrom, expected.get(symbolId))) continue;
     // A destination that already holds this symbol (an earlier Cell of the
     // same copy shares it) keeps what it has.
     if (
@@ -264,8 +262,10 @@ function keptGeneratedArtwork(
     const regenerated = today.resolve(symbolId)?.definition;
     if (
       regenerated &&
-      JSON.stringify(SymbolDefinitionSchema.parse(regenerated)) ===
-        JSON.stringify(SymbolDefinitionSchema.parse(copy.symbol))
+      equalJsonValue(
+        SymbolDefinitionSchema.parse(regenerated),
+        SymbolDefinitionSchema.parse(copy.symbol),
+      )
     )
       continue;
     edits.push({ kind: "capture_component_definition", definition: copy });
@@ -300,10 +300,7 @@ export function planProjectCellImport(
       message: `Source Cell does not exist: ${sourceDocumentId}`,
     };
   }
-  if (
-    JSON.stringify(destination.symbolLibrary) !==
-    JSON.stringify(source.symbolLibrary)
-  ) {
+  if (!equalJsonValue(destination.symbolLibrary, source.symbolLibrary)) {
     return {
       ok: false,
       code: "SYMBOL_LIBRARY_MISMATCH",
@@ -499,7 +496,7 @@ export function planProjectCellImport(
   if (options.sharedSnapshot)
     for (const document of importedDocuments) {
       const existing = destination.documents.find((d) => d.id === document.id);
-      if (existing && JSON.stringify(existing) !== JSON.stringify(document)) {
+      if (existing && !equalJsonValue(existing, document)) {
         return {
           ok: false,
           code: "PARTIAL_IMPORT_CONFLICT",

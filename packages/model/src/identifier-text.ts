@@ -1,4 +1,5 @@
 import type { RichTextDocument, RichTextRun, RichTextStyle } from "./schema.js";
+import { equalJsonValue } from "./json-equal.js";
 import {
   flattenRichText,
   normalizeRichText,
@@ -154,10 +155,7 @@ export function rewriteRichTextIdentifier(
           const next: RichTextStyle[] =
             offset++ >= scriptStart ? ["subscript", ...styles] : styles;
           const previous = groups.at(-1);
-          if (
-            previous &&
-            JSON.stringify(previous.styles) === JSON.stringify(next)
-          )
+          if (previous && equalJsonValue(previous.styles, next))
             previous.value += value;
           else groups.push({ value, styles: next });
         }

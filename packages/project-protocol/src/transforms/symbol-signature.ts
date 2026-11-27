@@ -1,14 +1,32 @@
-import { deriveStableId } from "@icm/model";
+import { deriveStableId, isFrozenSnapshot } from "@icm/model";
 
-function ordered(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(ordered);
-  if (value && typeof value === "object")
-    return Object.fromEntries(
-      Object.entries(value)
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([key, item]) => [key, ordered(item)]),
-    );
-  return value;
+const canonicalCache = new WeakMap<object, string>();
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    let out = "[";
+    for (let i = 0; i < value.length; i += 1) {
+      if (i > 0) out += ",";
+      const item = value[i];
+      out += item === undefined ? "null" : canonicalJson(item);
+    }
+    return `${out}]`;
+  }
+  if (value && typeof value === "object") {
+    const keys = Object.keys(value as Record<string, unknown>).sort();
+    let out = "{";
+    let first = true;
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i]!;
+      const item = (value as Record<string, unknown>)[key];
+      if (item === undefined) continue;
+      if (!first) out += ",";
+      first = false;
+      out += `${JSON.stringify(key)}:${canonicalJson(item)}`;
+    }
+    return `${out}}`;
+  }
+  return JSON.stringify(value) ?? "null";
 }
 
 /**
@@ -16,5 +34,17 @@ function ordered(value: unknown): unknown {
  * recognizes exactly the built-in snapshot it replaces by it.
  */
 export function symbolSignature(prefix: string, symbol: unknown): string {
-  return deriveStableId(prefix, JSON.stringify(ordered(symbol)));
+  let serialized: string;
+  if (symbol && typeof symbol === "object" && isFrozenSnapshot(symbol)) {
+    const cached = canonicalCache.get(symbol);
+    if (cached !== undefined) {
+      serialized = cached;
+    } else {
+      serialized = canonicalJson(symbol);
+      canonicalCache.set(symbol, serialized);
+    }
+  } else {
+    serialized = canonicalJson(symbol);
+  }
+  return deriveStableId(prefix, serialized);
 }

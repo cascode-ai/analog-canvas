@@ -248,6 +248,10 @@ export function repairSupplyPinSnapshots(
     if (
       !legacy ||
       definition.generatedFrom ||
+      // Every legacy snapshot predates supply pins; current definitions already carry them.
+      definition.symbol.pins.some(
+        (pin) => pin.name === "VDD" || pin.name === "VSS",
+      ) ||
       // The pins draw these supplies; an interface without both keeps its
       // art, as a Circuit Component does, whose native source maps its own.
       !(["VDD", "VSS"] as const).every((name) =>

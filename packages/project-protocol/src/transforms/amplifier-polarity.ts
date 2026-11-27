@@ -57,6 +57,11 @@ export function repairAmplifierPolaritySnapshots(
     if (
       !expected ||
       definition.generatedFrom ||
+      // Converter v8 snapshots predate both supply pins (#1941) and VOCM (#2443).
+      definition.symbol.pins.some(
+        (pin) =>
+          pin.name === "VDD" || pin.name === "VSS" || pin.name === "VOCM",
+      ) ||
       symbolSignature("fd-polarity-v8", definition.symbol) !== expected
     )
       return definition;

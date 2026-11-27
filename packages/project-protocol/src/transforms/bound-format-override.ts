@@ -48,8 +48,10 @@ function records(value: unknown): Record<string, unknown>[] {
 export function repairBoundFormatOverrides(
   raw: Record<string, unknown>,
 ): Record<string, unknown> {
-  const project: Record<string, unknown> = { ...raw };
-  project.documents = records(project.documents).map((document) => {
+  if (!Array.isArray(raw.documents)) return raw;
+  let projectChanged = false;
+  const nextDocuments = raw.documents.map((document) => {
+    if (!isRecord(document)) return document;
     const annotations = records(document.annotations);
     if (annotations.length === 0) return document;
     let changed = false;
@@ -74,7 +76,9 @@ export function repairBoundFormatOverrides(
           : rewriteRichTextPlainText(parsed.data, name),
       };
     });
-    return changed ? { ...document, annotations: repaired } : document;
+    if (!changed) return document;
+    projectChanged = true;
+    return { ...document, annotations: repaired };
   });
-  return project;
+  return projectChanged ? { ...raw, documents: nextDocuments } : raw;
 }

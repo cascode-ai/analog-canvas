@@ -5,7 +5,11 @@ import {
   referencePolicyForInstance,
   type ReferenceIndex,
 } from "@icm/devices";
-import { isPowerMarkerSymbol, type SchematicDocument } from "@icm/model";
+import {
+  equalJsonValue,
+  isPowerMarkerSymbol,
+  type SchematicDocument,
+} from "@icm/model";
 
 import type { EditTransaction } from "./edit-schema.js";
 import type { EditMutationOutcome, RejectEdit } from "./transaction-domain.js";
@@ -298,7 +302,7 @@ export function applyInstanceNetlistEdit(
       }
       const before = structuredClone(instance);
       const current = instance.netlist.binding ?? null;
-      if (JSON.stringify(current) === JSON.stringify(edit.binding)) {
+      if (equalJsonValue(current, edit.binding)) {
         return {
           ok: false,
           rejection: reject(
@@ -348,10 +352,7 @@ export function applyInstanceNetlistEdit(
           ),
         };
       }
-      if (
-        instance.netlist &&
-        JSON.stringify(instance.netlist) === JSON.stringify(edit.netlist)
-      ) {
+      if (instance.netlist && equalJsonValue(instance.netlist, edit.netlist)) {
         return {
           ok: false,
           rejection: reject(
@@ -431,7 +432,7 @@ export function applyInstanceNetlistEdit(
         }
         if (assignment.binding !== undefined) {
           const current = instance.netlist.binding ?? null;
-          if (JSON.stringify(current) !== JSON.stringify(assignment.binding)) {
+          if (!equalJsonValue(current, assignment.binding)) {
             if (assignment.binding) {
               instance.netlist.binding = structuredClone(assignment.binding);
             } else {

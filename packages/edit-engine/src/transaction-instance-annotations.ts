@@ -1,4 +1,5 @@
 import {
+  equalJsonValue,
   flattenRichText,
   inverseTransformPoint,
   isSupplyPortSymbol,
@@ -292,9 +293,7 @@ export function refreshInstanceValueAnnotation(
       continue;
     }
     if (!annotation.content || previous.kind !== "displayable") continue;
-    if (
-      JSON.stringify(annotation.content) !== JSON.stringify(previous.content)
-    ) {
+    if (!equalJsonValue(annotation.content, previous.content)) {
       continue;
     }
     const next = displayableInstanceValue(instance, resolver);
