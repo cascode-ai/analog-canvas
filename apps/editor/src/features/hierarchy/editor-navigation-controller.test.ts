@@ -502,6 +502,29 @@ describe("entering or leaving a Cell fits the view (#1686)", () => {
     );
   });
 
+  it("frames the new Cell once after its committed scene is mounted", () => {
+    const { input, child, fitted, path } = hierarchy();
+    const requestFitAfterLayout = vi.fn();
+    createEditorNavigationController({
+      ...input,
+      requestFitAfterLayout,
+    }).openCellOccurrence(child.id, path);
+    expect(requestFitAfterLayout).toHaveBeenCalledOnce();
+    expect(requestFitAfterLayout).toHaveBeenCalledWith(child.id);
+    expect(input.setViewBox).toHaveBeenCalledTimes(1);
+
+    createEditorNavigationController({
+      ...input,
+      document: child,
+      documentStack: path,
+      currentCellBounds: buildSvgScene(child, input.resolver).viewBox,
+    }).fitDocument(child.id);
+    expect(input.setViewBox).toHaveBeenLastCalledWith(
+      fitted(child),
+      child.presentation.grid,
+    );
+  });
+
   it("completes a return whose Cell cannot be drawn, fitting the default view as F does", () => {
     const { input, parent, child, path } = hierarchy();
     // A symbol the resolver does not know makes the parent's scene throw.

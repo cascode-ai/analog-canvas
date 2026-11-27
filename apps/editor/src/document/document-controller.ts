@@ -650,6 +650,7 @@ export class EditorDocumentController {
             componentDefinitions: [...definitions.values()],
           }),
           cell,
+          before,
         ),
       ),
     );

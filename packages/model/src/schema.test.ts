@@ -2,6 +2,10 @@ import { createSimulationFolder } from "./simulation-source-authoring.js";
 import { describe, expect, it } from "vitest";
 
 import { createEmptyDocument, createEmptyProject } from "./factories.js";
+import {
+  parseProjectSnapshot,
+  validateProjectSnapshot,
+} from "./project-snapshot.js";
 import { createRoutePath } from "./route-path.js";
 import {
   AnnotationSchema,
@@ -433,6 +437,60 @@ describe("CircuitProject schema", () => {
     expect(() => CircuitProjectSchema.parse(project)).toThrow(
       /unknown Document/,
     );
+  });
+
+  it("rechecks a retained caller when its child interface changes", () => {
+    const project = createEmptyProject("hierarchy", "Hierarchy");
+    const parent = project.documents[0]!;
+    const child = createEmptyDocument("child", "Child");
+    child.instances.push({ id: "P1", symbolId: "port", placement: null });
+    child.nets.push({
+      id: "input",
+      terminals: [{ instanceId: "P1", pinName: "P" }],
+    });
+    child.netlist!.terminals.push({
+      id: "formal-input",
+      name: "IN",
+      netId: "input",
+      direction: "input",
+      interfaceInstanceIds: ["P1"],
+    });
+    parent.instances.push({
+      id: "X1",
+      symbolId: "hierarchical-child",
+      placement: null,
+      reference: "X1",
+      netlist: {
+        parameters: {},
+        binding: { kind: "subcircuit", childDocumentId: child.id },
+      },
+    });
+    parent.nets.push({
+      id: "signal",
+      terminals: [{ instanceId: "X1", pinName: "IN" }],
+    });
+    project.documents.push(child);
+    const before = parseProjectSnapshot(project);
+    const changed = structuredClone(before.documents[1]!);
+    changed.revision++;
+    const updated = parseProjectSnapshot(
+      { ...before, documents: [before.documents[0], changed] },
+      before,
+    );
+    expect(updated.documents[0]).toBe(before.documents[0]);
+
+    changed.netlist!.terminals[0]!.name = "RENAMED";
+    const invalid = { ...before, documents: [before.documents[0], changed] };
+    const canonical = CircuitProjectSchema.safeParse(invalid);
+    const attempted = validateProjectSnapshot(invalid, before);
+    expect(canonical.success).toBe(false);
+    expect(attempted.success).toBe(false);
+    if (!canonical.success && !attempted.success) {
+      expect(attempted.error.issues).toEqual(canonical.error.issues);
+      expect(attempted.error.issues[0]?.message).toContain(
+        "unknown child terminal IN",
+      );
+    }
   });
 
   it("binds a formal Cell terminal to an ordinary Port Instance and Net", () => {

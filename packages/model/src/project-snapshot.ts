@@ -1,5 +1,7 @@
-import { z } from "zod";
-import { CircuitProjectSchema } from "./schema/project.js";
+import {
+  CircuitProjectSchema,
+  safeParseWithRetainedCells,
+} from "./schema/project.js";
 import {
   SchematicDocumentSchema,
   parseOwnedRoutingDocument,
@@ -12,7 +14,6 @@ import {
 } from "./snapshot-structural-sharing.js";
 import {
   hasValidatedCells,
-  isValidatedCell,
   rememberValidatedCells,
 } from "./validated-cells.js";
 
@@ -135,26 +136,7 @@ export function validatePlacementProjectSnapshot(
   candidate: CircuitProject,
   previous: CircuitProject,
 ): ReturnType<typeof CircuitProjectSchema.safeParse> {
-  if (!validatedSnapshots.has(previous))
-    return parseCanonicalProject(candidate);
-  const retained = new Set(previous.documents.filter(isValidatedCell));
-  const cell = z.union([
-    z.custom<SchematicDocument>((value) =>
-      retained.has(value as SchematicDocument),
-    ),
-    SchematicDocumentSchema,
-  ]);
-  const result = CircuitProjectSchema.safeExtend({
-    documents: z.array(cell).min(1),
-  }).safeParse(candidate);
-  // Preserve the canonical paths and ordered diagnostics for every refusal.
-  if (!result.success) return parseCanonicalProject(candidate, previous);
-  const snapshot = freezeSnapshot(
-    shareEqualProjectStructure(previous, result.data),
-  );
-  validatedSnapshots.add(snapshot);
-  rememberValidatedCells(snapshot);
-  return { success: true, data: snapshot };
+  return validateProjectCandidate(candidate, previous);
 }
 
 /** Fully validate incoming models; reuse only immutable snapshots owned here. */
@@ -185,14 +167,22 @@ export function validateProjectSnapshot(
     validatedSnapshots.add(project);
     return { success: true, data: project };
   }
-  return parseCanonicalProject(input, previous);
+  return validateProjectCandidate(input, previous);
 }
 
-function parseCanonicalProject(
+function validateProjectCandidate(
   input: unknown,
   previous?: CircuitProject,
 ): ReturnType<typeof CircuitProjectSchema.safeParse> {
-  const result = CircuitProjectSchema.safeParse(input);
+  const retained =
+    previous && hasValidatedCells(previous)
+      ? safeParseWithRetainedCells(input, previous)
+      : undefined;
+  // Reject with the canonical paths and diagnostic order, including schema
+  // failures where the retained-Cell alternative appears in a union error.
+  const result = retained?.success
+    ? retained
+    : CircuitProjectSchema.safeParse(input);
   if (!result.success) return result;
   const project = freezeSnapshot(
     previous &&

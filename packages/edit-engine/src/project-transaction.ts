@@ -333,6 +333,41 @@ interface ExternalCallerFailure {
   unknownPin?: string;
 }
 
+type DrawingPinReference = { kind: "route" | "no-connect"; id: string };
+
+function indexExternalPinReferences(
+  document: SchematicDocument,
+  callers: readonly SchematicDocument["instances"][number][],
+) {
+  type Reference = {
+    pinName: string;
+    objectIds: string[];
+    drawing?: DrawingPinReference;
+  };
+  const references = new Map(callers.map(({ id }) => [id, [] as Reference[]]));
+  const add = (
+    { instanceId, pinName }: { instanceId: string; pinName: string },
+    objectId: string,
+    drawing?: DrawingPinReference,
+  ) => {
+    references.get(instanceId)?.push({
+      pinName,
+      objectIds: [instanceId, objectId],
+      ...(drawing ? { drawing } : {}),
+    });
+  };
+  // Keep the order of each caller's evidence for the first refusal.
+  for (const net of document.nets)
+    for (const terminal of net.terminals) add(terminal, net.id);
+  for (const route of document.routes)
+    for (const endpoint of [route.start, routeEnd(route)])
+      if (endpoint.kind === "terminal")
+        add(endpoint, route.id, { kind: "route", id: route.id });
+  for (const mark of document.noConnects)
+    add(mark.endpoint, mark.id, { kind: "no-connect", id: mark.id });
+  return references;
+}
+
 /**
  * Every place an external-subcircuit caller uses a pin its definition does not
  * have, or draws a property-only terminal of its reviewed device. Each message
@@ -350,11 +385,18 @@ function externalCallerValidationFailures(
     ]),
   );
   for (const document of project.documents) {
-    for (const instance of document.instances) {
+    const callers = document.instances.flatMap((instance) => {
       const binding = instance.netlist?.binding;
-      if (binding?.kind !== "external-subcircuit") continue;
+      if (binding?.kind !== "external-subcircuit") return [];
       const definition = definitions.get(binding.definitionId);
-      if (!definition) continue;
+      return definition ? [{ instance, definition }] : [];
+    });
+    if (callers.length === 0) continue;
+    const references = indexExternalPinReferences(
+      document,
+      callers.map(({ instance }) => instance),
+    );
+    for (const { instance, definition } of callers) {
       const component = project.componentDefinitions?.find(
         (item) => item.symbol.id === instance.symbolId,
       );
@@ -371,7 +413,7 @@ function externalCallerValidationFailures(
         pinName: string,
         message: string,
         objectIds: string[],
-        reference?: { kind: "route" | "no-connect"; id: string },
+        reference?: DrawingPinReference,
       ): ExternalCallerFailure => ({
         key: [
           kind,
@@ -405,42 +447,7 @@ function externalCallerValidationFailures(
             ),
           );
       }
-      const references = [
-        ...document.nets.flatMap((net) =>
-          net.terminals
-            .filter((terminal) => terminal.instanceId === instance.id)
-            .map((terminal) => ({
-              pinName: terminal.pinName,
-              objectIds: [instance.id, net.id],
-              reference: undefined,
-            })),
-        ),
-        ...document.routes.flatMap((route) =>
-          [route.start, routeEnd(route)].flatMap((endpoint) =>
-            endpoint.kind === "terminal" && endpoint.instanceId === instance.id
-              ? [
-                  {
-                    pinName: endpoint.pinName,
-                    objectIds: [instance.id, route.id],
-                    reference: { kind: "route" as const, id: route.id },
-                  },
-                ]
-              : [],
-          ),
-        ),
-        ...document.noConnects.flatMap((noConnect) =>
-          noConnect.endpoint.instanceId === instance.id
-            ? [
-                {
-                  pinName: noConnect.endpoint.pinName,
-                  objectIds: [instance.id, noConnect.id],
-                  reference: { kind: "no-connect" as const, id: noConnect.id },
-                },
-              ]
-            : [],
-        ),
-      ];
-      for (const reference of references) {
+      for (const reference of references.get(instance.id) ?? []) {
         const pin = `${part}.${reference.pinName}`;
         if (!allowed.has(reference.pinName)) {
           failures.push(
@@ -449,7 +456,7 @@ function externalCallerValidationFailures(
               reference.pinName,
               `${where} uses pin ${reference.pinName}, which its model ${definition.name} does not have. Disconnect ${pin}, clear ${part}'s model, or delete ${part}.`,
               reference.objectIds,
-              reference.reference,
+              reference.drawing,
             ),
           );
           continue;
@@ -457,14 +464,14 @@ function externalCallerValidationFailures(
         const terminal = terminals.find(
           (candidate) => candidate.pinName === reference.pinName,
         );
-        if (reference.reference && terminal?.interaction === "property") {
+        if (reference.drawing && terminal?.interaction === "property") {
           failures.push(
             failure(
               "property-pin-drawn",
               reference.pinName,
               `${where} has a Wire or No Connect at ${pin}, a property-only terminal of its model ${definition.name}. Remove it and choose the Net in Properties, clear ${part}'s model, or delete ${part}.`,
               reference.objectIds,
-              reference.reference,
+              reference.drawing,
             ),
           );
         }

@@ -63,11 +63,10 @@ export interface EditorNavigationControllerDependencies {
    */
   measureCanvasView?: () => CanvasView | null;
   /**
-   * Told which Cell each fit framed. A fit measures the overlays present when
-   * it runs, before a navigation's instance path appears or goes, so the
-   * editor fits that Cell again once they have (#1686).
+   * Request a fit before paint once the editor has mounted the destination
+   * Cell's scene and the navigation overlays (#1686).
    */
-  onFit?: (documentId: string) => void;
+  requestFitAfterLayout?: (documentId: string) => void;
   /**
    * Handed the framing of a point a navigation focused while opening the
    * Properties dock: it measured the canvas before the dock was drawn over
@@ -114,7 +113,7 @@ export function createEditorNavigationController({
   defaultViewBox,
   setViewBox,
   measureCanvasView,
-  onFit,
+  requestFitAfterLayout,
   onFocusBeforeDock,
   selectionOpen = false,
   locateInstanceOutline,
@@ -365,6 +364,10 @@ export function createEditorNavigationController({
         statusMessage,
       );
     }
+    if (target !== document && requestFitAfterLayout) {
+      requestFitAfterLayout(target.id);
+      return;
+    }
     // A Cell whose scene cannot be built fits the default view, as F does
     // on a degraded scene; the navigation that asked for the fit completes.
     const committed = target === document ? currentCellBounds : undefined;
@@ -381,7 +384,7 @@ export function createEditorNavigationController({
       fitViewCamera(bounds, grid, measureCanvasView?.() ?? null),
       grid,
     );
-    onFit?.(target.id);
+    requestFitAfterLayout?.(target.id);
   };
 
   // The Cell Manager tree descends into one concrete block occurrence.

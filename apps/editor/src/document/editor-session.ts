@@ -14,6 +14,7 @@ import type {
 export function replaceProjectDocument(
   project: CircuitProject,
   document: SchematicDocument,
+  previous?: CircuitProject,
 ): CircuitProject {
   const candidate = {
     ...project,
@@ -22,7 +23,9 @@ export function replaceProjectDocument(
     ),
   };
   if (isFrozenSnapshot(project) && isFrozenSnapshot(document))
-    return parseProjectSnapshot(candidate, freezeSnapshot(candidate));
+    return previous
+      ? parseProjectSnapshot(candidate, previous)
+      : parseProjectSnapshot(candidate, freezeSnapshot(candidate));
   const parsed = CircuitProjectSchema.parse(candidate);
   return {
     ...parsed,
