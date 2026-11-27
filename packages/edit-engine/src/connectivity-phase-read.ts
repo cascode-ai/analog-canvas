@@ -5,8 +5,10 @@ import {
 } from "@icm/model";
 import { endpointKey } from "@icm/derived";
 
+import type { ConductorRows } from "./wire-subgraph.js";
+
 /** Private synchronous read phase. Rebuild after any membership mutation. */
-export function prepareConnectivityPhaseRead(document: SchematicDocument) {
+export function prepareConnectivityPhaseRead(document: ConductorRows) {
   const netsById = new Map<string, Net>();
   const terminalOwners = new Map<string, Map<string, string>>();
   for (const net of document.nets) {
@@ -31,14 +33,18 @@ export function prepareConnectivityPhaseRead(document: SchematicDocument) {
       junctionsByNet.set(member.netId, endpoints);
     }
   }
-  const routesByNet = new Map<string, SchematicDocument["routes"]>();
-  for (const route of document.routes) {
-    for (const edge of routeElectricalConnections(route)) {
-      const routes = routesByNet.get(edge.netId) ?? [];
-      routes.push(route);
-      routesByNet.set(edge.netId, routes);
+  const readRoutes = () => {
+    const routesByNet = new Map<string, SchematicDocument["routes"]>();
+    for (const route of document.routes) {
+      for (const edge of routeElectricalConnections(route)) {
+        const routes = routesByNet.get(edge.netId) ?? [];
+        routes.push(route);
+        routesByNet.set(edge.netId, routes);
+      }
     }
-  }
+    return routesByNet;
+  };
+  let routesByNet: ReturnType<typeof readRoutes> | undefined;
   const endpointsByNet = new Map<Net, RouteEndpoint[]>();
   // Ownership lookup needs every Net; only the affected conductors need
   // their ordered terminal/Junction lists during this synchronous phase.
@@ -59,7 +65,9 @@ export function prepareConnectivityPhaseRead(document: SchematicDocument) {
   };
   return {
     netsById,
-    routesByNet,
+    get routesByNet() {
+      return (routesByNet ??= readRoutes());
+    },
     netEndpoints,
     ownerOf: (endpoint: RouteEndpoint): string | null =>
       endpoint.kind === "terminal"

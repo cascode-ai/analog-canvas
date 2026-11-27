@@ -1,3 +1,4 @@
+import type { ConductorRows, ConductorFilter } from "./wire-subgraph.js";
 import {
   currentDraftRow,
   writableDraftRow,
@@ -41,6 +42,7 @@ function partitionNet(
   net: Net,
   groups: string[][],
   changed: Set<string>,
+  includes?: ConductorFilter,
 ): void {
   const logical = resolveDocumentLogicalNets(draft).byBaseNetId.get(net.id);
   const identity = logical
@@ -75,6 +77,7 @@ function partitionNet(
     if (id !== undefined) terminalsByNet.get(id)!.push(terminal);
   }
   for (const [index, junction] of draft.junctions.entries()) {
+    if (includes && !includes(junction)) continue;
     if (junction.members) {
       for (const member of junction.members) {
         const id = byEndpoint.get(
@@ -102,6 +105,7 @@ function partitionNet(
     }
   }
   for (const [index, route] of draft.routes.entries()) {
+    if (includes && !includes(route)) continue;
     if (route.members) {
       for (const edge of routeElectricalConnections(route)) {
         if (edge.netId !== net.id) continue;
@@ -323,8 +327,8 @@ type Route = SchematicDocument["routes"][number];
 /** Follow actual endpoint incidence in both revisions. Route Net hints never
  * enlarge the closure. A newly authored path can re-use an occupied hint. */
 function affectedConductors(
-  before: SchematicDocument,
-  draft: SchematicDocument,
+  before: ConductorRows,
+  draft: ConductorRows,
   source: ConnectivityRead,
   read: ConnectivityRead,
   edits: RouteEdits,
@@ -421,23 +425,46 @@ export function rebuildEditedConnectivity(
   edits: RouteEdits,
   resolver: SymbolResolver | undefined,
   changed: Set<string>,
+  includes?: ConductorFilter,
 ):
   | Extract<ReturnType<typeof mergeBaseNets>, { ok: false }>
   | { ok: true; cutPropertyGroups: CutPropertyGroup[] } {
   const graph = new ConnectionGraph();
   const cutPropertyGroups: CutPropertyGroup[] = [];
-  let read = prepareConnectivityPhaseRead(draft);
-  const sourceRead = prepareConnectivityPhaseRead(before);
+  const rows = (document: SchematicDocument): ConductorRows =>
+    includes
+      ? {
+          nets: document.nets.filter(includes),
+          junctions: document.junctions.filter(includes),
+          routes: document.routes.filter(includes),
+        }
+      : document;
+  const draftRows = rows(draft);
+  const sourceRows = rows(before);
+  // The rebuild may allocate/retire Nets and replace rows, but creates no
+  // Routes or Junctions. Re-read just these conductors after membership writes.
+  const currentRows = (): ConductorRows =>
+    includes
+      ? {
+          nets: draft.nets.filter(includes),
+          routes: draftRows.routes.map((r) => currentDraftRow(draft, r)),
+          junctions: draftRows.junctions.map((j) => currentDraftRow(draft, j)),
+        }
+      : draft;
+  let read = prepareConnectivityPhaseRead(draftRows);
+  const sourceRead = prepareConnectivityPhaseRead(sourceRows);
   const affected = affectedConductors(
-    before,
-    draft,
+    sourceRows,
+    draftRows,
     sourceRead,
     read,
     edits,
     changed,
   );
-  const beforeNets = before.nets.filter(({ id }) => affected.netIds.has(id));
-  const draftNets = draft.nets.filter(({ id }) => affected.netIds.has(id));
+  const beforeNets = sourceRows.nets.filter(({ id }) =>
+    affected.netIds.has(id),
+  );
+  const draftNets = draftRows.nets.filter(({ id }) => affected.netIds.has(id));
   const beforeLookup = resolver && buildEndpointObjectLookup(before);
   const draftLookup = resolver && buildEndpointObjectLookup(draft);
   const endpoints = new Map<string, RouteEndpoint>();
@@ -560,8 +587,8 @@ export function rebuildEditedConnectivity(
       preferred === undefined ? undefined : groupByKey.get(preferred);
     if (primary !== undefined && primary > 0)
       groups.unshift(...groups.splice(primary, 1));
-    partitionNet(draft, net, groups, changed);
-    read = prepareConnectivityPhaseRead(draft);
+    partitionNet(draft, net, groups, changed, includes);
+    read = prepareConnectivityPhaseRead(currentRows());
   }
   // Existing Net IDs choose stable identities only after the graph is known.
   // Two unconnected paths carrying the same stale hint remain separate.
@@ -596,7 +623,7 @@ export function rebuildEditedConnectivity(
     }
   }
   const aggregateHints = new Set(
-    draft.junctions.flatMap(
+    draftRows.junctions.flatMap(
       (junction) => junction.members?.map((member) => member.netId) ?? [],
     ),
   );
@@ -624,7 +651,7 @@ export function rebuildEditedConnectivity(
       if (!result.ok) return result;
       netId = target;
     }
-    if (owners.length > 1) read = prepareConnectivityPhaseRead(draft);
+    if (owners.length > 1) read = prepareConnectivityPhaseRead(currentRows());
     if (!netId && hint !== undefined) {
       netId = occupiedHints.has(hint)
         ? uniquePhysicalContactId(draft, "net", keys[0]!)
@@ -632,7 +659,8 @@ export function rebuildEditedConnectivity(
       occupiedHints.add(netId);
       draft.nets.push({ id: netId, terminals: [] });
       // A previously unowned aggregate Junction lane now has a real Net.
-      if (aggregateHints.has(netId)) read = prepareConnectivityPhaseRead(draft);
+      if (aggregateHints.has(netId))
+        read = prepareConnectivityPhaseRead(currentRows());
       changed.add(netId);
     }
     if (netId === undefined) continue;

@@ -3,13 +3,38 @@ import {
   scalarEndpointFromKey,
   type DocumentConnectivityIndex,
 } from "@icm/derived";
-import { routeEndpoints, type Instance, type RouteEndpoint } from "@icm/model";
+import {
+  routeEndpoints,
+  type Instance,
+  type RouteEndpoint,
+  type Net,
+} from "@icm/model";
 import type { SchematicEdit } from "./edit-schema.js";
 import type { ExpectedElectricalEffect } from "./routing-operation-plan.js";
 
 function isNativeInstance(instance: Instance | undefined): boolean {
   const binding = instance?.netlist?.binding;
   return !binding || binding.kind === "primitive" || binding.kind === "model";
+}
+
+export function isLocalScalarNet(
+  index: DocumentConnectivityIndex,
+  id: string,
+  acceptsTerminal: (terminal: Net["terminals"][number]) => boolean,
+): boolean {
+  const net = index.netsById.get(id);
+  if (!net) return true; // A new Net has no prior component.
+  const group = index.logicalNetResolution.byBaseNetId.get(id);
+  return (
+    !!group &&
+    group.scope !== "global" &&
+    group.formalTerminalIds.length === 0 &&
+    group.conflicts.length === 0 &&
+    group.baseNetIds.length === 1 &&
+    net.terminals.every((t) => !t.memberId && acceptsTerminal(t)) &&
+    !index.junctionsByNetId.get(id)?.some((j) => j.members) &&
+    !index.routesByNetId.get(id)?.some((r) => r.members)
+  );
 }
 
 /** Limit the scalar proof to the local electrical components of an already validated transaction. */
@@ -24,22 +49,8 @@ export function isLocalScalarConnection(
   const localNet = (id: string | undefined): boolean => {
     if (!id || visited.has(id)) return true;
     visited.add(id);
-    const net = index.netsById.get(id);
-    if (!net) return true; // A new Net has no prior component.
-    const group = index.logicalNetResolution.byBaseNetId.get(id);
-    return (
-      !!group &&
-      group.scope !== "global" &&
-      group.formalTerminalIds.length === 0 &&
-      group.conflicts.length === 0 &&
-      group.baseNetIds.length === 1 &&
-      net.terminals.every(
-        (t) =>
-          !t.memberId &&
-          isNativeInstance(index.instancesById.get(t.instanceId)),
-      ) &&
-      !index.junctionsByNetId.get(id)?.some((j) => j.members) &&
-      !index.routesByNetId.get(id)?.some((r) => r.members)
+    return isLocalScalarNet(index, id, (t) =>
+      isNativeInstance(index.instancesById.get(t.instanceId)),
     );
   };
   // Includes both sides of incidental contacts and normalizer changes, even
