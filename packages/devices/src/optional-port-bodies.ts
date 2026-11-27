@@ -40,8 +40,6 @@ export const OPTIONAL_PORT_BODY_SPECS: Readonly<
   },
 };
 
-export const OPTIONAL_PORT_BODIES = Object.keys(OPTIONAL_PORT_BODY_SPECS);
-
 export const OPTIONAL_PORT_BEHAVIORAL_BODIES = Object.entries(
   OPTIONAL_PORT_BODY_SPECS,
 )
