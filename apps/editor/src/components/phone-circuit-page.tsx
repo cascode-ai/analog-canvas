@@ -11,8 +11,9 @@ import { useEffect, useState } from "react";
 
 import { usePageTitle } from "../app/use-page-title";
 import { isDailyAllowanceRefusal } from "../daily-allowance";
-import { galleryPreviewUrl } from "../gallery-client";
+import { galleryPreviewUrl, type GalleryRelatedEntry } from "../gallery-client";
 import { galleryDateLabel } from "../gallery-date";
+import { gallerySourceOfEntryId } from "../gallery-sources";
 import { openEditorOnPhone } from "../phone-viewing";
 import { GalleryChrome } from "./gallery-chrome";
 import { GalleryEntryMissing } from "./missing-page";
@@ -29,6 +30,9 @@ export interface PhoneEntry {
   tags?: string[];
   netlistable?: boolean;
   aiGenerated?: boolean;
+  parentEntryId?: string;
+  parentEntry?: GalleryRelatedEntry;
+  subcomponents?: GalleryRelatedEntry[];
 }
 
 export type PhoneNetlist =
@@ -91,6 +95,7 @@ export function PhoneCircuitView({
 }) {
   // The wall's date, "Oct 19, 2026" (#2164).
   const day = galleryDateLabel(entry.createdAt);
+  const dataset = gallerySourceOfEntryId(entry.id);
   return (
     <main className="phone-circuit" data-testid="phone-circuit">
       <h1>{entry.name}</h1>
@@ -98,8 +103,10 @@ export function PhoneCircuitView({
         {entry.author ? `${entry.author} · ` : ""}
         {entry.fixedBy?.length ? `fixed by ${entry.fixedBy.join(", ")} · ` : ""}
         {day}
+        {dataset ? ` · ${dataset.license}` : ""}
         {entry.netlistable ? " · Netlist" : ""}
         {entry.aiGenerated ? " · AI" : ""}
+        {entry.parentEntryId ? " · Subcomponent" : ""}
       </p>
       <div className="phone-circuit-preview">
         <img
@@ -116,6 +123,30 @@ export function PhoneCircuitView({
             <li key={tag}>{tag}</li>
           ))}
         </ul>
+      ) : null}
+      {entry.parentEntry ? (
+        <p className="phone-circuit-relation" data-testid="phone-parent-link">
+          Parent circuit:{" "}
+          <a href={`/g/${encodeURIComponent(entry.parentEntry.id)}`}>
+            {entry.parentEntry.name}
+          </a>
+        </p>
+      ) : null}
+      {entry.subcomponents?.length ? (
+        <section
+          className="phone-circuit-subcomponents"
+          aria-label="Subcomponents"
+          data-testid="phone-subcomponents"
+        >
+          <h2>Subcomponents</h2>
+          <ul>
+            {entry.subcomponents.map((sub) => (
+              <li key={sub.id}>
+                <a href={`/g/${encodeURIComponent(sub.id)}`}>{sub.name}</a>
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
       <div className="phone-circuit-actions">
         <a href="/">Back to the Gallery</a>

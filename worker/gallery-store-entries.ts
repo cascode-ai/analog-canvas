@@ -20,6 +20,7 @@ import {
   type DurableObjectStateLike,
   type EntryRow,
   type EntrySummaryRow,
+  type GalleryRelatedEntry,
   GALLERY_DAILY_SUBMISSION_LIMIT,
   type SqlStorage,
   advanceCurationRevision,
@@ -48,6 +49,89 @@ interface PreviewAccessRow {
 interface PreviewRow extends PreviewAccessRow {
   author: string;
   svg_text: string;
+}
+
+/** Public parent entry names for a batch of parent ids, off the card index. */
+export function parentEntriesOf(
+  sql: SqlStorage,
+  ids: readonly string[],
+): Map<string, GalleryRelatedEntry> {
+  const unique = [...new Set(ids.filter((id) => id.length > 0))];
+  if (unique.length === 0) return new Map();
+  const rows = sql
+    .exec<{ id: string; name: string }>(
+      `SELECT id, name FROM gallery_entries INDEXED BY idx_gallery_entries_card
+       WHERE status = 'public' AND id IN (${unique.map(() => "?").join(", ")})`,
+      ...unique,
+    )
+    .toArray();
+  return new Map(rows.map((row) => [row.id, { id: row.id, name: row.name }]));
+}
+
+/** Public subcomponents for a batch of parent ids, off the parent index. */
+export function subcomponentsByParentOf(
+  sql: SqlStorage,
+  parentIds: readonly string[],
+): Map<string, GalleryRelatedEntry[]> {
+  const unique = [...new Set(parentIds.filter((id) => id.length > 0))];
+  if (unique.length === 0) return new Map();
+  const rows = sql
+    .exec<{ parent_entry_id: string; id: string; name: string }>(
+      `SELECT parent_entry_id, id, name
+       FROM gallery_entries
+       WHERE status = 'public'
+         AND parent_entry_id IN (${unique.map(() => "?").join(", ")})
+       ORDER BY name COLLATE NOCASE ASC, id ASC`,
+      ...unique,
+    )
+    .toArray();
+  const grouped = new Map<string, GalleryRelatedEntry[]>();
+  for (const row of rows) {
+    const list = grouped.get(row.parent_entry_id) ?? [];
+    list.push({ id: row.id, name: row.name });
+    grouped.set(row.parent_entry_id, list);
+  }
+  return grouped;
+}
+
+/** Public subcomponents of one parent entry, ordered by name. */
+function subcomponentsOf(
+  sql: SqlStorage,
+  parentEntryId: string,
+): GalleryRelatedEntry[] {
+  return subcomponentsByParentOf(sql, [parentEntryId]).get(parentEntryId) ?? [];
+}
+
+/**
+ * Authoritative parent check run inside a DO write transaction: the parent
+ * must exist, be public, not be this entry, and not itself be a subcomponent,
+ * and this entry must not already have subcomponents of its own (#2658).
+ */
+function validParentEntry(
+  sql: SqlStorage,
+  entryId: string,
+  parentEntryId: string,
+): boolean {
+  if (!parentEntryId || parentEntryId === entryId) return false;
+  const parent = sql
+    .exec<{ status: string; parent_entry_id: string | null }>(
+      "SELECT status, parent_entry_id FROM gallery_entries WHERE id = ?",
+      parentEntryId,
+    )
+    .toArray()[0];
+  if (!parent || parent.status !== "public" || parent.parent_entry_id)
+    return false;
+  if (entryId) {
+    const hasChild =
+      sql
+        .exec<{ id: string }>(
+          "SELECT id FROM gallery_entries WHERE parent_entry_id = ? LIMIT 1",
+          entryId,
+        )
+        .toArray().length > 0;
+    if (hasChild) return false;
+  }
+  return true;
 }
 
 /** A free id, redrawn on the vanishing chance the first one is taken. */
@@ -146,6 +230,12 @@ export function submit(
   // quota away from the submitter it exists to bound.
   const enforceLimit = body.enforceLimit !== false;
   const outcome = state.storage.transactionSync(() => {
+    if (
+      entry.parent_entry_id &&
+      !validParentEntry(sql, "", entry.parent_entry_id)
+    ) {
+      return { status: "invalid-parent" as const };
+    }
     if (enforceLimit) {
       const used = submissionsOn(sql, entry.owner_user_id ?? "", day);
       const limit =
@@ -166,8 +256,8 @@ export function submit(
         submitter_provider, tags, project_text, svg_text, netlistable,
         netlistable_version, component_count, component_count_version,
         preview_revision, preview_width, preview_height, ai_generated,
-        testbench_text
-      ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        testbench_text, parent_entry_id
+      ) VALUES (?, ?, ?, ?, ?, ?, 'public', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       entry.id,
       entry.name,
       currentProfileByline(sql, entry.owner_user_id, entry.author),
@@ -188,11 +278,20 @@ export function submit(
       previewDimensions?.height ?? null,
       entry.ai_generated === 1 ? 1 : 0,
       entry.testbench_text ?? null,
+      entry.parent_entry_id ?? null,
     );
     bindPublication(sql, body, entry.id);
-    sweepRecycledRows(sql, entry.owner_user_id ?? "");
+    sweepRecycledRows(
+      sql,
+      typeof body.userId === "string"
+        ? body.userId
+        : (entry.owner_user_id ?? ""),
+    );
     return { status: "stored" as const };
   });
+  if (outcome.status === "invalid-parent") {
+    return Response.json({ error: "invalid-parent" }, { status: 400 });
+  }
   if (outcome.status === "rate-limited") {
     return Response.json({ error: "rate-limited" }, { status: 429 });
   }
@@ -289,11 +388,17 @@ export function entry(
         row.id,
       )
       .toArray().length > 0;
+  const parentEntry = row.parent_entry_id
+    ? parentEntriesOf(sql, [row.parent_entry_id]).get(row.parent_entry_id)
+    : undefined;
+  const subcomponents = subcomponentsOf(sql, row.id);
   return Response.json({
     entry: {
       ...summaryOf(row, true),
       ...(fixedBy ? { fixedBy } : {}),
       ...(hasReference ? { hasReference: true } : {}),
+      ...(parentEntry ? { parentEntry } : {}),
+      ...(subcomponents.length > 0 ? { subcomponents } : {}),
     },
     status: row.status,
     ownerUserId: row.owner_user_id,
@@ -327,6 +432,12 @@ export function importEntry(
   const row = sql
     .exec<EntryRow>("SELECT * FROM gallery_entries WHERE id = ?", id)
     .toArray()[0];
+  const parentEntryId =
+    body.parentEntryId === undefined
+      ? (row?.parent_entry_id ?? null)
+      : typeof body.parentEntryId === "string" && body.parentEntryId.length > 0
+        ? body.parentEntryId
+        : null;
   const fields = [
     String(body.name),
     String(body.author),
@@ -342,8 +453,12 @@ export function importEntry(
     previewRevision,
     previewDimensions?.width ?? null,
     previewDimensions?.height ?? null,
+    parentEntryId,
   ];
-  state.storage.transactionSync(() => {
+  const outcome = state.storage.transactionSync(() => {
+    if (parentEntryId && !validParentEntry(sql, id, parentEntryId)) {
+      return { status: "invalid-parent" as const };
+    }
     forgetTransistorCount(sql, id);
     if (row)
       recordFix(sql, {
@@ -365,7 +480,8 @@ export function importEntry(
              tags = ?, project_text = ?, testbench_text = ?, svg_text = ?,
              netlistable = ?, netlistable_version = ?, component_count = ?,
              component_count_version = ?, preview_revision = ?,
-             preview_width = ?, preview_height = ?, status = 'public'
+             preview_width = ?, preview_height = ?, parent_entry_id = ?,
+             status = 'public'
          WHERE id = ?`,
         ...fields,
         id,
@@ -376,14 +492,18 @@ export function importEntry(
           name, author, description, schema_version, tags, project_text,
           testbench_text, svg_text, netlistable, netlistable_version,
           component_count, component_count_version, preview_revision,
-          preview_width, preview_height, id, created_at, status,
-          owner_user_id, ai_generated
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'public', NULL, 0)`,
+          preview_width, preview_height, parent_entry_id, id, created_at,
+          status, owner_user_id, ai_generated
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'public', NULL, 0)`,
         ...fields,
         id,
         typeof body.createdAt === "string" ? body.createdAt : at,
       );
+    return { status: "stored" as const };
   });
+  if (outcome.status === "invalid-parent") {
+    return Response.json({ error: "invalid-parent" }, { status: 400 });
+  }
   return publicationResult({ id, created: !row, previewRevision });
 }
 
@@ -588,8 +708,8 @@ function ownedEntries(
 const OWNED_ROWS = `SELECT e.id, e.name, e.author, e.description, e.created_at,
     e.owner_user_id, e.schema_version, e.tags, e.curation_json, e.netlistable,
     e.preview_revision, e.preview_width, e.preview_height, e.ai_generated,
-    e.component_count, e.component_count_version, e.status, e.reject_reason,
-    e.reviewed_by, e.reviewed_at, e.recycled_at,
+    e.component_count, e.component_count_version, e.parent_entry_id, e.status,
+    e.reject_reason, e.reviewed_by, e.reviewed_at, e.recycled_at,
     (SELECT COALESCE(SUM(hearts), 0) FROM gallery_likes WHERE entry_id = e.id)
       AS likes
   FROM gallery_entries e`;

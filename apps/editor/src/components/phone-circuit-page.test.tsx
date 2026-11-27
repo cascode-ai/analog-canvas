@@ -59,4 +59,40 @@ describe("a phone's circuit page (2026-10-14)", () => {
       "does not yet make a netlist: Instance R1 requires parameter value",
     );
   });
+
+  it("shows Subcomponent mark and bidirectional parent/subcomponent links (#2658)", () => {
+    const subPage = renderToStaticMarkup(
+      createElement(PhoneCircuitView, {
+        entry: {
+          ...entry,
+          id: "ag-1070-cp",
+          parentEntryId: "ag-1070",
+          parentEntry: { id: "ag-1070", name: "AnalogGenie #1070" },
+        },
+        netlist: null,
+        copied: false,
+        onShowNetlist: () => undefined,
+        onCopyLink: () => undefined,
+      }),
+    );
+    expect(subPage).toContain("· MIT");
+    expect(subPage).toContain("· Subcomponent");
+    expect(subPage).toContain('data-testid="phone-parent-link"');
+    expect(subPage).toContain('href="/g/ag-1070"');
+
+    const parentPage = renderToStaticMarkup(
+      createElement(PhoneCircuitView, {
+        entry: {
+          ...entry,
+          subcomponents: [{ id: "ag-1070-cp", name: "Charge Pump" }],
+        },
+        netlist: null,
+        copied: false,
+        onShowNetlist: () => undefined,
+        onCopyLink: () => undefined,
+      }),
+    );
+    expect(parentPage).toContain('data-testid="phone-subcomponents"');
+    expect(parentPage).toContain('href="/g/ag-1070-cp"');
+  });
 });

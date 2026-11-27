@@ -31,6 +31,7 @@ import {
   SIMULATION_CHECK_PASSES_INDEXED,
 } from "./gallery-store-simulation-checks";
 import { fixersOf } from "./gallery-store-fixes";
+import { parentEntriesOf, subcomponentsByParentOf } from "./gallery-store-entries";
 import { GalleryRevisionCache } from "./gallery-store-wall-cache";
 
 /** References affect wall counts as well as the Gallery rows themselves. */
@@ -157,6 +158,8 @@ function feedConditions(
     netlist?: boolean;
     /** False leaves out the AI/by-hand choice, for its counts. */
     ai?: boolean;
+    /** False leaves out the subcomponent/top-level choice, for its counts. */
+    subcomponents?: boolean;
   },
 ): {
   conditions: string[];
@@ -221,6 +224,14 @@ function feedConditions(
     conditions.push(`e.ai_generated = ${body.ai === "ai" ? 1 : 0}`);
   // A store holding none of the chosen kind (#1697) answers with none.
   if (options.ai !== false && body.ai === "none") conditions.push("0 = 1");
+  // Subcomponents extracted from drawn blocks (#2658): show only them, hide
+  // them, or show both.
+  if (options.subcomponents !== false) {
+    if (body.subcomponents === "only")
+      conditions.push("e.parent_entry_id IS NOT NULL");
+    else if (body.subcomponents === "hide")
+      conditions.push("e.parent_entry_id IS NULL");
+  }
   // A search narrows the wall before its counts and cursor, so totals, tags,
   // contributors and pages all describe the same circuits.
   const search = requestedSearch(body);
@@ -468,6 +479,10 @@ function statisticsKey(body: Record<string, unknown>): string {
           ? "without"
           : "",
     ai: ["ai", "human", "none"].includes(String(body.ai)) ? body.ai : null,
+    subcomponents:
+      body.subcomponents === "only" || body.subcomponents === "hide"
+        ? body.subcomponents
+        : "",
     withoutReference: body.withoutReference === true,
     sim: body.sim === true,
     simCount: body.simCount === true,
@@ -586,7 +601,7 @@ export function list(
            e.owner_user_id,
            e.schema_version, e.tags, e.curation_json, e.netlistable, e.preview_revision,
            e.preview_width, e.preview_height, e.component_count,
-           e.component_count_version, e.ai_generated,
+           e.component_count_version, e.ai_generated, e.parent_entry_id,
            ${order === "fewest" ? WALL_PARTS.fewest : WALL_PARTS.parts} AS parts,
            ${SIMULATION_CHECK_PASSES} AS simulation_passes,
            ${HAS_REFERENCE} AS has_reference,
@@ -723,21 +738,42 @@ export function list(
     sql,
     page.map((row) => row.id),
   );
+  const parents = parentEntriesOf(
+    sql,
+    page.flatMap((row) => (row.parent_entry_id ? [row.parent_entry_id] : [])),
+  );
+  const subcomponentsByParent = subcomponentsByParentOf(
+    sql,
+    page.map((row) => row.id),
+  );
   return Response.json({
     // `simVerified` is every passing entry's here; the route keeps it only
     // for the viewers who may see the Sim mark (#1545).
-    entries: page.map((row) => ({
-      ...summaryOf(
-        row,
-        body.isAdmin === true || (!!viewerId && viewerId === row.owner_user_id),
-      ),
-      ...(fixers.has(row.id) ? { fixedBy: fixers.get(row.id) } : {}),
-      ...(row.simulation_passes === 1 ? { simVerified: true } : {}),
-      ...(row.has_reference === 1 ? { hasReference: true } : {}),
-      ...(body.sortKeys === true
-        ? { sortKey: placeOf(row).key, cursor: placeOf(row).cursor }
-        : {}),
-    })),
+    entries: page.map((row) => {
+      const subcomponents = subcomponentsByParent.get(row.id);
+      return {
+        ...summaryOf(
+          row,
+          body.isAdmin === true ||
+            (!!viewerId && viewerId === row.owner_user_id),
+        ),
+        ...(fixers.has(row.id) ? { fixedBy: fixers.get(row.id) } : {}),
+        ...(row.parent_entry_id && parents.has(row.parent_entry_id)
+          ? { parentEntry: parents.get(row.parent_entry_id) }
+          : {}),
+        ...(subcomponents?.length
+          ? {
+              subcomponents,
+              subcomponentCount: subcomponents.length,
+            }
+          : {}),
+        ...(row.simulation_passes === 1 ? { simVerified: true } : {}),
+        ...(row.has_reference === 1 ? { hasReference: true } : {}),
+        ...(body.sortKeys === true
+          ? { sortKey: placeOf(row).key, cursor: placeOf(row).cursor }
+          : {}),
+      };
+    }),
     nextCursor,
     ...statistics,
     // Which search this answers, so a reader knows the counts are its.
@@ -748,10 +784,29 @@ export function list(
 }
 
 /**
- * Both sides of the two pairs, with netlist and without, AI-generated and
- * by hand, each counted with every other filter applied but its own pair's
- * choice left out: what choosing that side would show.
+ * Both sides of the mutually exclusive pairs — with/without netlist,
+ * AI-generated/by hand, and subcomponents/top-level circuits — each counted
+ * with every other filter applied but its own pair's choice left out: what
+ * choosing that side would show.
  */
+const PAIR_COUNT_PREDICATES = {
+  netlist: {
+    omit: { netlist: false } as const,
+    yes: "e.netlistable = 1",
+    no: "e.netlistable = 0",
+  },
+  ai: {
+    omit: { ai: false } as const,
+    yes: "e.ai_generated = 1",
+    no: "e.ai_generated = 0",
+  },
+  subcomponents: {
+    omit: { subcomponents: false } as const,
+    yes: "e.parent_entry_id IS NOT NULL",
+    no: "e.parent_entry_id IS NULL",
+  },
+} as const;
+
 function pairCounts(
   sql: SqlStorage,
   body: Record<string, unknown>,
@@ -760,31 +815,34 @@ function pairCounts(
   withoutNetlist: number;
   ai: number;
   human: number;
+  subcomponents: number;
+  topLevel: number;
 } {
-  const count = (
-    omit: { netlist: false } | { ai: false },
-    column: "netlistable" | "ai_generated",
-  ) => {
+  const count = (pair: keyof typeof PAIR_COUNT_PREDICATES) => {
+    const { omit, yes, no } = PAIR_COUNT_PREDICATES[pair];
     const { conditions, bindings } = feedConditions(sql, body, {
       tags: true,
       ...omit,
     });
     return sql
       .exec<{ yes: number; no: number }>(
-        `SELECT COUNT(CASE WHEN e.${column} = 1 THEN 1 END) AS yes,
-           COUNT(CASE WHEN e.${column} = 0 THEN 1 END) AS no
+        `SELECT COUNT(CASE WHEN ${yes} THEN 1 END) AS yes,
+           COUNT(CASE WHEN ${no} THEN 1 END) AS no
          FROM gallery_entries e WHERE ${conditions.join(" AND ")}`,
         ...bindings,
       )
       .one();
   };
-  const netlist = count({ netlist: false }, "netlistable");
-  const ai = count({ ai: false }, "ai_generated");
+  const netlist = count("netlist");
+  const ai = count("ai");
+  const subcomponents = count("subcomponents");
   return {
     netlistable: Number(netlist.yes),
     withoutNetlist: Number(netlist.no),
     ai: Number(ai.yes),
     human: Number(ai.no),
+    subcomponents: Number(subcomponents.yes),
+    topLevel: Number(subcomponents.no),
   };
 }
 
@@ -862,7 +920,7 @@ export function catalog(sql: SqlStorage): Response {
       `SELECT e.id, e.name, e.author, e.description, e.created_at,
          e.owner_user_id, e.schema_version, e.tags, e.curation_json,
          e.netlistable, e.ai_generated, e.preview_revision, e.preview_width,
-         e.preview_height,
+         e.preview_height, e.parent_entry_id,
          ${WALL_LIKES} AS likes
        FROM gallery_entries e WHERE e.status = 'public'
        ORDER BY e.name COLLATE NOCASE ASC, e.name ASC, e.id ASC`,

@@ -29,10 +29,10 @@ describe("a Gallery wall link", () => {
   it("names the list API's filters, netlist as netlistable", () => {
     expect(
       wallLinkParams(
-        "https://analog-canvas.tokenzhang.com/?source=amsnet&q=common+gate&netlist=1&parts=0-5,6-10&tags=bias,ota&author=Lu+Jie&ai=dataset&reference=0&view=gallery&entry=x&utm=y",
+        "https://analog-canvas.tokenzhang.com/?source=amsnet&q=common+gate&netlist=1&parts=0-5,6-10&tags=bias,ota&author=Lu+Jie&ai=dataset&reference=0&subcomponents=0&view=gallery&entry=x&utm=y",
       ).toString(),
     ).toBe(
-      "source=amsnet&q=common+gate&tags=bias%2Cota&author=Lu+Jie&parts=0-5%2C6-10&netlistable=1&reference=0&ai=dataset",
+      "source=amsnet&q=common+gate&tags=bias%2Cota&author=Lu+Jie&parts=0-5%2C6-10&netlistable=1&reference=0&ai=dataset&subcomponents=0",
     );
     // An account narrows by its id; the byline only labels it.
     expect(
@@ -82,6 +82,7 @@ describe("the arguments", () => {
   it("refuse what they cannot mean", () => {
     for (const argv of [
       ["--netlistable", "yes"],
+      ["--subcomponents", "all"],
       ["--parts", "small"],
       ["--max", "0"],
       ["--concurrency", "0"],

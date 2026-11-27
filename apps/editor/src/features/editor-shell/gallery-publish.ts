@@ -1,4 +1,5 @@
 import type { SubmissionGateFailure } from "@icm/derived";
+import type { GalleryRelatedEntry } from "../../gallery-client";
 import type { GalleryEntryContext } from "./gallery-example-commands";
 
 import type { CloudProjectBinding } from "./cloud-projects";
@@ -103,6 +104,9 @@ export async function loadGalleryPublicationContext(
       tags?: string[];
       aiGenerated?: boolean;
       hasReference?: boolean;
+      parentEntryId?: string;
+      parentEntry?: GalleryRelatedEntry;
+      subcomponents?: GalleryRelatedEntry[];
     };
     ownerUserId?: string | null;
   };
@@ -116,6 +120,15 @@ export async function loadGalleryPublicationContext(
     tags: payload.entry.tags ?? [],
     aiGenerated: payload.entry.aiGenerated === true,
     hasReference: payload.entry.hasReference === true,
+    ...(payload.entry.parentEntryId
+      ? { parentEntryId: payload.entry.parentEntryId }
+      : {}),
+    ...(payload.entry.parentEntry
+      ? { parentEntry: payload.entry.parentEntry }
+      : {}),
+    ...(payload.entry.subcomponents?.length
+      ? { subcomponents: payload.entry.subcomponents }
+      : {}),
   };
 }
 

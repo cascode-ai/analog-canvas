@@ -834,4 +834,195 @@ describe("reference datasets in stores of their own (#1510)", () => {
       sourceNetlist: "",
     });
   });
+
+  it("imports dataset subcomponents, links parents bidirectionally, and merges counts (#2658)", async () => {
+    const env = environment();
+    const owner = await ownerAccountOf(env);
+    const maker = await makerOf(env);
+    const communityParent = await submitOne(env, "Community System", {
+      cookie: maker,
+    });
+    const call = (path: string, init: RequestInit = {}, cookie = owner) =>
+      route(
+        env,
+        new Request(`${ORIGIN}${path}`, {
+          ...init,
+          headers: {
+            Origin: ORIGIN,
+            Cookie: cookie,
+            "content-type": "application/json",
+          },
+        }),
+      );
+    const importAg = (entries: unknown[]) =>
+      call("/api/gallery/sources/analoggenie/entries", {
+        method: "POST",
+        body: JSON.stringify({ entries }),
+      });
+
+    // Import parent first.
+    expect(
+      (
+        await importAg([
+          {
+            id: "ag-1070",
+            name: "AnalogGenie #1070 (PLL)",
+            tags: ["pll"],
+            projectText: projectText("ag-1070"),
+          },
+        ])
+      ).status,
+    ).toBe(200);
+
+    // Valid subcomponent + invalid parent cases.
+    const subImport = await importAg([
+      {
+        id: "ag-1070-cp",
+        name: "AnalogGenie #1070 (PLL) · Charge Pump",
+        tags: ["charge pump"],
+        projectText: projectText("ag-1070-cp"),
+        parentEntryId: "ag-1070",
+      },
+      {
+        id: "ag-1070-bad-missing",
+        name: "Missing parent",
+        projectText: projectText("bad1"),
+        parentEntryId: "ag-9999",
+      },
+      {
+        id: "ag-1070-bad-cross",
+        name: "Cross store parent",
+        projectText: projectText("bad2"),
+        parentEntryId: communityParent,
+      },
+      {
+        id: "ag-1070-bad-self",
+        name: "Self parent",
+        projectText: projectText("bad3"),
+        parentEntryId: "ag-1070-bad-self",
+      },
+    ]);
+    expect(await subImport.json()).toMatchObject({
+      results: [
+        { id: "ag-1070-cp", ok: true, created: true },
+        { id: "ag-1070-bad-missing", ok: false, error: "invalid-parent" },
+        { id: "ag-1070-bad-cross", ok: false, error: "invalid-parent" },
+        { id: "ag-1070-bad-self", ok: false, error: "invalid-parent" },
+      ],
+    });
+
+    // Nested subcomponent (child of a subcomponent) and re-parenting an
+    // existing parent are both refused.
+    const nestedImport = await importAg([
+      {
+        id: "ag-1070-nested",
+        name: "Nested",
+        projectText: projectText("nested"),
+        parentEntryId: "ag-1070-cp",
+      },
+      {
+        id: "ag-2000",
+        name: "AnalogGenie #2000",
+        projectText: projectText("ag-2000"),
+      },
+      {
+        id: "ag-1070",
+        name: "AnalogGenie #1070 (PLL)",
+        projectText: projectText("ag-1070"),
+        parentEntryId: "ag-2000",
+      },
+    ]);
+    expect(await nestedImport.json()).toMatchObject({
+      results: [
+        { id: "ag-1070-nested", ok: false, error: "invalid-parent" },
+        { id: "ag-2000", ok: true, created: true },
+        { id: "ag-1070", ok: false, error: "invalid-parent" },
+      ],
+    });
+
+    // Re-importing without parentEntryId preserves the existing parent link.
+    await importAg([
+      {
+        id: "ag-1070-cp",
+        name: "AnalogGenie #1070 (PLL) · Charge Pump",
+        tags: ["charge pump"],
+        projectText: wiredProjectText("ag-1070-cp"),
+      },
+    ]);
+
+    // Bidirectional links on GET /api/gallery/<id>.
+    const childDetail = (await (
+      await call("/api/gallery/ag-1070-cp?summary=1")
+    ).json()) as {
+      entry: {
+        parentEntryId?: string;
+        parentEntry?: { id: string; name: string };
+      };
+    };
+    expect(childDetail.entry).toMatchObject({
+      parentEntryId: "ag-1070",
+      parentEntry: { id: "ag-1070", name: "AnalogGenie #1070 (PLL)" },
+    });
+    const parentDetail = (await (
+      await call("/api/gallery/ag-1070?summary=1")
+    ).json()) as {
+      entry: { subcomponents?: { id: string; name: string }[] };
+    };
+    expect(parentDetail.entry.subcomponents).toEqual([
+      { id: "ag-1070-cp", name: "AnalogGenie #1070 (PLL) · Charge Pump" },
+    ]);
+
+    // Merged wall sums subcomponents and topLevel counts across stores.
+    const communityChildRes = await call("/api/gallery/submissions", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Community System · VCO",
+        description: "VCO block",
+        tags: ["oscillator"],
+        projectText: projectText("vco"),
+        parentEntryId: communityParent,
+      }),
+    });
+    expect(communityChildRes.status).toBe(201);
+    const { id: communityChild } = (await communityChildRes.json()) as {
+      id: string;
+    };
+
+    const mergedAll = (await (await call("/api/gallery")).json()) as {
+      total: number;
+      filterCounts: { subcomponents: number; topLevel: number };
+    };
+    expect(mergedAll.total).toBe(5);
+    expect(mergedAll.filterCounts).toMatchObject({
+      subcomponents: 2,
+      topLevel: 3,
+    });
+
+    const mergedSub = (await (
+      await call("/api/gallery?subcomponents=1")
+    ).json()) as {
+      total: number;
+      entries: { id: string }[];
+      filterCounts: { subcomponents: number; topLevel: number };
+    };
+    expect(mergedSub.total).toBe(2);
+    expect(mergedSub.entries.map((e) => e.id).sort()).toEqual(
+      ["ag-1070-cp", communityChild].sort(),
+    );
+    expect(mergedSub.filterCounts).toMatchObject({
+      subcomponents: 2,
+      topLevel: 3,
+    });
+
+    const mergedTop = (await (
+      await call("/api/gallery?subcomponents=0")
+    ).json()) as {
+      total: number;
+      entries: { id: string }[];
+    };
+    expect(mergedTop.total).toBe(3);
+    expect(mergedTop.entries.map((e) => e.id).sort()).toEqual(
+      ["ag-1070", "ag-2000", communityParent].sort(),
+    );
+  });
 });

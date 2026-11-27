@@ -1751,4 +1751,115 @@ describe("gallery circuit tags", () => {
     ).json()) as { entry: { tags: string[] } };
     expect(after.entry.tags).toEqual(["latch", "comparator"]);
   });
+
+  it("filters subcomponents and top-level entries off covering indexes and upgrades older indexes (#2658)", async () => {
+    const env = environment();
+    const adminCookie = await adminOf(env);
+    const submitTagged = async (name: string, tags: string[]) => {
+      const response = await route(
+        env,
+        submissionRequest(
+          { name, tags, projectText: projectText(name) },
+          { cookie: adminCookie },
+        ),
+      );
+      expect(response.status).toBe(201);
+      return ((await response.json()) as { id: string }).id;
+    };
+    const parentId = await submitTagged("Parent PLL", ["pll"]);
+    const standaloneId = await submitTagged("Standalone Bandgap", ["bandgap"]);
+    const childRes = await route(
+      env,
+      submissionRequest(
+        {
+          name: "Parent PLL · Charge Pump",
+          description: "Charge pump block",
+          tags: ["charge pump"],
+          projectText: projectText("Charge Pump"),
+          parentEntryId: parentId,
+        },
+        { cookie: adminCookie },
+      ),
+    );
+    expect(childRes.status).toBe(201);
+    const { id: childId } = (await childRes.json()) as { id: string };
+
+    const list = async (query: string) =>
+      (await (
+        await route(env, new Request(`${ORIGIN}/api/gallery?${query}`))
+      ).json()) as {
+        entries: {
+          id: string;
+          parentEntryId?: string;
+          parentEntry?: { id: string; name: string };
+          subcomponentCount?: number;
+        }[];
+        total: number;
+        filterCounts: { subcomponents: number; topLevel: number };
+      };
+
+    const all = await list("");
+    expect(all.total).toBe(3);
+    expect(all.filterCounts).toMatchObject({ subcomponents: 1, topLevel: 2 });
+    expect(all.entries.find((e) => e.id === childId)).toMatchObject({
+      parentEntryId: parentId,
+      parentEntry: { id: parentId, name: "Parent PLL" },
+    });
+    expect(all.entries.find((e) => e.id === parentId)).toMatchObject({
+      subcomponentCount: 1,
+    });
+    expect(
+      all.entries.find((e) => e.id === standaloneId),
+    ).not.toHaveProperty("subcomponentCount");
+
+    env.galleryQueries.length = 0;
+    const onlySub = await list("subcomponents=1");
+    expect(onlySub.total).toBe(1);
+    expect(onlySub.entries.map((e) => e.id)).toEqual([childId]);
+    expect(onlySub.filterCounts).toMatchObject({
+      subcomponents: 1,
+      topLevel: 2,
+    });
+
+    const hideSub = await list("subcomponents=0");
+    expect(hideSub.total).toBe(2);
+    expect(hideSub.entries.map((e) => e.id).sort()).toEqual(
+      [parentId, standaloneId].sort(),
+    );
+    expect(hideSub.filterCounts).toMatchObject({
+      subcomponents: 1,
+      topLevel: 2,
+    });
+
+    // Subcomponent filter queries still stay on the covering metadata and card indexes.
+    const filterCountSql = env.galleryQueries.find(
+      (q) => q.includes("e.parent_entry_id IS NOT NULL") && q.includes("AS total"),
+    );
+    expect(filterCountSql).toBeDefined();
+    const plan = env.gallerySql
+      .exec<{ detail: string }>(
+        `EXPLAIN QUERY PLAN ${filterCountSql!}`,
+        ...Array.from(
+          { length: (filterCountSql!.match(/\?/g) ?? []).length },
+          () => "",
+        ),
+      )
+      .toArray()
+      .map((s) => s.detail)
+      .join("\n");
+    expect(plan).toContain("COVERING INDEX idx_gallery_entries_feed_stats_wall");
+
+    // Tag counts follow subcomponents=1 and subcomponents=0.
+    const subTags = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/tags?subcomponents=1`))
+    ).json()) as { tags: { tag: string; count: number }[] };
+    expect(subTags.tags).toEqual([{ tag: "charge pump", count: 1 }]);
+    const topTags = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/tags?subcomponents=0`))
+    ).json()) as { tags: { tag: string; count: number }[] };
+    expect(topTags.tags).toEqual([
+      { tag: "bandgap", count: 1 },
+      { tag: "pll", count: 1 },
+    ]);
+  });
 });

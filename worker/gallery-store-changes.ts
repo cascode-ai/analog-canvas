@@ -32,6 +32,7 @@ const WATCHED_COLUMNS = [
   "preview_height",
   "component_count",
   "ai_generated",
+  "parent_entry_id",
   "status",
   "project_text",
   "svg_text",
@@ -67,6 +68,14 @@ export function installEntryChanges(sql: SqlStorage): void {
       SELECT id, ROW_NUMBER() OVER (ORDER BY id) FROM gallery_entries`);
     sql.exec(`INSERT INTO gallery_change_counter (id, seq)
       SELECT 1, COUNT(*) FROM gallery_entries`);
+  }
+  const existingUpdate = sql
+    .exec<{ sql: string | null }>(
+      "SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = 'gallery_entry_changes_update'",
+    )
+    .toArray()[0]?.sql;
+  if (existingUpdate && !existingUpdate.includes("parent_entry_id")) {
+    sql.exec("DROP TRIGGER IF EXISTS gallery_entry_changes_update");
   }
   for (const [name, event, id] of [
     ["insert", "INSERT", "NEW.id"],
@@ -131,7 +140,7 @@ export function entryChanges(
                e.owner_user_id, e.schema_version, e.tags, e.curation_json,
                e.netlistable, e.preview_revision, e.preview_width,
                e.preview_height, e.component_count, e.component_count_version,
-               e.ai_generated,
+               e.ai_generated, e.parent_entry_id,
                (SELECT revision FROM entry_references r
                  WHERE r.entry_id = e.id) AS reference_revision
              FROM gallery_entry_changes c

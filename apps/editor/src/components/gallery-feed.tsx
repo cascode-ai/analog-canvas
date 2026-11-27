@@ -160,6 +160,7 @@ export function GalleryFeed({
     withoutReference: withoutReferenceOnly,
     sim: simOnly,
     ai: aiFilter,
+    subcomponents: subcomponentsFilter,
     liked: likedOnly,
     attention: attentionOnly,
     attentionKind,
@@ -200,6 +201,7 @@ export function GalleryFeed({
       withoutReferenceOnly,
       simOnly,
       aiFilter,
+      subcomponentsFilter,
       likedOnly,
       attentionOnly,
       attentionKind,
@@ -448,6 +450,8 @@ export function GalleryFeed({
         entry.aiGenerated !== true && !gallerySourceOfEntryId(entry.id),
     ),
     datasets: loadedCount((entry) => gallerySourceOfEntryId(entry.id) !== null),
+    subcomponents: loadedCount((entry) => entry.parentEntryId !== undefined),
+    topLevel: loadedCount((entry) => entry.parentEntryId === undefined),
     liked: loadedCount((entry) => entry.likedByViewer === true),
     withoutReference: loadedCount((entry) => entry.hasReference !== true),
     sim: loadedCount((entry) => entry.simVerified === true),
@@ -689,6 +693,12 @@ export function GalleryFeed({
                     (counts?.quickCounts.datasets ?? 0) > 0 ||
                     aiFilter === "dataset")
                 }
+                showSubcomponents={
+                  state.status === "loading" ||
+                  (counts?.quickCounts.subcomponents ?? 0) > 0 ||
+                  subcomponentsFilter !== null
+                }
+                subcomponentsFilter={subcomponentsFilter}
                 netlistableOnly={netlistableOnly}
                 withoutNetlistOnly={withoutNetlistOnly}
                 // A dataset's circuits have its figures, not their author's.

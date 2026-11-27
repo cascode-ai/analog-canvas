@@ -29,6 +29,7 @@ gallery-download. Without a filter, every public circuit.
                      carries is reported and exits 1
   --parts 0-5,6-10   any of these sizes in parts
   --netlistable 1|0  only circuits that extract to a netlist, or that do not
+  --subcomponents 1|0  only subcomponents (1), or hide subcomponents (0)
   --url LINK         the filters of a Gallery wall link; flags override it
   --max N            at most N circuits
   --concurrency N    parallel downloads (default 32; no fixed request pacing)
@@ -53,6 +54,7 @@ const WALL_TO_API = {
   netlist: "netlistable",
   reference: "reference",
   ai: "ai",
+  subcomponents: "subcomponents",
 };
 
 /**
@@ -106,12 +108,18 @@ export function parseArgs(argv) {
     "author",
     "parts",
     "netlistable",
+    "subcomponents",
   ]) {
     const value = option(`--${name}`)?.trim();
     if (value) params.set(name, value);
   }
   if (params.has("netlistable") && !/^[01]$/u.test(params.get("netlistable")))
     throw new UsageError("--netlistable takes 1 or 0");
+  if (
+    params.has("subcomponents") &&
+    !/^[01]$/u.test(params.get("subcomponents"))
+  )
+    throw new UsageError("--subcomponents takes 1 or 0");
   if (
     params.has("parts") &&
     !/^\d{1,4}-\d{0,4}(,\d{1,4}-\d{0,4})*$/u.test(params.get("parts"))

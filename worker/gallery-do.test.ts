@@ -405,4 +405,74 @@ describe("gallery data migrations", () => {
         .one().count,
     ).toBe(0);
   });
+
+  it("rebuilds pre-existing covering indexes to include parent_entry_id and preserves it on schema-restore (#2658)", async () => {
+    const state = sqliteState();
+    const gallery = new GalleryDO(state);
+    const sql = state.storage.sql;
+    // Simulate older Production indexes predating parent_entry_id.
+    sql.exec("DROP INDEX idx_gallery_entries_feed_stats_wall");
+    sql.exec(`CREATE INDEX idx_gallery_entries_feed_stats_wall
+      ON gallery_entries(status, owner_user_id, author, netlistable,
+        ai_generated, tags, curation_json, component_count,
+        component_count_version, created_at, name)`);
+    sql.exec("DROP INDEX idx_gallery_entries_card");
+    sql.exec(`CREATE INDEX idx_gallery_entries_card
+      ON gallery_entries(id, status, name, author, description, created_at,
+        owner_user_id, schema_version, tags, curation_json, netlistable,
+        preview_revision, preview_width, preview_height, component_count,
+        component_count_version, ai_generated, simulation_check_json)`);
+
+    // Restarting GalleryDO upgrades both covering indexes in place.
+    new GalleryDO(state);
+    for (const indexName of [
+      "idx_gallery_entries_feed_stats_wall",
+      "idx_gallery_entries_card",
+    ]) {
+      const def = sql
+        .exec<{ sql: string }>(
+          "SELECT sql FROM sqlite_master WHERE type = 'index' AND name = ?",
+          indexName,
+        )
+        .one().sql;
+      expect(def).toContain("parent_entry_id");
+    }
+
+    // schema-backup / schema-restore round-trips parent_entry_id cleanly.
+    sql.exec(
+      `INSERT INTO gallery_entries
+       (id, name, author, description, created_at, schema_version, status,
+        project_text, svg_text, parent_entry_id)
+       VALUES ('p1', 'Parent', 'Alice', '', '2026-11-01T00:00:00.000Z', ?, 'public', ?, '<svg/>', NULL),
+              ('c1', 'Child', 'Alice', '', '2026-11-01T00:00:01.000Z', ?, 'public', ?, '<svg/>', 'p1')`,
+      CURRENT_PROJECT_FILE_VERSION,
+      projectText("Parent"),
+      CURRENT_PROJECT_FILE_VERSION,
+      projectText("Child"),
+    );
+    const call = async (action: string, body: unknown) =>
+      (
+        await gallery.fetch(
+          new Request(`https://gallery/${action}`, {
+            method: "POST",
+            body: JSON.stringify(body),
+          }),
+        )
+      ).json();
+    const backup = await pagedStoreBackup((query) =>
+      call("schema-backup", query),
+    );
+    sql.exec("DELETE FROM gallery_entries");
+    await call("schema-restore", { backup });
+    expect(
+      sql
+        .exec<{ id: string; parent_entry_id: string | null }>(
+          "SELECT id, parent_entry_id FROM gallery_entries ORDER BY id",
+        )
+        .toArray(),
+    ).toEqual([
+      { id: "c1", parent_entry_id: "p1" },
+      { id: "p1", parent_entry_id: null },
+    ]);
+  });
 });

@@ -34,6 +34,7 @@ import {
   projectText,
   route,
   seatOf,
+  signIn,
   sqliteState,
   submissionRequest,
   submitOne,
@@ -1201,6 +1202,126 @@ describe("direct publishing (the review queue is retired)", () => {
       { id: "refused", status: "rejected" },
       { id: "waiting", status: "public" },
     ]);
+  });
+
+  it("publishes community subcomponents keeping parent author/ownership and enforces parent permissions (#2658)", async () => {
+    const env = environment();
+    const authorCookie = await makerOf(env);
+    const strangerCookie = await signIn(env.authDurable, "stranger@example.com");
+    const adminCookie = await adminOf(env);
+    const parentId = await submitOne(env, "Parent SAR ADC", {
+      cookie: authorCookie,
+    });
+    const parentBefore = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${parentId}?summary=1`))
+    ).json()) as { entry: { author: string }; ownerUserId: string };
+
+    // A non-owner stranger cannot attach a subcomponent to someone else's parent.
+    const forbidden = await route(
+      env,
+      submissionRequest(
+        {
+          name: "Stranger Sub",
+          projectText: projectText("Stranger Sub"),
+          parentEntryId: parentId,
+        },
+        { cookie: strangerCookie },
+      ),
+    );
+    expect(forbidden.status).toBe(403);
+    expect(await forbidden.json()).toEqual({ error: "forbidden" });
+
+    // An admin/Owner publishing a subcomponent inherits the parent's author and ownership,
+    // while submitter_email stays traceable to the admin.
+    const adminSub = await route(
+      env,
+      submissionRequest(
+        {
+          name: "Parent SAR ADC · Comparator",
+          description: "Dynamic comparator cell",
+          tags: ["comparator"],
+          projectText: projectText("Comparator"),
+          parentEntryId: parentId,
+        },
+        { cookie: adminCookie },
+      ),
+    );
+    expect(adminSub.status).toBe(201);
+    const { id: childId } = (await adminSub.json()) as { id: string };
+    const childDetail = (await (
+      await route(
+        env,
+        new Request(`${ORIGIN}/api/gallery/${childId}`, {
+          headers: cookieHeaders(adminCookie),
+        }),
+      )
+    ).json()) as {
+      entry: {
+        author: string;
+        parentEntryId?: string;
+        parentEntry?: { id: string; name: string };
+      };
+      ownerUserId: string | null;
+      submitterEmail?: string;
+    };
+    expect(childDetail.entry.author).toBe(parentBefore.entry.author);
+    expect(childDetail.ownerUserId).toBe(parentBefore.ownerUserId);
+    expect(childDetail.entry.parentEntryId).toBe(parentId);
+    expect(childDetail.entry.parentEntry).toEqual({
+      id: parentId,
+      name: "Parent SAR ADC",
+    });
+    expect(childDetail.submitterEmail).not.toBe("maker@example.com");
+
+    // The parent lists its subcomponents.
+    const parentDetail = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${parentId}?summary=1`))
+    ).json()) as { entry: { subcomponents?: { id: string; name: string }[] } };
+    expect(parentDetail.entry.subcomponents).toEqual([
+      { id: childId, name: "Parent SAR ADC · Comparator" },
+    ]);
+
+    // Missing, dataset, and nested parents are refused with 400 invalid-parent.
+    for (const badParent of ["no-such-id", "ag-1070", childId, ""]) {
+      const bad = await route(
+        env,
+        submissionRequest(
+          {
+            name: "Bad Sub",
+            projectText: projectText("Bad Sub"),
+            parentEntryId: badParent,
+          },
+          { cookie: adminCookie },
+        ),
+      );
+      expect(bad.status).toBe(400);
+      expect(await bad.json()).toEqual({ error: "invalid-parent" });
+    }
+
+    // A subcomponent of an AI seat's parent always keeps the AI mark even if
+    // aiGenerated: false is passed.
+    const aiSeatCookie = await seatOf(env);
+    const aiParentId = await submitOne(env, "Seat Parent", {
+      cookie: aiSeatCookie,
+    });
+    const aiChildRes = await route(
+      env,
+      submissionRequest(
+        {
+          name: "Seat Parent · Bias",
+          projectText: projectText("Seat Bias"),
+          parentEntryId: aiParentId,
+          aiGenerated: false,
+        },
+        { cookie: adminCookie },
+      ),
+    );
+    expect(aiChildRes.status).toBe(201);
+    const { id: aiChildId } = (await aiChildRes.json()) as { id: string };
+    const aiChild = (await (
+      await route(env, new Request(`${ORIGIN}/api/gallery/${aiChildId}?summary=1`))
+    ).json()) as { entry: { aiGenerated?: boolean } };
+    expect(aiChild.entry.aiGenerated).toBe(true);
   });
 });
 

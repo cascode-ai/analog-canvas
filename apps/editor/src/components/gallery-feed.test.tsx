@@ -541,6 +541,41 @@ describe("GalleryWallEmpty", () => {
       "No circuits match the selected tags.",
     );
   });
+
+  it("explains empty subcomponents and combined filter walls (#2658)", () => {
+    expect(
+      empty(
+        { status: "ready", entries: [] },
+        { ...createDefaultGalleryFilters(), subcomponents: "only" },
+      ),
+    ).toContain("No subcomponents here yet.");
+    expect(
+      empty(
+        { status: "ready", entries: [] },
+        { ...createDefaultGalleryFilters(), subcomponents: "hide" },
+      ),
+    ).toContain("No top-level circuits here yet.");
+    expect(
+      empty(
+        { status: "ready", entries: [] },
+        {
+          ...createDefaultGalleryFilters(),
+          withoutReference: true,
+          subcomponents: "only",
+        },
+      ),
+    ).toContain("No circuits match these filters.");
+    expect(
+      empty(
+        { status: "ready", entries: [] },
+        {
+          ...createDefaultGalleryFilters(),
+          liked: true,
+          subcomponents: "only",
+        },
+      ),
+    ).toContain("No circuits match these filters.");
+  });
 });
 
 describe("The Sim mark", () => {
@@ -606,6 +641,40 @@ describe("The Sim mark", () => {
     expect(shown).not.toContain("gallery-tile-tag-divider01-virtuoso");
   });
 
+  it("shows a Subcomponent side mark and bidirectional parent/subcomponent links on wall tiles (#2658)", () => {
+    const sub = tile({
+      ...entry,
+      id: "ag-1070-cp",
+      tags: ["charge pump"],
+      parentEntryId: "ag-1070",
+      parentEntry: { id: "ag-1070", name: "AnalogGenie #1070" },
+    });
+    expect(sub).toContain('data-testid="gallery-subcomponent-ag-1070-cp"');
+    expect(sub).toContain(">Subcomponent</span>");
+    expect(sub).toContain('data-testid="gallery-parent-ag-1070-cp"');
+    expect(sub).toContain("AnalogGenie #1070");
+    expect(sub).toContain("gallery-tile-tag-ag-1070-cp-charge-pump");
+
+    const parent = tile({
+      ...entry,
+      id: "ag-1070",
+      name: "AnalogGenie #1070",
+      subcomponentCount: 2,
+      subcomponents: [
+        { id: "ag-1070-cp", name: "AnalogGenie #1070 · CP" },
+        { id: "ag-1070-bias", name: "AnalogGenie #1070 · Bias" },
+      ],
+    });
+    expect(parent).toContain(
+      'data-testid="gallery-subcomponents-count-ag-1070"',
+    );
+    expect(parent).toContain(
+      'data-testid="gallery-subcomponent-link-ag-1070-cp"',
+    );
+    expect(parent).toContain(">CP</button>");
+    expect(parent).toContain(">Bias</button>");
+  });
+
   it("is verified from the tile's menu by the Owner's accounts alone", () => {
     const menu = (onVerifySimulation?: () => void) =>
       renderToStaticMarkup(
@@ -634,6 +703,8 @@ describe("GalleryQuickFilters", () => {
     attentionKindCounts: {},
     aiFilter: null,
     showDatasets: true,
+    showSubcomponents: true,
+    subcomponentsFilter: null,
     netlistableOnly: false,
     withoutNetlistOnly: false,
     showWithoutReference: true,
@@ -726,6 +797,17 @@ describe("GalleryQuickFilters", () => {
     expect(pressed("gallery-filter-human")).toEqual([{ ai: "human" }]);
     expect(pressed("gallery-filter-datasets")).toEqual([{ ai: "dataset" }]);
     expect(pressed("gallery-filter-ai")).toEqual([{ ai: null }]);
+    expect(pressed("gallery-filter-subcomponents")).toEqual([
+      { subcomponents: "only" },
+    ]);
+    expect(pressed("gallery-filter-hide-subcomponents")).toEqual([
+      { subcomponents: "hide" },
+    ]);
+    expect(
+      renderToStaticMarkup(
+        createElement(GalleryQuickFilters, props({ showSubcomponents: false })),
+      ),
+    ).not.toContain("gallery-filter-subcomponents");
     expect(pressed("gallery-filter-attention")).toEqual([
       { attention: false, attentionKind: null },
     ]);
@@ -805,13 +887,21 @@ describe("withGalleryLike", () => {
       withoutNetlist: 1,
       ai: 1,
       human: 1,
+      subcomponents: 1,
+      topLevel: 1,
       attentionKinds: { "global-vdd": 1 },
     },
   };
 
   it("takes a like back off the Liked wall with its total, contributor and counts", () => {
     const next = withGalleryLike(
-      wall,
+      {
+        ...wall,
+        entries: [
+          { ...wall.entries[0]!, parentEntryId: "parent-1" },
+          wall.entries[1]!,
+        ],
+      },
       "amp",
       { likes: 0, likedByViewer: false },
       true,
@@ -828,6 +918,8 @@ describe("withGalleryLike", () => {
       withoutNetlist: 1,
       ai: 0,
       human: 1,
+      subcomponents: 0,
+      topLevel: 1,
       attentionKinds: { "global-vdd": 0 },
     });
   });

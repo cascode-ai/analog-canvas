@@ -222,6 +222,34 @@ it("asks for Needs attention with its reason, AI, Liked and sizes, and reads the
   });
 });
 
+it("serializes subcomponents=1|0 and reads subcomponents/topLevel filterCounts (#2658)", async () => {
+  const fetchLike = vi.fn<typeof fetch>(async () =>
+    Response.json({
+      entries: [],
+      nextCursor: null,
+      filterCounts: {
+        attention: 0,
+        netlistable: 5,
+        liked: 0,
+        subcomponents: 3,
+        topLevel: 10,
+      },
+    }),
+  );
+  const page = await loadGalleryFeed(fetchLike, { subcomponents: "only" });
+  expect(fetchLike).toHaveBeenLastCalledWith("/api/gallery?subcomponents=1", {
+    credentials: "same-origin",
+  });
+  expect(page).toMatchObject({
+    filterCounts: { subcomponents: 3, topLevel: 10 },
+  });
+  await loadGalleryTagSummary(fetchLike, { subcomponents: "hide" });
+  expect(fetchLike).toHaveBeenLastCalledWith(
+    "/api/gallery/tags?subcomponents=0",
+    { credentials: "same-origin" },
+  );
+});
+
 describe("Gallery preview caching", () => {
   it("starts the first page's previews, by the tiles' own URLs, as soon as it answers (#1590)", () => {
     const entries = Array.from({ length: 12 }, (_, index) => ({

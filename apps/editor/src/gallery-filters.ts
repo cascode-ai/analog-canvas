@@ -52,6 +52,11 @@ export interface GalleryFilterState {
    * without the AI mark) or redrawn from a reference dataset; null for all.
    */
   ai: "ai" | "human" | "dataset" | null;
+  /**
+   * Subcomponents extracted from drawn blocks (#2658): only them (`only`),
+   * hide them (`hide`), or show both (`null`).
+   */
+  subcomponents: "only" | "hide" | null;
   /** Only circuits this viewer has liked. */
   liked: boolean;
   /**
@@ -91,6 +96,7 @@ const NARROWING_PARAMS = [
   "reference",
   "sim",
   "ai",
+  "subcomponents",
   "liked",
   "attention",
   "reason",
@@ -112,6 +118,7 @@ export function createDefaultGalleryFilters(): GalleryFilterState {
     withoutReference: false,
     sim: false,
     ai: null,
+    subcomponents: null,
     liked: false,
     parts: [],
     source: null,
@@ -135,6 +142,7 @@ export function galleryFiltersNarrowQuery(
     filters.withoutReference ||
     filters.sim ||
     filters.ai !== null ||
+    filters.subcomponents !== null ||
     filters.liked ||
     filters.attention ||
     filters.parts.length > 0
@@ -150,6 +158,15 @@ function readAi(value: unknown): "ai" | "human" | "dataset" | null {
       : value === "dataset"
         ? "dataset"
         : null;
+}
+
+/** "1" or "0" in a link, "only" or "hide" in storage (#2658). */
+function readSubcomponents(value: unknown): "only" | "hide" | null {
+  return value === "1" || value === "only"
+    ? "only"
+    : value === "0" || value === "hide"
+      ? "hide"
+      : null;
 }
 
 /** Size keys as a link or storage spells them; the Worker ignores unknown ones. */
@@ -199,6 +216,7 @@ export function parseGalleryFilterQuery(search: string): {
       withoutReference: params.get("reference") === "0",
       sim: params.get("sim") === "1",
       ai: readAi(params.get("ai")),
+      subcomponents: readSubcomponents(params.get("subcomponents")),
       liked: params.get("liked") === "1",
       attention: params.get("attention") === "1",
       attentionKind:
@@ -247,6 +265,14 @@ export function galleryFilterSearch(
         : filters.ai === "dataset"
           ? "dataset"
           : null,
+  );
+  set(
+    "subcomponents",
+    filters.subcomponents === "only"
+      ? "1"
+      : filters.subcomponents === "hide"
+        ? "0"
+        : null,
   );
   set("liked", filters.liked ? "1" : null);
   // Category filtering was retired in favor of one tag vocabulary. Remove
@@ -318,6 +344,7 @@ export function parseStoredGalleryFilters(
     withoutReference: record.withoutReference === true,
     sim: record.sim === true,
     ai: readAi(record.ai),
+    subcomponents: readSubcomponents(record.subcomponents),
     liked: record.liked === true,
     attention: record.attention === true,
     attentionKind:

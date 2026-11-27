@@ -248,6 +248,13 @@ function wallFilters(url: URL) {
           : url.searchParams.get("ai") === "dataset"
             ? "dataset"
             : null,
+    // Subcomponents of drawn blocks (#2658): only them (`1`) or hide them (`0`).
+    subcomponents:
+      url.searchParams.get("subcomponents") === "1"
+        ? "only"
+        : url.searchParams.get("subcomponents") === "0"
+          ? "hide"
+          : null,
     liked: url.searchParams.get("liked") === "1",
     // Sizes by part count; several mean any of them.
     parts: requestedParts(url),

@@ -49,7 +49,10 @@ import {
   withoutTestbench,
 } from "./gallery-testbench";
 import { withGalleryStore } from "./gallery-datasets";
-import { type GallerySource } from "./gallery-sources";
+import {
+  gallerySourceOfEntryId,
+  type GallerySource,
+} from "./gallery-sources";
 
 /** Public circuits an account must have published to fix others' drawings. */
 const FIX_CONTRIBUTIONS = 10;
@@ -245,11 +248,16 @@ export async function handleSubmission(
     cloudProjectId?: unknown;
     expectedGalleryEntryId?: unknown;
     aiGenerated?: unknown;
+    parentEntryId?: unknown;
   } | null;
   const name = fieldText(body?.name, GALLERY_MAX_NAME_LENGTH);
-  // The byline is the signed-in account's display name. Reading it from the
-  // request would let one account publish under another's name.
-  const author = user.displayName.slice(0, GALLERY_MAX_AUTHOR_LENGTH);
+  // The byline is the signed-in account's display name unless this submission
+  // is a subcomponent of an existing community entry, which keeps its
+  // parent's author and ownership (#2658).
+  let author = user.displayName.slice(0, GALLERY_MAX_AUTHOR_LENGTH);
+  let ownerUserId: string | null = user.id;
+  let parentEntryId: string | null = null;
+  let parentAiGenerated: boolean | undefined;
   const description = fieldText(
     body?.description,
     GALLERY_MAX_DESCRIPTION_LENGTH,
@@ -257,6 +265,40 @@ export async function handleSubmission(
   const aiGenerated = aiMark(body?.aiGenerated);
   if (!body || !name || description === null || aiGenerated === null) {
     return Response.json({ error: "invalid-fields" }, { status: 400 });
+  }
+  if (body.parentEntryId !== undefined && body.parentEntryId !== null) {
+    if (
+      typeof body.parentEntryId !== "string" ||
+      body.parentEntryId.length === 0 ||
+      gallerySourceOfEntryId(body.parentEntryId) !== null
+    ) {
+      return Response.json({ error: "invalid-parent" }, { status: 400 });
+    }
+    const parent = await callGallery<{
+      entry?: { author?: string; parentEntryId?: string; aiGenerated?: boolean };
+      status?: string;
+      ownerUserId?: string | null;
+    }>(env, "any-entry", { id: body.parentEntryId });
+    if (
+      parent.status !== 200 ||
+      parent.payload.status !== "public" ||
+      parent.payload.entry?.parentEntryId
+    ) {
+      return Response.json({ error: "invalid-parent" }, { status: 400 });
+    }
+    const ownsParent =
+      parent.payload.ownerUserId != null &&
+      parent.payload.ownerUserId === user.id;
+    if (!privileged && !ownsParent) {
+      return Response.json({ error: "forbidden" }, { status: 403 });
+    }
+    parentEntryId = body.parentEntryId;
+    author = (parent.payload.entry?.author ?? author).slice(
+      0,
+      GALLERY_MAX_AUTHOR_LENGTH,
+    );
+    ownerUserId = parent.payload.ownerUserId ?? null;
+    parentAiGenerated = parent.payload.entry?.aiGenerated === true;
   }
   const binding = publicationBindingFields(body);
   if (!binding)
@@ -304,13 +346,20 @@ export async function handleSubmission(
       // account publishes is always AI-generated. An Agent's publish asks
       // for it; a person publishing by hand ticks it themselves.
       ai_generated:
-        aiGenerated || user.provider === AI_ACCOUNT_PROVIDER ? 1 : 0,
+        parentEntryId !== null
+          ? isAiSeatEntry(ownerUserId, author) ||
+            (aiGenerated ?? parentAiGenerated) === true
+            ? 1
+            : 0
+          : aiGenerated || user.provider === AI_ACCOUNT_PROVIDER
+            ? 1
+            : 0,
       name,
       author,
       description,
       created_at: now.toISOString(),
       schema_version: CURRENT_PROJECT_FILE_VERSION,
-      owner_user_id: user.id,
+      owner_user_id: ownerUserId,
       // Recorded per submission, so an entry stays traceable to the
       // identity that published it even if the account later changes.
       submitter_email: user.email,
@@ -319,6 +368,7 @@ export async function handleSubmission(
       project_text: stored.projectText,
       testbench_text: stored.testbench,
       svg_text: await renderPreview(project, projectResolver),
+      parent_entry_id: parentEntryId,
     },
   });
   if (status === 429) {

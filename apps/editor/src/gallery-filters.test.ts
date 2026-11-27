@@ -27,6 +27,7 @@ describe("gallery filter preferences", () => {
       withoutReference: false,
       sim: false,
       ai: null,
+      subcomponents: null,
       liked: true,
       attention: false,
       attentionKind: null,
@@ -255,6 +256,7 @@ describe("gallery filter preferences", () => {
       withoutReference: false,
       sim: false,
       ai: "human",
+      subcomponents: null,
       liked: true,
       attention: true,
       attentionKind: "global-vdd",
@@ -351,6 +353,7 @@ describe("gallery filter preferences", () => {
       withoutReference: false,
       sim: false,
       ai: null,
+      subcomponents: null,
       liked: false,
       parts: [],
       source: null,
@@ -420,6 +423,35 @@ describe("gallery filter preferences", () => {
     expect(galleryFiltersNarrowQuery(search)).toBe(false);
     const liked = { ...createDefaultGalleryFilters(), liked: true };
     expect(galleryFiltersNarrowQuery(liked)).toBe(true);
+    const subOnly = {
+      ...createDefaultGalleryFilters(),
+      subcomponents: "only" as const,
+    };
+    expect(galleryFiltersNarrowQuery(subOnly)).toBe(true);
+  });
+
+  it("carries subcomponents=1 and subcomponents=0 through links and storage (#2658)", () => {
+    const only = parseGalleryFilterQuery("?subcomponents=1");
+    expect(only.filters.subcomponents).toBe("only");
+    expect(only.narrowed).toBe(true);
+    expect(galleryFilterSearch("", only.filters)).toBe("?subcomponents=1");
+    expect(
+      parseStoredGalleryFilters(storedGalleryFilters(only.filters))
+        ?.subcomponents,
+    ).toBe("only");
+
+    const hidden = parseGalleryFilterQuery("?subcomponents=0");
+    expect(hidden.filters.subcomponents).toBe("hide");
+    expect(hidden.narrowed).toBe(true);
+    expect(galleryFilterSearch("", hidden.filters)).toBe("?subcomponents=0");
+    expect(
+      parseStoredGalleryFilters(storedGalleryFilters(hidden.filters))
+        ?.subcomponents,
+    ).toBe("hide");
+
+    expect(
+      parseGalleryFilterQuery("?subcomponents=yes").filters.subcomponents,
+    ).toBeNull();
   });
 });
 

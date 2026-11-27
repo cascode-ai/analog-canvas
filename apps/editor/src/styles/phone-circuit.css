@@ -56,6 +56,39 @@
   font-size: 12px;
 }
 
+.phone-circuit-relation {
+  margin: 0;
+  color: var(--icm-text-muted);
+  font-size: 13px;
+}
+
+.phone-circuit-relation a,
+.phone-circuit-subcomponents a {
+  color: var(--icm-accent);
+  text-decoration: none;
+}
+
+.phone-circuit-relation a:hover,
+.phone-circuit-subcomponents a:hover {
+  text-decoration: underline;
+}
+
+.phone-circuit-subcomponents h2 {
+  margin: 0 0 6px;
+  color: var(--icm-text-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.phone-circuit-subcomponents ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+
 .phone-circuit-actions {
   display: flex;
   flex-wrap: wrap;

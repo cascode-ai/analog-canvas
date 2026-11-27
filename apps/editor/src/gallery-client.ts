@@ -193,6 +193,12 @@ export function subscribeGalleryRefresh(
  * panel, or people reasonably conclude the software is broken.
  */
 
+/** Minimal link to a related parent or subcomponent entry (#2658). */
+export interface GalleryRelatedEntry {
+  id: string;
+  name: string;
+}
+
 export interface GalleryFeedEntry {
   curationRevision?: number;
   attention?: GalleryAttention;
@@ -231,6 +237,14 @@ export interface GalleryFeedEntry {
   simVerified?: boolean;
   /** Its author gave a reference image, the figure it was drawn from (#2129). */
   hasReference?: boolean;
+  /** Parent circuit id when this entry is a subcomponent of a drawn block (#2658). */
+  parentEntryId?: string;
+  /** Parent circuit link when this entry is a public subcomponent (#2658). */
+  parentEntry?: GalleryRelatedEntry;
+  /** Public subcomponents extracted from this circuit (returned on entry reads). */
+  subcomponents?: GalleryRelatedEntry[];
+  /** Number of public subcomponents extracted from this circuit (returned on wall reads). */
+  subcomponentCount?: number;
   likes?: number;
   likedByViewer?: boolean;
 }
@@ -250,6 +264,10 @@ export interface GalleryQuickFilterCounts {
   human?: number;
   /** Circuits redrawn from reference datasets (#1697), the third side. */
   datasets?: number;
+  /** Subcomponents extracted from drawn blocks (#2658). */
+  subcomponents?: number;
+  /** Top-level circuits (not subcomponents) (#2658). */
+  topLevel?: number;
   /** Circuits whose author gave no reference image (#2129). */
   withoutReference?: number;
   /**
@@ -444,6 +462,8 @@ export interface GalleryFeedQuery {
   sim?: boolean;
   /** Only AI-generated circuits, those made by hand, or the datasets'. */
   ai?: "ai" | "human" | "dataset" | null;
+  /** Only subcomponents (`only`), hide them (`hide`), or show both. */
+  subcomponents?: "only" | "hide" | null;
   /** Only circuits the signed-in viewer has liked. */
   liked?: boolean;
   attention?: boolean;
@@ -499,6 +519,8 @@ function galleryFeedParams(query: GalleryFeedQuery): URLSearchParams {
       "ai",
       query.ai === "ai" ? "1" : query.ai === "human" ? "0" : "dataset",
     );
+  if (query.subcomponents)
+    params.set("subcomponents", query.subcomponents === "only" ? "1" : "0");
   if (query.liked) params.set("liked", "1");
   if (query.parts && query.parts.length > 0)
     params.set("parts", query.parts.join(","));
@@ -589,6 +611,8 @@ export async function loadGalleryFeed(
                     "ai",
                     "human",
                     "datasets",
+                    "subcomponents",
+                    "topLevel",
                     "withoutReference",
                     "sim",
                   ] as const

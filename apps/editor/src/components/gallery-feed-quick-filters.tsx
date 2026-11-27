@@ -171,6 +171,48 @@ function PersonIcon() {
   );
 }
 
+/** "Subcomponents": a child block nested inside a larger circuit (#2658). */
+function SubcomponentIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3.5" y="3.5" width="17" height="17" rx="2.5" />
+      <rect x="8.5" y="8.5" width="7" height="7" rx="1.2" />
+    </svg>
+  );
+}
+
+/** "Hide subcomponents": the subcomponent glyph, struck through (#2658). */
+function HideSubcomponentsIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="12"
+      height="12"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3.5" y="3.5" width="17" height="17" rx="2.5" />
+      <path d="M3 21 21 3" />
+    </svg>
+  );
+}
+
 export function GalleryQuickFilters({
   signedIn,
   isOwner,
@@ -179,6 +221,8 @@ export function GalleryQuickFilters({
   attentionKindCounts,
   aiFilter,
   showDatasets,
+  showSubcomponents,
+  subcomponentsFilter,
   netlistableOnly,
   withoutNetlistOnly,
   showWithoutReference,
@@ -199,6 +243,9 @@ export function GalleryQuickFilters({
   aiFilter: GalleryFilterState["ai"];
   /** Whether the wall holds reference datasets' circuits (#1697). */
   showDatasets: boolean;
+  /** Whether the wall holds subcomponent entries (#2658). */
+  showSubcomponents: boolean;
+  subcomponentsFilter: GalleryFilterState["subcomponents"];
   netlistableOnly: boolean;
   withoutNetlistOnly: boolean;
   showWithoutReference: boolean;
@@ -219,6 +266,8 @@ export function GalleryQuickFilters({
       | "ai"
       | "human"
       | "datasets"
+      | "subcomponents"
+      | "topLevel"
       | "liked"
       | "withoutReference"
       | "sim",
@@ -326,6 +375,48 @@ export function GalleryQuickFilters({
           <DatasetIcon /> <span>Datasets</span>
           {quickCount("datasets")}
         </button>
+      ) : null}
+      {showSubcomponents ? (
+        <>
+          <button
+            type="button"
+            className={quickMarkClass(subcomponentsFilter === "only")}
+            data-testid="gallery-filter-subcomponents"
+            aria-pressed={subcomponentsFilter === "only"}
+            title={
+              subcomponentsFilter === "only"
+                ? "Show both top-level circuits and subcomponents"
+                : "Show only subcomponents extracted from drawn blocks"
+            }
+            onClick={() =>
+              updateFilters({
+                subcomponents: subcomponentsFilter === "only" ? null : "only",
+              })
+            }
+          >
+            <SubcomponentIcon /> <span>Subcomponents</span>
+            {quickCount("subcomponents")}
+          </button>
+          <button
+            type="button"
+            className={quickMarkClass(subcomponentsFilter === "hide")}
+            data-testid="gallery-filter-hide-subcomponents"
+            aria-pressed={subcomponentsFilter === "hide"}
+            title={
+              subcomponentsFilter === "hide"
+                ? "Show both top-level circuits and subcomponents"
+                : "Hide subcomponents and show only top-level circuits"
+            }
+            onClick={() =>
+              updateFilters({
+                subcomponents: subcomponentsFilter === "hide" ? null : "hide",
+              })
+            }
+          >
+            <HideSubcomponentsIcon /> <span>Hide subcomponents</span>
+            {quickCount("topLevel")}
+          </button>
+        </>
       ) : null}
       {/* Where a circuit came from: an origin tag, filtered as one. */}
       {origins.map(({ tag, mark, count }) => {

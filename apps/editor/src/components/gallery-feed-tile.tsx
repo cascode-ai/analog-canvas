@@ -185,6 +185,19 @@ export function GalleryWallTile({
                 {origin}
               </span>
             ))}
+            {entry.parentEntryId ? (
+              <span
+                className="gallery-tile-mark gallery-tile-subcomponent"
+                data-testid={`gallery-subcomponent-${entry.id}`}
+                title={
+                  entry.parentEntry
+                    ? `Subcomponent of ${entry.parentEntry.name}`
+                    : "Subcomponent of a drawn block"
+                }
+              >
+                Subcomponent
+              </span>
+            ) : null}
           </span>
           <span className="gallery-tile-meta">
             {entry.author ? (
@@ -248,6 +261,81 @@ export function GalleryWallTile({
               <HeartIcon filled={entry.likedByViewer === true} />
               {entry.likes ?? 0}
             </button>
+            {entry.parentEntry ? (
+              <>
+                {" · from "}
+                <button
+                  type="button"
+                  className="gallery-tile-parent"
+                  data-testid={`gallery-parent-${entry.id}`}
+                  title={`Open parent circuit ${entry.parentEntry.name}`}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    window.location.assign(
+                      `/g/${encodeURIComponent(entry.parentEntry!.id)}`,
+                    );
+                  }}
+                >
+                  {entry.parentEntry.name}
+                </button>
+              </>
+            ) : null}
+            {entry.subcomponents?.length ? (
+              <>
+                {" · "}
+                <span
+                  className="gallery-tile-subcomponents-count"
+                  data-testid={`gallery-subcomponents-count-${entry.id}`}
+                >
+                  {entry.subcomponents.length === 1
+                    ? "subcomponent: "
+                    : "subcomponents: "}
+                  {entry.subcomponents.slice(0, 3).map((sub, index) => {
+                    const prefix = `${entry.name} · `;
+                    const shortName = sub.name.startsWith(prefix)
+                      ? sub.name.slice(prefix.length)
+                      : sub.name;
+                    return (
+                      <span key={sub.id}>
+                        {index > 0 ? ", " : ""}
+                        <button
+                          type="button"
+                          className="gallery-tile-parent"
+                          data-testid={`gallery-subcomponent-link-${sub.id}`}
+                          title={`Open subcomponent ${sub.name}`}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            window.location.assign(
+                              `/g/${encodeURIComponent(sub.id)}`,
+                            );
+                          }}
+                        >
+                          {shortName}
+                        </button>
+                      </span>
+                    );
+                  })}
+                  {entry.subcomponents.length > 3
+                    ? ` +${entry.subcomponents.length - 3}`
+                    : ""}
+                </span>
+              </>
+            ) : entry.subcomponentCount && entry.subcomponentCount > 0 ? (
+              <>
+                {" · "}
+                <span
+                  className="gallery-tile-subcomponents-count"
+                  data-testid={`gallery-subcomponents-count-${entry.id}`}
+                >
+                  {entry.subcomponentCount}{" "}
+                  {entry.subcomponentCount === 1
+                    ? "subcomponent"
+                    : "subcomponents"}
+                </span>
+              </>
+            ) : null}
           </span>
           {entry.description ? (
             <span

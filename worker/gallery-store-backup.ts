@@ -275,8 +275,8 @@ export function schemaRestore(
           recycled_at, owner_user_id, submitter_email, submitter_provider,
           project_text, svg_text, reject_reason, reviewed_at, reviewed_by,
           tags, netlistable, preview_revision, preview_width, preview_height, curation_json,
-          ai_generated, testbench_text, simulation_check_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          ai_generated, testbench_text, simulation_check_json, parent_entry_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ...values,
         sha256Hex(svgText),
         previewDimensions?.width ?? null,
@@ -289,6 +289,10 @@ export function schemaRestore(
         // A verdict comes back with the content it checked (#1545).
         typeof row.simulation_check_json === "string"
           ? row.simulation_check_json
+          : null,
+        typeof row.parent_entry_id === "string" &&
+          row.parent_entry_id.length > 0
+          ? row.parent_entry_id
           : null,
       );
     }
