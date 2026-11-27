@@ -12,7 +12,8 @@ describe("editor scene reuse", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("uses the committed formal scene bounds without a second SVG build", () => {
-    const build = vi.spyOn(renderSvg, "buildSvgScene");
+    const committed = vi.spyOn(renderSvg, "buildCommittedCanvasScene");
+    const preview = vi.spyOn(renderSvg, "buildSvgScene");
 
     renderToStaticMarkup(
       <App
@@ -21,6 +22,7 @@ describe("editor scene reuse", () => {
       />,
     );
 
-    expect(build).toHaveBeenCalledTimes(1);
+    expect(committed).toHaveBeenCalledTimes(1);
+    expect(preview).not.toHaveBeenCalled();
   });
 });

@@ -129,7 +129,7 @@ import type {
   Rotation,
   SchematicDocument,
 } from "@icm/model";
-import { buildSvgScene } from "@icm/render-svg";
+import { buildCommittedCanvasScene, buildSvgScene } from "@icm/render-svg";
 import {
   drawingOrderActions,
   selectedDrawingObjectIds,
@@ -1981,18 +1981,12 @@ function WorkspaceEditor({
       // camera-independent; rebuilding it during pan/zoom repeats all route,
       // symbol, text, and drafting derivation without changing one visible
       // object.
-      const documentConnectivity = projectConnectivityIndex.documents.get(
-        document.id,
+      return buildCommittedCanvasScene(
+        document,
+        resolver,
+        documentConnectivity,
+        usesCanvasViewport(document) && canvasGeometryPrefix,
       );
-      return buildSvgScene(document, resolver, {
-        canvasPaintRuns: usesCanvasViewport(document) && canvasGeometryPrefix,
-        ...(documentConnectivity
-          ? {
-              routingGeometry: documentConnectivity.routingGeometry,
-              contactEvidence: documentConnectivity.contactEvidence,
-            }
-          : {}),
-      });
     }, lastGoodSceneRef.current);
     if (!outcome.degraded) lastGoodSceneRef.current = outcome.scene;
     return outcome;
@@ -2000,7 +1994,7 @@ function WorkspaceEditor({
     canvasGeometryPrefix,
     document,
     formulaArtifactRevision,
-    projectConnectivityIndex,
+    documentConnectivity,
     resolver,
   ]);
   const sceneState = useMemo(() => {
