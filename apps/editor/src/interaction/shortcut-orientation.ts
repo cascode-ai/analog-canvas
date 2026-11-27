@@ -1,7 +1,7 @@
 import {
   reflectOrientation,
+  rotateOrientation,
   type Orientation,
-  type Rotation,
   type ScreenFlip,
 } from "@icm/model";
 
@@ -25,10 +25,6 @@ export function applyOrientationOperations(
     if (operation.kind === "reflect") {
       return reflectOrientation(current, operation.direction);
     }
-    return {
-      ...current,
-      rotation: ((current.rotation + operation.deltaDegrees + 360) %
-        360) as Rotation,
-    };
+    return rotateOrientation(current, operation.deltaDegrees);
   }, orientation);
 }

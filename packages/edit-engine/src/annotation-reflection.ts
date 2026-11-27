@@ -9,6 +9,7 @@ import type {
   Point,
   Rect,
   Rotation,
+  RotationDelta,
   SchematicDocument,
   ScreenFlip,
 } from "@icm/model";
@@ -51,6 +52,21 @@ function rectCenter(rect: Rect): Point {
   return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
 }
 
+function reanchoredTextPoint(
+  anchor: Point,
+  realignedBounds: Rect,
+  targetCenter: Point,
+): Point {
+  const realignedCenter = rectCenter(realignedBounds);
+  return snapGridPoint(
+    {
+      x: targetCenter.x - (realignedCenter.x - anchor.x),
+      y: targetCenter.y - (realignedCenter.y - anchor.y),
+    },
+    1,
+  );
+}
+
 /**
  * Where a text's anchor goes when its drawing is mirrored.
  *
@@ -70,15 +86,115 @@ export function reflectedTextAnchor(
   pivot: Point,
   direction: ScreenFlip,
 ): Point {
-  const center = reflectPoint(rectCenter(bounds), pivot, direction);
-  const realignedCenter = rectCenter(realignedBounds);
-  return snapGridPoint(
-    {
-      x: center.x - (realignedCenter.x - anchor.x),
-      y: center.y - (realignedCenter.y - anchor.y),
-    },
-    1,
+  return reanchoredTextPoint(
+    anchor,
+    realignedBounds,
+    reflectPoint(rectCenter(bounds), pivot, direction),
   );
+}
+
+/** Screen-space clockwise turn about a pivot. */
+export function rotatePointAboutPivot(
+  point: Point,
+  pivot: Point,
+  deltaDegrees: RotationDelta,
+): Point {
+  const dx = point.x - pivot.x;
+  const dy = point.y - pivot.y;
+  if (deltaDegrees === 90) return { x: pivot.x - dy, y: pivot.y + dx };
+  if (deltaDegrees === -90) return { x: pivot.x + dy, y: pivot.y - dx };
+  if (deltaDegrees === 180) return { x: pivot.x - dx, y: pivot.y - dy };
+  const radians = (deltaDegrees * Math.PI) / 180;
+  const cosine = Math.cos(radians);
+  const sine = Math.sin(radians);
+  return {
+    x: pivot.x + dx * cosine - dy * sine,
+    y: pivot.y + dx * sine + dy * cosine,
+  };
+}
+
+/**
+ * Alignment of an upright text line rotated about a pivot. A 180° turn flips
+ * start/end; a 90° turn flips start/end when crossing from a vertical side
+ * onto a horizontal side so two 90° turns match one 180° turn and four 90°
+ * turns restore the starting alignment.
+ */
+export function rotatedUprightTextAlignment(
+  alignment: TextAlignment,
+  oldOffset: Point,
+  newOffset: Point,
+  deltaDegrees: RotationDelta,
+): TextAlignment {
+  if (alignment === "middle") return alignment;
+  const flip =
+    deltaDegrees === 180 ||
+    (Math.abs(deltaDegrees) === 90 &&
+      Math.abs(newOffset.x) > Math.abs(newOffset.y) &&
+      Math.abs(oldOffset.x) <= Math.abs(oldOffset.y));
+  if (!flip) return alignment;
+  return alignment === "start" ? "end" : "start";
+}
+
+/** Where a text's anchor goes when its box centre orbits a pivot. */
+export function rotatedTextAnchor(
+  anchor: Point,
+  bounds: Rect,
+  realignedBounds: Rect,
+  pivot: Point,
+  deltaDegrees: RotationDelta,
+): Point {
+  return reanchoredTextPoint(
+    anchor,
+    realignedBounds,
+    rotatePointAboutPivot(rectCenter(bounds), pivot, deltaDegrees),
+  );
+}
+
+/** A schematic annotation's rotated anchor point and alignment about a pivot. */
+export function rotatedAnnotationPlacement(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  annotation: Annotation,
+  pivot: Point,
+  deltaDegrees: RotationDelta,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+): { position: Point; alignment: TextAlignment } {
+  const styleProfile = resolveDocumentStyleProfile(document.presentation);
+  const current = resolveAnnotationPresentation(
+    document,
+    resolver,
+    annotation,
+    styleProfile,
+    routingGeometry,
+  );
+  const oldCenter = rectCenter(current.bounds);
+  const newCenter = rotatePointAboutPivot(oldCenter, pivot, deltaDegrees);
+  const alignment = rotatedUprightTextAlignment(
+    annotation.alignment,
+    { x: oldCenter.x - pivot.x, y: oldCenter.y - pivot.y },
+    { x: newCenter.x - pivot.x, y: newCenter.y - pivot.y },
+    deltaDegrees,
+  );
+  const realigned =
+    alignment === annotation.alignment
+      ? current
+      : resolveAnnotationPresentation(
+          document,
+          resolver,
+          { ...annotation, alignment },
+          styleProfile,
+          routingGeometry,
+        );
+  return {
+    position: rotatedTextAnchor(
+      current.position,
+      current.bounds,
+      realigned.bounds,
+      pivot,
+      deltaDegrees,
+    ),
+    alignment,
+  };
 }
 
 /** A schematic annotation's mirrored anchor point and alignment. */

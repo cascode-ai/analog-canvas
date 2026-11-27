@@ -23,6 +23,7 @@ async function exportedTerminals(
   return document.nets.flatMap((net) => net.terminals);
 }
 
+const CTRL = 2; // CDP Input modifier bitmask for Control
 const META = 4; // CDP Input modifier bitmask (Cmd; macOS turns Ctrl+left into a right press)
 const SHIFT = 8; // CDP Input modifier bitmask for Shift
 
@@ -221,4 +222,118 @@ test("Shift+drag drops a copy, and a Shift+click adds to the selection even as t
     expect(terminals).toContainEqual(
       expect.objectContaining({ instanceId: id }),
     );
+});
+
+test("Ctrl/Cmd+drag on a marquee-selected region moves parts and internal wires together while leaving boundary wires behind", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponentAt(page, "resistor", { x: 220, y: 220 });
+  await placeComponentAt(page, "capacitor", { x: 340, y: 220 });
+  await placeComponentAt(page, "resistor", { x: 520, y: 220 });
+  const [r1Id, c1Id, r3Id] = await instanceIds(page);
+
+  await page.keyboard.press("w");
+  await wirePins(page, `${r1Id}-2`, `${c1Id}-2`);
+  await page.keyboard.press("w");
+  await wirePins(page, `${c1Id}-1`, `${r3Id}-1`);
+  await expect(page.locator('[data-canvas-hit-kind="route"]')).toHaveCount(2);
+
+  const r1 = page.getByTestId(`hit-${r1Id}`);
+  const c1 = page.getByTestId(`hit-${c1Id}`);
+  const r3 = page.getByTestId(`hit-${r3Id}`);
+  const r1Before = (await r1.boundingBox())!;
+  const c1Before = (await c1.boundingBox())!;
+  const r3Before = (await r3.boundingBox())!;
+
+  const marqueeSelectRegion = async () => {
+    const left = Math.min(r1Before.x, c1Before.x) - 35;
+    const top = Math.min(r1Before.y, c1Before.y) - 35;
+    const right =
+      Math.max(r1Before.x + r1Before.width, c1Before.x + c1Before.width) + 25;
+    const bottom =
+      Math.max(r1Before.y + r1Before.height, c1Before.y + c1Before.height) + 45;
+    await page.mouse.move(left, top);
+    await page.mouse.down();
+    await page.mouse.move(right, bottom, { steps: 10 });
+    await page.mouse.up();
+    await expect(r1).toHaveClass(/selected/);
+    await expect(c1).toHaveClass(/selected/);
+  };
+
+  await marqueeSelectRegion();
+  const docBefore: SchematicDocument = (await exportedProject(page))
+    .documents[0];
+  const internalWire = docBefore.routes.find((route) => {
+    const lastTo = route.legs.at(-1)?.to;
+    return (
+      route.start.kind === "terminal" &&
+      (route.start.instanceId === r1Id || route.start.instanceId === c1Id) &&
+      lastTo?.kind === "endpoint" &&
+      lastTo.endpoint.kind === "terminal" &&
+      lastTo.endpoint.instanceId !== r3Id
+    );
+  })!;
+  const boundaryWire = docBefore.routes.find(
+    (route) => route.id !== internalWire.id,
+  )!;
+  const boundaryPointsBefore = await page
+    .locator(`[data-canvas-hit-id="${boundaryWire.id}"]`)
+    .getAttribute("points");
+
+  // Stationary Ctrl+click on the selected internal wire toggles it without moving anything.
+  const internalWireBox = (await page
+    .locator(`[data-canvas-hit-id="${internalWire.id}"]`)
+    .boundingBox())!;
+  const wireMid = centre(internalWireBox);
+  await modifierDrag(page, wireMid, wireMid, CTRL);
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  expect(Math.abs((await r1.boundingBox())!.y - r1Before.y)).toBeLessThan(2);
+
+  // Re-select the region and Control+drag from the internal wire: the whole
+  // region (R1, C1, internal wire) moves intact, no context menu opens, and
+  // the boundary wire stays at its authored coordinates on an open stub.
+  await marqueeSelectRegion();
+  await modifierDrag(page, wireMid, { x: wireMid.x, y: wireMid.y + 130 }, CTRL);
+  await expect(page.getByRole("menu")).toHaveCount(0);
+
+  const r1After = (await r1.boundingBox())!;
+  const c1After = (await c1.boundingBox())!;
+  const r3After = (await r3.boundingBox())!;
+  const deltaY = r1After.y - r1Before.y;
+  expect(deltaY).toBeGreaterThan(80);
+  expect(Math.abs(c1After.y - c1Before.y - deltaY)).toBeLessThan(2);
+  expect(Math.abs(r3After.y - r3Before.y)).toBeLessThan(2);
+  // Boundary wire kept its exact authored geometry.
+  expect(
+    await page
+      .locator(`[data-canvas-hit-id="${boundaryWire.id}"]`)
+      .getAttribute("points"),
+  ).toBe(boundaryPointsBefore);
+  // Selection stays intact after region drop.
+  await expect(r1).toHaveClass(/selected/);
+  await expect(c1).toHaveClass(/selected/);
+
+  // Electrically: R1 and C1 remain connected via internalWire, while R3 is
+  // separated onto a stationary open stub.
+  const docAfter: SchematicDocument = (await exportedProject(page))
+    .documents[0];
+  const r1Net = docAfter.nets.find((net) =>
+    net.terminals.some((t) => t.instanceId === r1Id && t.pinName === "2"),
+  )!;
+  expect(r1Net.terminals).toContainEqual(
+    expect.objectContaining({ instanceId: c1Id, pinName: "2" }),
+  );
+  const r3Net = docAfter.nets.find((net) =>
+    net.terminals.some((t) => t.instanceId === r3Id && t.pinName === "1"),
+  )!;
+  expect(r3Net.terminals).not.toContainEqual(
+    expect.objectContaining({ instanceId: c1Id }),
+  );
+
+  // One Undo restores the region and its boundary connection cleanly.
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect
+    .poll(async () => Math.round((await r1.boundingBox())!.y))
+    .toBe(Math.round(r1Before.y));
 });

@@ -1,12 +1,18 @@
 // Turning or mirroring a selection as one rigid body: its parts orbit one
 // pivot, and its wires, Junctions and labels follow.
 import { stretchRouteEndpoint } from "./route-endpoint-stretch.js";
-import { reflectedAnnotationPlacement } from "./annotation-reflection.js";
+import {
+  reflectedAnnotationPlacement,
+  rotatedAnnotationPlacement,
+  rotatePointAboutPivot,
+} from "./annotation-reflection.js";
 import {
   reflectOrientation,
+  rotateOrientation,
   routeEnd,
   type Orientation,
   type Point,
+  type RotationDelta,
   type RouteEndpoint,
   type SchematicDocument,
   type ScreenFlip,
@@ -14,7 +20,17 @@ import {
 import type { SymbolResolver } from "@icm/symbols";
 import {
   deriveInternalGroupSelection as deriveRoutingInternalGroupSelection,
+  NET_LABEL_INK_ABOVE_WIRE,
+  NET_LABEL_WIRE_GAP,
+  netLabelBaselineAboveWire,
+  netLabelCapHeight,
+  netLabelDirection,
+  netLabelLook,
+  nextNetLabelDirection,
+  resolveAnnotationPresentation,
+  resolveAnnotationText,
   resolveDocumentRoutingGeometry,
+  resolveDocumentStyleProfile,
   type ResolvedDocumentRoutingGeometry,
 } from "@icm/derived";
 import { normalizeRouteGeometry } from "./route-geometry-edit.js";
@@ -55,7 +71,7 @@ export interface GroupRotationProposal {
 function turn(
   point: Point,
   pivot: Point,
-  deltaDegrees: 45 | -45 | 90 | -90 | 135 | -135 | 180,
+  deltaDegrees: RotationDelta,
   grid: number,
 ): Point {
   const dx = point.x - pivot.x;
@@ -97,7 +113,7 @@ export function proposeGroupRotation(
   document: SchematicDocument,
   resolver: SymbolResolver,
   instanceIds: readonly string[],
-  deltaDegrees: 45 | -45 | 90 | -90 | 135 | -135 | 180,
+  deltaDegrees: RotationDelta,
   center?: Point,
   additionalJunctionIds: readonly string[] = [],
 ): GroupRotationProposal {
@@ -108,14 +124,12 @@ export function proposeGroupRotation(
     (pivot) => ({
       point: (point) =>
         turn(point, pivot, deltaDegrees, document.presentation.grid),
-      placement: (placement) => ({
-        rotation: ((((placement.rotation + deltaDegrees) % 360) + 360) %
-          360) as Orientation["rotation"],
-        mirror: placement.mirror,
-      }),
+      placement: (placement) => rotateOrientation(placement, deltaDegrees),
     }),
     center,
     additionalJunctionIds,
+    undefined,
+    deltaDegrees,
   );
 }
 
@@ -170,6 +184,8 @@ function proposeRigidBodyMove(
   additionalJunctionIds: readonly string[] = [],
   /** Set when the body is mirrored rather than turned. */
   reflection?: ScreenFlip,
+  /** Set when the body is turned rather than mirrored. */
+  rotationDelta?: RotationDelta,
 ): GroupRotationProposal {
   const selected = new Set(instanceIds);
   const placed = document.instances.filter(
@@ -363,29 +379,252 @@ function proposeRigidBodyMove(
           reflection,
           { rigidRouteIds, turningJunctionIds, turnedObjectIds },
         )
-      : document.annotations
-          .filter(
-            (annotation) =>
-              annotation.anchor.kind === "free" &&
-              turnedObjectIds.has(annotation.netId ?? ""),
-          )
-          .map((annotation): AnnotationMoveProposal => {
-            const anchor = annotation.anchor;
-            if (anchor.kind !== "free") {
-              throw new Error("Free annotation filter lost anchor narrowing");
-            }
-            return {
-              annotationId: annotation.id,
-              anchor: {
-                kind: "free" as const,
-                position: transform.point(anchor.position),
-              },
-            };
-          })
+      : rotatedFollowerAnnotations(
+          document,
+          resolver,
+          routingGeometry,
+          pivot,
+          transform,
+          rotationDelta ?? 90,
+          { rigidRouteIds, turningJunctionIds, turnedObjectIds },
+        )
     ).sort((left, right) =>
       left.annotationId.localeCompare(right.annotationId, "en"),
     ),
   };
+}
+
+/**
+ * The labels a rotated body carries: those on its rigid wires, on its
+ * Junctions, and free labels naming one of its Nets. Upright wire labels keep
+ * readable clearance on the rotated side of their segment so a horizontal
+ * wire's label never strikes across a vertical wire after a quarter turn or
+ * drops its capitals into the wire after a half turn.
+ */
+function rotatedFollowerAnnotations(
+  document: SchematicDocument,
+  resolver: SymbolResolver,
+  routingGeometry: ResolvedDocumentRoutingGeometry,
+  pivot: Point,
+  transform: RigidBodyTransform,
+  deltaDegrees: RotationDelta,
+  body: {
+    rigidRouteIds: ReadonlySet<string>;
+    turningJunctionIds: ReadonlySet<string>;
+    turnedObjectIds: ReadonlySet<string>;
+  },
+): AnnotationMoveProposal[] {
+  const styleProfile = resolveDocumentStyleProfile(document.presentation);
+  return document.annotations.flatMap(
+    (annotation): AnnotationMoveProposal[] => {
+      if (annotation.locked) return [];
+      const anchor = annotation.anchor;
+      const follows =
+        anchor.kind === "route"
+          ? body.rigidRouteIds.has(anchor.routeId) &&
+            (annotation.kind === "net-label" ||
+              annotation.kind === "power-label")
+          : anchor.kind === "object"
+            ? body.turningJunctionIds.has(anchor.objectId)
+            : body.turnedObjectIds.has(annotation.netId ?? "");
+      if (!follows) return [];
+      if (anchor.kind === "free") {
+        const placement = rotatedAnnotationPlacement(
+          document,
+          resolver,
+          annotation,
+          pivot,
+          deltaDegrees,
+          routingGeometry,
+        );
+        return [
+          {
+            annotationId: annotation.id,
+            anchor: { kind: "free", position: placement.position },
+            ...(placement.alignment === annotation.alignment
+              ? {}
+              : { alignment: placement.alignment }),
+          },
+        ];
+      }
+      if (anchor.kind === "object") {
+        const junction = document.junctions.find(
+          (candidate) => candidate.id === anchor.objectId,
+        );
+        if (!junction) return [];
+        const moved = transform.point(junction.position);
+        const placement = rotatedAnnotationPlacement(
+          document,
+          resolver,
+          annotation,
+          pivot,
+          deltaDegrees,
+          routingGeometry,
+        );
+        return [
+          {
+            annotationId: annotation.id,
+            anchor: {
+              ...anchor,
+              localOffset: {
+                x: placement.position.x - moved.x,
+                y: placement.position.y - moved.y,
+              },
+              fallbackPosition: placement.position,
+            },
+            ...(placement.alignment === annotation.alignment
+              ? {}
+              : { alignment: placement.alignment }),
+          },
+        ];
+      }
+      if (
+        (annotation.rotation !== 0 && annotation.rotation !== 270) ||
+        Math.abs(deltaDegrees) % 90 !== 0
+      ) {
+        return [];
+      }
+      const segment = routingGeometry.routes
+        .get(anchor.routeId)
+        ?.segments.find(
+          (candidate) => candidate.address.legId === anchor.legId,
+        );
+      if (!segment) return [];
+      const from = transform.point(segment.from);
+      const to = transform.point(segment.to);
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const length = Math.hypot(dx, dy);
+      if (length === 0) return [];
+      const conductor = {
+        x: from.x + dx * anchor.t,
+        y: from.y + dy * anchor.t,
+      };
+      const sizeScale = annotation.sizeScale ?? 1;
+      if (annotation.rotation === 270) {
+        const turns = (((deltaDegrees / 90) % 4) + 4) % 4;
+        let direction = netLabelDirection({
+          rotation: annotation.rotation,
+          alignment: annotation.alignment,
+        });
+        for (let step = 0; step < turns; step += 1) {
+          direction = nextNetLabelDirection(direction);
+        }
+        const look = netLabelLook(
+          direction,
+          from,
+          to,
+          netLabelCapHeight(styleProfile, sizeScale),
+          netLabelBaselineAboveWire(
+            resolveAnnotationText(document, annotation),
+            styleProfile,
+            sizeScale,
+          ),
+        );
+        const normal = { x: -dy / length, y: dx / length };
+        const fallbackPosition = {
+          x: Math.round(conductor.x + normal.x * look.normalOffset),
+          y: Math.round(conductor.y + normal.y * look.normalOffset),
+        };
+        return [
+          {
+            annotationId: annotation.id,
+            anchor: {
+              ...anchor,
+              normalOffset: Math.round(look.normalOffset * 1000) / 1000,
+              fallbackPosition,
+            },
+            ...(look.alignment === annotation.alignment
+              ? {}
+              : { alignment: look.alignment }),
+            ...(look.rotation === annotation.rotation
+              ? {}
+              : { rotation: look.rotation }),
+          },
+        ];
+      }
+      const oldConductor = {
+        x: segment.from.x + (segment.to.x - segment.from.x) * anchor.t,
+        y: segment.from.y + (segment.to.y - segment.from.y) * anchor.t,
+      };
+      const oldPresentation = resolveAnnotationPresentation(
+        document,
+        resolver,
+        annotation,
+        styleProfile,
+        routingGeometry,
+      );
+      const oldInk = oldPresentation.inkBounds;
+      const oldVector = {
+        x: oldInk.x + oldInk.width / 2 - oldConductor.x,
+        y: oldInk.y + oldInk.height / 2 - oldConductor.y,
+      };
+      const rotatedVector = rotatePointAboutPivot(
+        oldVector,
+        { x: 0, y: 0 },
+        deltaDegrees,
+      );
+      const vertical = Math.abs(dy) > Math.abs(dx);
+      let targetPoint: Point;
+      let alignment: AnnotationMoveProposal["alignment"];
+      if (vertical) {
+        const rightSide = rotatedVector.x >= 0;
+        const oldClearance =
+          Math.abs(segment.to.y - segment.from.y) >
+          Math.abs(segment.to.x - segment.from.x)
+            ? Math.max(
+                oldInk.x - oldConductor.x,
+                oldConductor.x - (oldInk.x + oldInk.width),
+              )
+            : Math.max(
+                oldInk.y - oldConductor.y,
+                oldConductor.y - (oldInk.y + oldInk.height),
+              );
+        const gap = Math.max(NET_LABEL_WIRE_GAP, Math.round(oldClearance));
+        targetPoint = {
+          x: Math.round(conductor.x + (rightSide ? gap : -gap)),
+          y: Math.round(conductor.y),
+        };
+        alignment = rightSide ? "start" : "end";
+      } else {
+        const above = rotatedVector.y <= 0;
+        const baselineAbove = netLabelBaselineAboveWire(
+          resolveAnnotationText(document, annotation),
+          styleProfile,
+          sizeScale,
+        );
+        const capHeight = netLabelCapHeight(styleProfile, sizeScale);
+        const offsetY = above
+          ? -baselineAbove
+          : Math.ceil(capHeight + NET_LABEL_INK_ABOVE_WIRE);
+        targetPoint = {
+          x: Math.round(conductor.x),
+          y: Math.round(conductor.y + offsetY),
+        };
+        alignment =
+          annotation.alignment === "middle"
+            ? "middle"
+            : above
+              ? "start"
+              : "end";
+      }
+      const normalOffset =
+        ((targetPoint.x - conductor.x) * -dy +
+          (targetPoint.y - conductor.y) * dx) /
+        length;
+      return [
+        {
+          annotationId: annotation.id,
+          anchor: {
+            ...anchor,
+            normalOffset: Math.round(normalOffset * 1000) / 1000,
+            fallbackPosition: targetPoint,
+          },
+          ...(alignment === annotation.alignment ? {} : { alignment }),
+        },
+      ];
+    },
+  );
 }
 
 /**

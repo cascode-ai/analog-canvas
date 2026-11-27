@@ -172,4 +172,61 @@ describe("routing affected closure", () => {
       boundaryRoutes: ["dangling"],
     });
   });
+
+  it("classifies a Route connecting a selected Instance and selected Junction as internal", () => {
+    const document = createEmptyDocument("main", "Main");
+    document.instances.push(
+      {
+        id: "R1",
+        symbolId: "resistor",
+        placement: { position: { x: 0, y: 0 }, rotation: 0, mirror: "none" },
+      },
+      {
+        id: "R2",
+        symbolId: "resistor",
+        placement: { position: { x: 200, y: 0 }, rotation: 0, mirror: "none" },
+      },
+    );
+    document.nets.push({
+      id: "n1",
+      terminals: [terminal("R1", "2"), terminal("R2", "1")],
+    });
+    document.junctions.push({
+      id: "J1",
+      netId: "n1",
+      position: { x: 100, y: 0 },
+    });
+    document.routes.push(
+      createRoutePath({
+        id: "r-inside",
+        netId: "n1",
+        start: terminal("R1", "2"),
+        end: { kind: "junction", junctionId: "J1" },
+        bends: [],
+        modes: ["manual"],
+      }),
+      createRoutePath({
+        id: "r-boundary",
+        netId: "n1",
+        start: { kind: "junction", junctionId: "J1" },
+        end: terminal("R2", "1"),
+        bends: [],
+        modes: ["manual"],
+      }),
+    );
+
+    expect(
+      deriveRoutingAffectedClosure(document, {
+        instanceIds: ["R1"],
+        routeIds: [],
+        junctionIds: ["J1"],
+      }),
+    ).toMatchObject({
+      instances: ["R1"],
+      internalRoutes: ["r-inside"],
+      boundaryRoutes: ["r-boundary"],
+      externalRoutes: [],
+      internalJunctions: ["J1"],
+    });
+  });
 });

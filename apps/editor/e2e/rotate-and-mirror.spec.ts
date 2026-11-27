@@ -228,3 +228,92 @@ test("Properties mirror buttons carry the MOS name and value with the part, and 
     initial.annotations,
   );
 });
+
+test("rotating resistor and capacitor with reference and value labels preserves relative placement through 360°", async ({
+  page,
+}) => {
+  await page.goto("/editor");
+  await placeComponent(page, "resistor", { x: 260, y: 260 });
+  await placeComponent(page, "capacitor", { x: 420, y: 260 });
+
+  const readPartBoxes = async (instanceId: string) =>
+    page.evaluate((id) => {
+      const symbol = document.querySelector(
+        `[data-layer="symbols"] [data-object-id="${id}"]`,
+      ) as SVGGraphicsElement | null;
+      const labels = Array.from(
+        document.querySelectorAll(
+          '[data-layer="annotations"] [data-object-id]',
+        ),
+      )
+        .filter((el) => {
+          const objId = el.getAttribute("data-object-id") ?? "";
+          return (
+            objId.endsWith(`-${id}`) || objId === `label-${id.toLowerCase()}`
+          );
+        })
+        .map((el) => {
+          const b = (el as SVGGraphicsElement).getBBox();
+          return {
+            id: el.getAttribute("data-object-id") ?? "",
+            x: b.x,
+            y: b.y,
+            width: b.width,
+            height: b.height,
+          };
+        });
+      const sb = symbol!.getBBox();
+      return {
+        symbol: { x: sb.x, y: sb.y, width: sb.width, height: sb.height },
+        labels,
+      };
+    }, instanceId);
+
+  const overlaps = (
+    a: { x: number; y: number; width: number; height: number },
+    b: { x: number; y: number; width: number; height: number },
+  ) =>
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y;
+
+  // Turn on value labels for both R1 (right-seated) and C1 (mirrored left-seated).
+  for (const id of ["R1", "C1"]) {
+    await page.getByTestId(`hit-${id}`).click();
+    await openSelectionShelf(page);
+    await setComponentCodeField(page, "display.value", true);
+    await closeSelectionShelf(page);
+  }
+  await page.getByTestId("hit-C1").click();
+  await page.keyboard.press("Shift+R");
+
+  for (const id of ["R1", "C1"]) {
+    await page.getByTestId(`hit-${id}`).click();
+    const initial: SchematicDocument = await exportedDocument(page);
+    const initialLabels = initial.annotations.filter(
+      (a) => a.anchor.kind === "object" && a.anchor.objectId === id,
+    );
+    expect(initialLabels.length).toBeGreaterThanOrEqual(2);
+
+    for (let step = 0; step < 4; step += 1) {
+      await page.keyboard.press("r");
+      const { symbol, labels } = await readPartBoxes(id);
+      const refBox = labels.find((l) => l.id.includes("label"))!;
+      const valBox = labels.find((l) => l.id.includes("value"))!;
+      expect(refBox, `${id} step ${step + 1}`).toBeDefined();
+      expect(valBox, `${id} step ${step + 1}`).toBeDefined();
+      // Name stays above value and neither overlaps the body or each other.
+      expect(refBox.y + refBox.height).toBeLessThanOrEqual(valBox.y + 1);
+      expect(overlaps(refBox, valBox)).toBe(false);
+      expect(overlaps(refBox, symbol)).toBe(false);
+      expect(overlaps(valBox, symbol)).toBe(false);
+    }
+
+    const restored: SchematicDocument = await exportedDocument(page);
+    const restoredLabels = restored.annotations.filter(
+      (a) => a.anchor.kind === "object" && a.anchor.objectId === id,
+    );
+    expect(restoredLabels).toEqual(initialLabels);
+  }
+});

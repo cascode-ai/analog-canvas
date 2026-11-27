@@ -18,6 +18,7 @@ import {
   startCanvasDragSession,
   type CanvasDragSession,
 } from "../../canvas/canvas-drag-session";
+import { isPrimaryOrCtrlCanvasButton } from "../../canvas/pointer-down-router";
 import { startCanvasDragVisual } from "../../canvas/canvas-drag-visual";
 import {
   buildDraftingAnchors,
@@ -107,7 +108,8 @@ export function createDraftingDragController({
     const liveObject = startDocument.drafting?.objects.find(
       (item) => item.id === object.id,
     );
-    if (event.button !== 0 || !liveObject || liveObject.locked) return;
+    if (!isPrimaryOrCtrlCanvasButton(event) || !liveObject || liveObject.locked)
+      return;
     if (onCompositeMove(event, hitTarget)) return;
     const additiveSelection = event.shiftKey || event.ctrlKey || event.metaKey;
     const origin = draftingMoveOrigin(startDocument, resolver, liveObject);
@@ -258,7 +260,8 @@ export function createDraftingDragController({
     const liveObject = startDocument.drafting?.objects.find(
       (item) => item.id === object.id,
     );
-    if (event.button !== 0 || !liveObject || liveObject.locked) return;
+    if (!isPrimaryOrCtrlCanvasButton(event) || !liveObject || liveObject.locked)
+      return;
     event.stopPropagation();
     dragSessionRef.current?.cancel();
     const hitTarget = event.currentTarget;

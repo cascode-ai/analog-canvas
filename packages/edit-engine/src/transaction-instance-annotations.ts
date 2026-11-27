@@ -50,6 +50,11 @@ import {
 } from "@icm/derived";
 import { referenceDeviceLetter } from "@icm/devices";
 import type { SymbolResolver } from "@icm/symbols";
+import {
+  placeRotatedInstanceLabelGroup,
+  rotatedInstanceLabelGroupSeat,
+  rotatedSide,
+} from "./instance-label-rotation.js";
 
 export function translateObjectAnchoredAnnotation(
   annotation: Annotation,
@@ -812,6 +817,31 @@ export function followAttachedAnnotations(
   const newMirror = mirrorScale(newOrientation.mirror);
   const horizontal = oldMirror.x * newMirror.x;
   const vertical = oldMirror.y * newMirror.y;
+  const worldBasisX = transformPoint(
+    inverseTransformPoint({ x: 1, y: 0 }, origin, oldOrientation),
+    origin,
+    newOrientation,
+  );
+  const worldBasisY = transformPoint(
+    inverseTransformPoint({ x: 0, y: 1 }, origin, oldOrientation),
+    origin,
+    newOrientation,
+  );
+  const orthogonalProperRotation =
+    !reflection &&
+    Math.abs(Math.abs(worldBasisX.x) + Math.abs(worldBasisX.y) - 1) < 1e-6 &&
+    Math.abs(Math.abs(worldBasisY.x) + Math.abs(worldBasisY.y) - 1) < 1e-6 &&
+    worldBasisX.x * worldBasisY.y - worldBasisX.y * worldBasisY.x > 0.5;
+  const rotateOrthogonalVector = (vector: Point): Point => ({
+    x: Math.round(worldBasisX.x * vector.x + worldBasisY.x * vector.y) || 0,
+    y: Math.round(worldBasisX.y * vector.x + worldBasisY.y * vector.y) || 0,
+  });
+  const canUseSideGroupRule =
+    instance !== undefined &&
+    resolved !== undefined &&
+    instance.symbolId !== "port" &&
+    instance.symbolId !== "port-filled" &&
+    !isSupplyPortSymbol(instance.symbolId);
   // Read before any label moves: a name over its value stays over it, and a
   // name and value standing as a group stay one, name first.
   const nameOverValue =
@@ -824,7 +854,7 @@ export function followAttachedAnnotations(
           oldOrientation,
         )
       : false;
-  const group =
+  const reflectedGroup =
     reflection && vertical < 0 && instance && resolved
       ? instanceLabelGroup(
           draft,
@@ -834,11 +864,103 @@ export function followAttachedAnnotations(
           oldOrientation,
         )
       : null;
+  let rotatedGroup =
+    orthogonalProperRotation && canUseSideGroupRule
+      ? rotatedInstanceLabelGroupSeat(
+          draft,
+          instance,
+          resolved,
+          oldPosition,
+          oldOrientation,
+          instanceValueAnnotation,
+        )
+      : null;
+  if (rotatedGroup && instance && resolved) {
+    if (rotatedGroup.seat.shift.x === 0 && rotatedGroup.seat.shift.y === 0) {
+      const nameCanonical =
+        canonicalInstanceLabelRow(
+          rotatedGroup.name,
+          instance,
+          resolved,
+          draft,
+          oldPosition,
+          oldOrientation,
+          resolver,
+        ) !== null;
+      const valueCanonical =
+        canonicalInstanceLabelRow(
+          rotatedGroup.value,
+          instance,
+          resolved,
+          draft,
+          oldPosition,
+          oldOrientation,
+          resolver,
+        ) !== null;
+      if (nameCanonical || valueCanonical) {
+        // When either member already follows the canonical rule on an unslid
+        // side (including prior-rule row/gap distances), settle the whole pair
+        // onto the current canonical side seat so neither label stops following.
+        rotatedGroup = { ...rotatedGroup, outward: 0, rowDelta: null };
+      }
+    } else {
+      const beforeInstance = {
+        ...instance,
+        placement: { position: oldPosition, ...oldOrientation },
+      };
+      const atCurrentDefault = (label: Annotation): boolean => {
+        if (label.anchor.kind !== "object" || label.rotation !== 0) {
+          return false;
+        }
+        const profile = objectStyleProfile(
+          resolveDocumentStyleProfile(draft.presentation),
+          label,
+        );
+        const visible = {
+          x: oldPosition.x + label.anchor.localOffset.x,
+          y: oldPosition.y + label.anchor.localOffset.y,
+        };
+        const slots =
+          label.kind === "instance-value"
+            ? (["value", "reference"] as const)
+            : (["reference", "reference-over-value"] as const);
+        return slots.some((candidateSlot) => {
+          const expected = defaultInstanceLabelPlacement(
+            beforeInstance,
+            resolved,
+            profile,
+            draft.presentation.grid,
+            candidateSlot,
+            label.sizeScale,
+          );
+          return (
+            expected !== null &&
+            expected.alignment === label.alignment &&
+            samePoint(visible, expected.position)
+          );
+        });
+      };
+      if (
+        atCurrentDefault(rotatedGroup.name) ||
+        atCurrentDefault(rotatedGroup.value)
+      ) {
+        // A slid pair where one member sits on a current canonical slot lets
+        // that canonical label keep following the canonical rule.
+        rotatedGroup = null;
+      }
+    }
+  }
+  const rotatedGroupIds = new Set(
+    rotatedGroup ? [rotatedGroup.name.id, rotatedGroup.value.id] : [],
+  );
   for (const annotation of draft.annotations) {
     if (
       annotation.anchor.kind !== "object" ||
       annotation.anchor.objectId !== instanceId
     ) {
+      continue;
+    }
+    if (rotatedGroupIds.has(annotation.id)) {
       continue;
     }
     if (reflection) {
@@ -1162,16 +1284,17 @@ export function followAttachedAnnotations(
     // boundary once at single-pixel precision instead of snapping the label
     // back to the coarser schematic connection grid.
     const persistedPosition = snapGridPoint(position, 1);
+    const nextOffset = {
+      x: persistedPosition.x - newPosition.x,
+      y: persistedPosition.y - newPosition.y,
+    };
     annotation.anchor = {
       ...annotation.anchor,
       // Object anchors resolve localOffset directly in world space. Persist
       // the reflowed upright glyph baseline with only the integer precision
       // required by the Document schema. The label placer already performs
       // the one authoritative schematic-grid snap for canonical labels.
-      localOffset: {
-        x: persistedPosition.x - newPosition.x,
-        y: persistedPosition.y - newPosition.y,
-      },
+      localOffset: nextOffset,
       fallbackPosition: persistedPosition,
     };
     if (slot !== null) {
@@ -1179,17 +1302,9 @@ export function followAttachedAnnotations(
       if (transformedAlignment !== null) {
         annotation.alignment = transformedAlignment;
       } else if (annotation.alignment !== "middle") {
-        // Rigid fallback for a user-placed label: upright text never mirrors
-        // as glyphs, so when the orientation change flips the world x-axis
-        // (a left/right mirror, or a 180-degree turn), the anchor lands on
-        // the far side of the artwork and the text must extend the other
-        // way. A 90-degree turn maps x to y and keeps the alignment.
-        const worldX = transformPoint(
-          inverseTransformPoint({ x: 1, y: 0 }, origin, oldOrientation),
-          origin,
-          newOrientation,
-        );
-        if (worldX.x < 0) {
+        // Rigid fallback for a far user-placed label: upright text never
+        // mirrors as glyphs, so flip start/end when the world x-axis reverses.
+        if (worldBasisX.x < 0) {
           annotation.alignment =
             annotation.alignment === "start" ? "end" : "start";
         }
@@ -1207,29 +1322,38 @@ export function followAttachedAnnotations(
     }
     changedObjectIds.add(annotation.id);
   }
-  const nameLabel = group && instanceGroupLabel(draft, group.name, newPosition);
-  const valueLabel =
-    group && instanceGroupLabel(draft, group.value, newPosition);
-  if (group && nameLabel && valueLabel && instance && resolved) {
+  const reflectedNameLabel =
+    reflectedGroup &&
+    instanceGroupLabel(draft, reflectedGroup.name, newPosition);
+  const reflectedValueLabel =
+    reflectedGroup &&
+    instanceGroupLabel(draft, reflectedGroup.value, newPosition);
+  if (
+    reflectedGroup &&
+    reflectedNameLabel &&
+    reflectedValueLabel &&
+    instance &&
+    resolved
+  ) {
     // On the mirrored side, slid as far the mirrored way.
     const seated = seatedInstanceLabelGroup(
       { ...instance, placement: { position: newPosition, ...newOrientation } },
       resolved,
       draft.presentation.grid,
       {
-        side: reflectedSide(group.seat.side, horizontal, vertical),
+        side: reflectedSide(reflectedGroup.seat.side, horizontal, vertical),
         shift: {
-          x: group.seat.shift.x * horizontal,
-          y: group.seat.shift.y * vertical,
+          x: reflectedGroup.seat.shift.x * horizontal,
+          y: reflectedGroup.seat.shift.y * vertical,
         },
       },
-      nameLabel,
-      valueLabel,
+      reflectedNameLabel,
+      reflectedValueLabel,
     );
     if (seated)
       for (const [annotation, target] of [
-        [group.name, seated.name],
-        [group.value, seated.value],
+        [reflectedGroup.name, seated.name],
+        [reflectedGroup.value, seated.value],
       ] as const) {
         if (annotation.anchor.kind !== "object") continue;
         annotation.anchor = {
@@ -1243,6 +1367,40 @@ export function followAttachedAnnotations(
         annotation.alignment = target.alignment;
         changedObjectIds.add(annotation.id);
       }
+  }
+  if (rotatedGroup && instance && resolved) {
+    const nextSide = rotatedSide(
+      rotatedGroup.seat.side,
+      rotateOrthogonalVector,
+    );
+    const nextShift = rotateOrthogonalVector(rotatedGroup.seat.shift);
+    const placed = placeRotatedInstanceLabelGroup(
+      draft,
+      { ...instance, placement: { position: newPosition, ...newOrientation } },
+      resolved,
+      rotatedGroup,
+      nextSide,
+      nextShift,
+    );
+    if (placed) {
+      for (const [annotation, target] of [
+        [rotatedGroup.name, placed.name],
+        [rotatedGroup.value, placed.value],
+      ] as const) {
+        if (annotation.anchor.kind !== "object") continue;
+        annotation.anchor = {
+          ...annotation.anchor,
+          localOffset: {
+            x: target.position.x - newPosition.x,
+            y: target.position.y - newPosition.y,
+          },
+          fallbackPosition: target.position,
+        };
+        annotation.alignment = target.alignment;
+        annotation.rotation = 0;
+        changedObjectIds.add(annotation.id);
+      }
+    }
   }
 }
 

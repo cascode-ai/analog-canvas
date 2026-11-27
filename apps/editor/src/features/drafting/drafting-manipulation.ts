@@ -1,9 +1,16 @@
 import { draftTextTurn, type ResolvedDraftingGeometry } from "@icm/derived";
-import { reflectOrientation, snapGridPoint } from "@icm/model";
+import {
+  reflectOrientation,
+  rotateOrientation,
+  snapGridPoint,
+} from "@icm/model";
 import {
   reflectedTextAlignment,
   reflectedTextAnchor,
   reflectPoint,
+  rotatePointAboutPivot,
+  rotatedTextAnchor,
+  rotatedUprightTextAlignment,
   translateDraftingObject,
 } from "@icm/edit-engine";
 
@@ -13,6 +20,7 @@ import type {
   DraftingObject,
   GridPoint,
   Rotation,
+  RotationDelta,
   ScreenFlip,
   VisualAnchor,
 } from "@icm/model";
@@ -665,6 +673,167 @@ export function rotateDraftingObject(
     };
   }
   return null;
+}
+
+function rotateAnchorAboutPivot<T extends VisualAnchor>(
+  anchor: T,
+  pivot: DerivedPoint,
+  deltaDegrees: RotationDelta,
+  rotatedHostIds: ReadonlySet<string>,
+): T {
+  const turn = (point: GridPoint): GridPoint =>
+    snapGridPoint(rotatePointAboutPivot(point, pivot, deltaDegrees), 1);
+  if (anchor.kind === "free") {
+    return { ...anchor, position: turn(anchor.position) };
+  }
+  if (anchor.kind === "object") {
+    if (!rotatedHostIds.has(anchor.objectId)) return anchor;
+    return {
+      ...anchor,
+      localOffset: snapGridPoint(
+        rotatePointAboutPivot(anchor.localOffset, { x: 0, y: 0 }, deltaDegrees),
+        1,
+      ),
+      fallbackPosition: turn(anchor.fallbackPosition),
+    };
+  }
+  if (!rotatedHostIds.has(anchor.routeId)) return anchor;
+  return {
+    ...anchor,
+    fallbackPosition: turn(anchor.fallbackPosition),
+  };
+}
+
+/**
+ * Rotate a drafting object about a shared group pivot, as one member of a
+ * rotated selection. Lines, arrows and shapes orbit the pivot; upright text
+ * orbits by its box centre and keeps readable glyphs.
+ */
+export function rotateDraftingObjectAboutPivot(
+  object: DraftingObject,
+  pivot: DerivedPoint,
+  deltaDegrees: RotationDelta,
+  rotatedHostIds: ReadonlySet<string>,
+  geometryOf: (object: DraftingObject) => ResolvedDraftingGeometry,
+): DraftingObject | null {
+  if (object.locked) return null;
+  const turn = (point: GridPoint): GridPoint =>
+    snapGridPoint(rotatePointAboutPivot(point, pivot, deltaDegrees), 1);
+  const anchor = (value: VisualAnchor): VisualAnchor =>
+    rotateAnchorAboutPivot(value, pivot, deltaDegrees, rotatedHostIds);
+  switch (object.kind) {
+    case "text": {
+      const rotation =
+        object.polarity === "both"
+          ? (((((object.rotation + deltaDegrees) % 360) + 360) %
+              360) as Rotation)
+          : object.rotation;
+      if (object.anchor.kind !== "free") {
+        const next = anchor(object.anchor);
+        return next === object.anchor && rotation === object.rotation
+          ? null
+          : { ...object, anchor: next, rotation };
+      }
+      const geometry = geometryOf(object);
+      if (geometry.kind !== "text") return null;
+      const oldCenter = {
+        x: geometry.bounds.x + geometry.bounds.width / 2,
+        y: geometry.bounds.y + geometry.bounds.height / 2,
+      };
+      const newCenter = rotatePointAboutPivot(oldCenter, pivot, deltaDegrees);
+      const alignment =
+        object.rotation === 0
+          ? rotatedUprightTextAlignment(
+              object.alignment,
+              { x: oldCenter.x - pivot.x, y: oldCenter.y - pivot.y },
+              { x: newCenter.x - pivot.x, y: newCenter.y - pivot.y },
+              deltaDegrees,
+            )
+          : object.alignment;
+      const realigned =
+        alignment === object.alignment && rotation === object.rotation
+          ? geometry
+          : geometryOf({ ...object, alignment, rotation });
+      if (realigned.kind !== "text") return null;
+      return {
+        ...object,
+        alignment,
+        rotation,
+        anchor: {
+          kind: "free",
+          position: rotatedTextAnchor(
+            geometry.position,
+            geometry.bounds,
+            realigned.bounds,
+            pivot,
+            deltaDegrees,
+          ),
+        },
+      };
+    }
+    case "callout":
+      return {
+        ...object,
+        anchor: anchor(object.anchor),
+        target: anchor(object.target),
+      };
+    case "leader":
+      return {
+        ...object,
+        anchor: anchor(object.anchor),
+        target: anchor(object.target),
+      };
+    case "arrow":
+      return {
+        ...object,
+        anchor: anchor(object.anchor),
+        from: anchor(object.from),
+        to: anchor(object.to),
+        waypoints: object.waypoints?.map(turn),
+        curveControls: object.curveControls?.map((point) =>
+          point ? turn(point) : null,
+        ),
+      };
+    case "construction-line":
+      return {
+        ...object,
+        anchor: anchor(object.anchor),
+        points: object.points.map(turn),
+        curveControls: object.curveControls?.map((point) =>
+          point ? turn(point) : null,
+        ),
+      };
+    case "rectangle": {
+      const center = turn(object.center);
+      return {
+        ...object,
+        center,
+        anchor: { kind: "free", position: center },
+        rotation: (((object.rotation + deltaDegrees) % 360) + 360) % 360,
+      };
+    }
+    case "circle": {
+      const center = turn(object.center);
+      return { ...object, center, anchor: { kind: "free", position: center } };
+    }
+    case "arc": {
+      const start = turn(object.start);
+      const next = {
+        ...object,
+        start,
+        through: turn(object.through),
+        end: turn(object.end),
+        anchor: { kind: "free" as const, position: start },
+      };
+      return arcPointsTurn(next) ? next : null;
+    }
+    case "floating-symbol":
+      return {
+        ...object,
+        anchor: anchor(object.anchor),
+        transform: rotateOrientation(object.transform, deltaDegrees),
+      };
+  }
 }
 
 /**

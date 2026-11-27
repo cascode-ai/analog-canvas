@@ -72,6 +72,18 @@ import {
 
 type TransactionResult = { ok: boolean };
 
+/**
+ * Deferred boundary detachment applied atomically with the non-zero move.
+ * Keeping boundary stub creation in the same transaction as the move prevents
+ * the stationary stub Junction and moving Junction from coalescing at delta=0.
+ */
+export interface DetachedRegionMoveContext {
+  readonly prefixEdits: readonly SchematicEdit[];
+  readonly detachedBoundaryRouteIds: readonly string[];
+  readonly partitionedNetIds: readonly string[];
+  readonly disconnectedEndpointKeys: readonly string[];
+}
+
 /** Frozen source membership and pointer origin for one editor gesture. */
 export interface SelectionMovePreview {
   instanceIds: string[];
@@ -79,6 +91,7 @@ export interface SelectionMovePreview {
   originalPositions: Record<string, Point>;
   pointerStart: Point;
   movePlan: SelectionMovePlan;
+  detachedRegion?: DetachedRegionMoveContext;
 }
 
 export interface ResolvedSelectionMove {
@@ -441,12 +454,16 @@ export function createSelectionMoveController({
           gridAlignedTranslation: true,
           captureWithinGridStep: true,
         };
+    const detachedBoundaryRouteIds = new Set(
+      preview.detachedRegion?.detachedBoundaryRouteIds ?? [],
+    );
     const projectRouteTargets =
       cachedFacts?.routeTargets ??
       prepareMoveRouteTargets(
         sourceRouteGeometryRecords.filter(
           ({ route }) =>
             !carriedRouteIds.has(route.id) &&
+            !detachedBoundaryRouteIds.has(route.id) &&
             !routeEndpoints(route).some(
               (e) => e.kind === "terminal" && movingIds.has(e.instanceId),
             ),
@@ -655,18 +672,61 @@ export function createSelectionMoveController({
         routeIds: preview.movePlan.translatedRouteIds,
         junctionIds: preview.movePlan.translatedJunctionIds,
       });
-    const routingPlan = planTransform(delta, contact);
+    const detachedRegion = preview.detachedRegion;
+    // A deferred region detach separates boundary connections in the same
+    // atomic transaction as the move; suppress pre-detach contact merges so a
+    // drop over another conductor cannot pull stationary stubs into it.
+    const routingPlan = planTransform(delta, detachedRegion ? false : contact);
+    const detachedBoundarySet = detachedRegion
+      ? new Set(detachedRegion.detachedBoundaryRouteIds)
+      : null;
+    const routingEdits = detachedBoundarySet
+      ? routingPlan.edits.filter(
+          (edit) =>
+            !(
+              edit.kind === "set_route_path" &&
+              detachedBoundarySet.has(edit.route.id)
+            ),
+        )
+      : routingPlan.edits;
+    const moveVisualEdits = visualMoveEdits(
+      preview.movePlan,
+      delta,
+      sourceDocument,
+    );
+    const isZeroDelta = delta.x === 0 && delta.y === 0;
+    const detachedExpectedEffect: ExpectedElectricalEffect | undefined =
+      detachedRegion && !isZeroDelta && routingPlan.intent === "transform"
+        ? detachedRegion.partitionedNetIds.length > 0
+          ? {
+              kind: "partition",
+              sourceBaseNetIds: detachedRegion.partitionedNetIds,
+              cutRouteIds: [],
+            }
+          : detachedRegion.disconnectedEndpointKeys.length > 0
+            ? {
+                kind: "remove",
+                removedEndpointKeys: detachedRegion.disconnectedEndpointKeys,
+              }
+            : undefined
+        : undefined;
     const plan = {
       ...routingPlan,
-      edits: [
-        ...routingPlan.edits,
-        ...visualMoveEdits(preview.movePlan, delta, sourceDocument),
-      ],
+      ...(detachedExpectedEffect
+        ? { expectedElectricalEffect: detachedExpectedEffect }
+        : {}),
+      edits: isZeroDelta
+        ? [...routingEdits, ...moveVisualEdits]
+        : [
+            ...(detachedRegion?.prefixEdits ?? []),
+            ...routingEdits,
+            ...moveVisualEdits,
+          ],
     };
     // Passing back over the drag origin is a valid no-op preview. There is
     // nothing to transact, so do not send it to the nonempty-operation gate.
     if (
-      (plan.edits.length === 0 || (delta.x === 0 && delta.y === 0)) &&
+      (plan.edits.length === 0 || isZeroDelta) &&
       !plan.diagnostics.some((d) => d.severity === "error")
     ) {
       let fallbackGeometry: ResolvedDocumentRoutingGeometry | undefined;
@@ -725,6 +785,7 @@ export function createSelectionMoveController({
     // contact changes (including a direct bond separating) use the complete
     // transaction preview; every release still uses the strict commit gate.
     const geometryOnly =
+      !detachedRegion &&
       plan.intent === "transform" &&
       (!contactBoundaryCache.separates ||
         contactBoundaryCache.closedTranslation(plan, delta)) &&
@@ -804,6 +865,7 @@ export function createSelectionMoveController({
       ) ??
         false);
     if (
+      !detachedRegion &&
       !nonRigid &&
       plan.intent === "transform" &&
       sameIds(sourceDocument.routes, finalDocument.routes) &&
@@ -879,6 +941,7 @@ export function createSelectionMoveController({
       const disconnectedEndpointKeys = prefixEdits.flatMap((edit) =>
         edit.kind === "disconnect_endpoint" ? [endpointKey(edit.endpoint)] : [],
       );
+      const detachedRegion = preview.detachedRegion;
       const expectedElectricalEffect: ExpectedElectricalEffect =
         disconnectedEndpointKeys.length > 0 &&
         prepared.plan.intent === "transform"
@@ -894,10 +957,17 @@ export function createSelectionMoveController({
         (d) => d.severity === "warning",
       );
       if (warning) setStatus(`Moved without connecting: ${warning.message}`);
-      else if (prepared.plan.expectedElectricalEffect.kind === "partition")
+      else if (
+        !detachedRegion &&
+        prepared.plan.expectedElectricalEffect.kind === "partition"
+      )
         setStatus("Inserted the moved component in series into the wire");
       else if (prepared.plan.intent !== "transform")
         setStatus("Snapped pin endpoints and connected them without a wire");
+      else if (detachedRegion)
+        setStatus(
+          "Moved region without its boundary wires; original endpoints are open",
+        );
       else if (disconnectedEndpointKeys.length)
         setStatus(
           "Moved selection without its wires; original endpoints are open",

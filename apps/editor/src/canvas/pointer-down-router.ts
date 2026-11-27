@@ -57,6 +57,11 @@ export interface PointerDownFacts {
   readonly controlPickMode: "net" | "sensor" | null;
 }
 
+export interface CompositeToggleHit {
+  readonly kind: CanvasHitKind;
+  readonly id: string;
+}
+
 export type PointerDownAction =
   | { readonly kind: "ignore"; readonly reason: string }
   | { readonly kind: "handle-passthrough" }
@@ -76,8 +81,15 @@ export type PointerDownAction =
       readonly hitKind: CanvasHitKind;
       readonly id: string;
     }
-  | { readonly kind: "begin-instance-move"; readonly instanceId: string }
-  | { readonly kind: "begin-visual-selection-move" }
+  | {
+      readonly kind: "begin-instance-move";
+      readonly instanceId: string;
+      readonly toggleHit?: CompositeToggleHit;
+    }
+  | {
+      readonly kind: "begin-visual-selection-move";
+      readonly toggleHit?: CompositeToggleHit;
+    }
   | { readonly kind: "begin-annotation-drag"; readonly annotationId: string }
   | {
       readonly kind: "end-placement-drag-annotation";
@@ -87,6 +99,28 @@ export type PointerDownAction =
   | { readonly kind: "begin-drafting-drag"; readonly draftingId: string }
   | { readonly kind: "select-junction"; readonly junctionId: string }
   | { readonly kind: "select-endpoint"; readonly endpoint: RouteEndpoint };
+
+/**
+ * Primary canvas press, including macOS WebKit where Control+left-press can
+ * arrive as button 2 with ctrlKey held. Plain right-click (ctrlKey false)
+ * stays owned by the gesture and context-menu layers.
+ */
+export function isPrimaryOrCtrlCanvasButton(event: {
+  readonly button: number;
+  readonly ctrlKey: boolean;
+  readonly shiftKey: boolean;
+  readonly metaKey: boolean;
+  readonly altKey?: boolean;
+}): boolean {
+  return (
+    event.button === 0 ||
+    (event.button === 2 &&
+      event.ctrlKey &&
+      !event.shiftKey &&
+      !event.metaKey &&
+      !event.altKey)
+  );
+}
 
 /** Kinds a composite selection can carry as one body. */
 const COMPOSITE_KINDS: readonly CanvasHitKind[] = [
@@ -133,7 +167,8 @@ export function resolvePointerDownAction(
   // written twice, once here and once in the wire controller.
   if (facts.button === 1) return { kind: "gesture-passthrough" };
 
-  if (facts.button !== 0) return { kind: "gesture-passthrough" };
+  if (!isPrimaryOrCtrlCanvasButton(facts))
+    return { kind: "gesture-passthrough" };
 
   // A drawing tool owns its own presses. Pressing a conductor, an endpoint
   // circle, or empty canvas while drawing is part of drawing, and the wire
@@ -207,22 +242,33 @@ export function resolvePointerDownAction(
     return { kind: "consume-armed-verb", hitKind: hit.kind, id: hit.id };
   }
 
-  // A press inside a multi-object selection moves the whole body, unless a
-  // modifier says the person is composing the selection instead.
+  // A press inside a multi-object selection moves the whole body. Ctrl/Cmd
+  // (without Shift) also claims the composite selection so dragging past the
+  // modifier threshold detaches and moves the whole selected region, while a
+  // stationary release toggles the clicked member via `toggleHit`.
   const plainPress = !facts.shiftKey && !facts.ctrlKey && !facts.metaKey;
+  const detachCompositePress =
+    (facts.ctrlKey || facts.metaKey) && !facts.shiftKey;
   if (
-    plainPress &&
+    (plainPress || detachCompositePress) &&
     COMPOSITE_KINDS.includes(hit.kind) &&
     facts.compositeSelectionOwnsHit
   ) {
+    const toggleHit = detachCompositePress
+      ? { kind: hit.kind, id: hit.id }
+      : undefined;
     if (facts.primaryInstanceId) {
       return {
         kind: "begin-instance-move",
         instanceId: facts.primaryInstanceId,
+        ...(toggleHit ? { toggleHit } : {}),
       };
     }
     if (facts.compositeMovePlanHasPreview) {
-      return { kind: "begin-visual-selection-move" };
+      return {
+        kind: "begin-visual-selection-move",
+        ...(toggleHit ? { toggleHit } : {}),
+      };
     }
     // Nothing to preview: fall through and let the hit answer for itself.
   }

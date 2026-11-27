@@ -254,8 +254,6 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   Definition, Enter Cell and Couple inductors are top-level when applicable.
   Hover, click, or press `→` or `Enter` on a group to open it. `↑`/`↓` move
   within the current menu, and `←` or `Esc` in a submenu return to its trigger.
-- Rotate (`R`) switches free drawing text between reading across and reading
-  up the page. A half turn returns to the same reading orientation.
 - Hit testing skips objects under an opaque region before applying selection
   priority. Repeat `Alt`-click to cycle through candidates at the same point,
   including covered objects.
@@ -292,10 +290,14 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
 - Snap targets exclude the moving closure; capture is bounded by half a grid
   step; exact contact may add connections at a retained landing but never move it.
 - `M` translates with internal conductors and stretches boundary Routes.
-  `Shift+M` (and Ctrl/Cmd-drag) leaves wires: each routed terminal becomes an
-  open Junction stub, then `disconnect_endpoint`, and a pin set directly on
-  something staying (a ground marker on a source) lets go of it; geometry stays
-  byte-identical.
+  `Shift+M` and Ctrl/Cmd-drag on a single part leave all wires: each routed
+  terminal becomes an open Junction stub, then `disconnect_endpoint`, and a pin
+  set directly on something staying (a ground marker on a source) lets go of it;
+  geometry stays byte-identical. Ctrl/Cmd-drag on a selected region carries
+  internal Routes, Junctions and their labels intact while detaching only
+  boundary connections onto stationary stubs and partitioning shared Nets; a
+  stationary Ctrl/Cmd-click still toggles the clicked member, and macOS
+  Control-drag never opens the canvas context menu.
 - Classification: selected Instances translate; a Route/Junction component with
   all terminal ends selected translates; a Route with one selected end stretches;
   a selected loose Route moves only with both loose Junctions; other connected
@@ -320,18 +322,24 @@ One canonical reducer owns the canvas: `Idle`, `SymbolPlacement`,
   centerline), right-to-left crossing; a Junction is its point; Route tests use
   actual segments; native text selection is suppressed.
 
-## Selection mirror
+## Selection rotation and mirror
 
-- `Shift+R`, `Ctrl/Cmd+R` and the menu mirror the selection as one drawing about
-  one axis without changing connectivity; the movement closure decides what
-  travels. If nothing can move, the status says why.
-- The axis passes through selected Instance positions, else carried Junctions,
-  else selected boxes, on a half-grid line so mirroring twice restores.
+- `R`, `Shift+R`, `Ctrl/Cmd+R` and the menu turn or mirror the selection as one
+  drawing about one pivot/axis without changing connectivity; the movement
+  closure decides what travels. If nothing can move, the status says why.
+- The pivot/axis passes through selected Instance positions, else carried
+  Junctions, else selected boxes (on a half-grid line for mirrors so mirroring
+  twice restores).
 - Glyphs never mirror: text boxes reflect and `start`/`end` swap along the
   reading axis; Route labels keep `t` and take the mirrored side; a part's
   grouped name/value stay a group (name first); arrows keep their head end;
   attached ends mirror their offset. One undo; Agent `transform` mirror without
   a centre takes the same path.
+- Rotating (`R`) applies screen-space clockwise rotation (including mirrored
+  parts), preserves side-seated part name/value groups (name over value) on any
+  side, carries route-anchored, Junction-anchored, free and drafting labels
+  around the shared pivot with upright wire clearance, and switches lone free
+  drawing text between reading across and up the page.
 
 ## No-reroute movement boundary
 

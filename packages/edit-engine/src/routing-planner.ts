@@ -99,6 +99,9 @@ export function proposeGroupMoveEdits(
                   ...annotation,
                   anchor: move.anchor,
                   ...(move.alignment ? { alignment: move.alignment } : {}),
+                  ...(move.rotation !== undefined
+                    ? { rotation: move.rotation }
+                    : {}),
                 },
               },
             ]
@@ -209,6 +212,9 @@ function rigidBodyEdits(
                   ...annotation,
                   anchor: move.anchor,
                   ...(move.alignment ? { alignment: move.alignment } : {}),
+                  ...(move.rotation !== undefined
+                    ? { rotation: move.rotation }
+                    : {}),
                 },
               },
             ]

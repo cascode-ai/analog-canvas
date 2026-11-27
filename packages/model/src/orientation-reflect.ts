@@ -1,7 +1,29 @@
-import type { Mirror, Orientation } from "./schema.js";
+import type { Mirror, Orientation, Rotation } from "./schema.js";
 
 /** The visible direction of a reflection in document coordinates. */
 export type ScreenFlip = "left-right" | "top-bottom";
+
+/** Supported signed rotation increments in degrees (clockwise positive). */
+export type RotationDelta = 45 | -45 | 90 | -90 | 135 | -135 | 180;
+
+/**
+ * Compose a screen-space clockwise rotation with the canonical orientation
+ * transform (`mirror(rotate(local))`). Under a single-axis mirror (negative
+ * determinant), rotating the drawn geometry clockwise by `+delta` requires
+ * turning the inner local rotation by `-delta`.
+ */
+export function rotateOrientation(
+  orientation: Orientation,
+  deltaDegrees: RotationDelta,
+): Orientation {
+  const scale = mirrorScale(orientation.mirror);
+  const signedDelta = scale.x * scale.y < 0 ? -deltaDegrees : deltaDegrees;
+  return {
+    rotation: ((((orientation.rotation + signedDelta) % 360) + 360) %
+      360) as Rotation,
+    mirror: orientation.mirror,
+  };
+}
 
 /**
  * Compose a screen-space reflection with the canonical orientation transform.
