@@ -20,15 +20,10 @@ import {
   analyzeDesignNetlistForAuthoring,
   SIMULATION_DECK_GROUND,
 } from "./extract.js";
-import { printVacaskWithLocations } from "./vacask-printer.js";
 import { printSpiceWithLocations } from "./printers.js";
-import { inspectVacaskSource } from "./vacask-source.js";
-import { vacaskValueToProject } from "./vacask-values.js";
-import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import {
   collectProjectModelSources,
-  appendProjectModelSources,
   projectModelDefinitionIds,
   renderProjectModelSource,
   planMappedProjectModelEdit,
@@ -42,7 +37,6 @@ import type { NetlistDiagnostic } from "./ir.js";
 import { normalizeIndependentSource } from "./source-waveform.js";
 import { directObjectLocator } from "@icm/derived";
 import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
-import { parseEditableSourceParameters } from "./simulation-source-parameters.js";
 
 interface EditableSourceBody {
   documentId: string;
@@ -61,7 +55,7 @@ export interface EditableCircuitParameter extends PrintedNetlistParameter {
   documentRevision: number;
 }
 export interface GeneratedCircuitSource {
-  engine?: "ngspice" | "vacask";
+  engine?: "ngspice";
   binding: SimulationCircuitBinding;
   text: string;
   parameters: EditableCircuitParameter[];
@@ -77,7 +71,7 @@ export function generateCircuitSource(
   project: CircuitProject,
   binding: SimulationCircuitBinding,
   input?: SimulationSourceInput,
-  engine: "ngspice" | "vacask" = "vacask",
+  engine: "ngspice" = "ngspice",
 ):
   | { ok: true; source: GeneratedCircuitSource; warnings: NetlistDiagnostic[] }
   | {
@@ -152,19 +146,11 @@ export function generateCircuitSource(
       }
     }
   }
-  let printed =
-    engine === "ngspice"
-      ? {
-          ok: true as const,
-          ...printSpiceWithLocations(ir, binding.emission === "top-level"),
-        }
-      : printVacaskWithLocations(ir, binding.emission === "top-level", {
-          authoring: true,
-        });
+  let printed = printSpiceWithLocations(ir, binding.emission === "top-level");
   const models = collectProjectModelSources(
     project,
     projectModelDefinitionIds(project, [binding.documentId]),
-    { format: engine === "ngspice" ? "spice" : "vacask" },
+    { format: "spice" },
   );
   if (models.diagnostics.some((d) => d.severity === "error"))
     return {
@@ -185,24 +171,7 @@ export function generateCircuitSource(
     };
   let modelLocations: ProjectModelSourceLocation[] = [];
   let modelSnapshots = models.sources;
-  if (
-    printed.ok &&
-    engine === "vacask" &&
-    (!input || input.circuitBindings[0]?.id === binding.id)
-  ) {
-    const rendered = appendProjectModelSources(
-      printed.text,
-      models.sources,
-      "vacask",
-    );
-    printed.text = rendered.text;
-    modelLocations = rendered.segments;
-  }
-  if (
-    printed.ok &&
-    engine === "ngspice" &&
-    (!input || input.circuitBindings[0]?.id === binding.id)
-  ) {
+  if (!input || input.circuitBindings[0]?.id === binding.id) {
     for (const model of models.sources) {
       const rendered = renderProjectModelSource(model, {
         outputPath: binding.path,
@@ -220,7 +189,7 @@ export function generateCircuitSource(
       );
     }
   }
-  if (input && engine === "ngspice") {
+  if (input) {
     const compiled = compileNgspiceSourceSimulation(project, {
       version: 4,
       id: "circuit-preview",
@@ -234,7 +203,6 @@ export function generateCircuitSource(
       : undefined;
     if (file) {
       printed = {
-        ok: true,
         text: file.text,
         parameters: file.parameters,
         instances: file.instances,
@@ -252,43 +220,6 @@ export function generateCircuitSource(
       );
     }
   }
-  if (input && engine === "vacask") {
-    // A runnable experiment uses the EXACT compiled file, including primitive
-    // name allocation and ownership across bindings. Incomplete experiments
-    // retain the non-executable authoring projection so their values stay editable.
-    const compiled = compileSourceSimulation(project, {
-      version: 4,
-      id: "circuit-preview",
-      name: "Circuit preview",
-      input,
-    });
-    const file = compiled.ok
-      ? compiled.generated.find(
-          (f) => f.bindingId === binding.id && f.path === binding.path,
-        )
-      : undefined;
-    if (file) {
-      printed = {
-        ok: true,
-        text: file.text,
-        parameters: file.parameters,
-        instances: file.instances,
-      };
-      modelLocations = file.modelSources ?? [];
-      modelSnapshots = (project.modelSources ?? []).filter((source) =>
-        modelLocations.some(
-          (location) =>
-            location.sourceId === source.id &&
-            location.revision === source.revision,
-        ),
-      );
-    }
-  }
-  if (!printed.ok)
-    return {
-      ok: false,
-      diagnostics: [...analysis.diagnostics, ...printed.diagnostics],
-    };
   const parameters = printed.parameters.flatMap(
     (span): EditableCircuitParameter[] => {
       // Built-in ideal models are generated Cells in the printed netlist, not
@@ -354,17 +285,9 @@ export function generateCircuitSource(
         )
           return [];
         const text = printed.text.slice(span.startOffset, span.endOffset);
-        const tokens = inspectVacaskSource("card", text).statements[0]?.tokens;
-        const close =
-          tokens?.findIndex((t) => t.kind === "symbol" && t.value === ")") ??
-          -1;
-        const master =
-          engine === "ngspice"
-            ? { end: /^\S+[ \t]+\S+[ \t]+\S+/u.exec(text)?.[0].length ?? 0 }
-            : close < 0
-              ? undefined
-              : tokens?.[close + 1];
-        if (!master) return [];
+        const master = {
+          end: /^\S+[ \t]+\S+[ \t]+\S+/u.exec(text)?.[0].length ?? 0,
+        };
         const instance = document.instances.find(
           (i) => i.id === span.instanceId,
         );
@@ -426,10 +349,7 @@ export function planCircuitSourceEdit(
     return mappedModel.ok
       ? { ok: true, changes: [], modelUpdates: mappedModel.modelUpdates }
       : { ok: false, code: mappedModel.code, message: mappedModel.message };
-  const parseParameters =
-    source.engine === "ngspice"
-      ? parseNgspiceSourceParameters
-      : parseEditableSourceParameters;
+  const parseParameters = parseNgspiceSourceParameters;
   let parameterRange: { from: number; to: number } | undefined;
   const fail = (code: string, message: string) => ({
     ok: false as const,
@@ -566,19 +486,7 @@ export function planCircuitSourceEdit(
       nextOffset = end;
       continue;
     }
-    let projectValue: string;
-    try {
-      projectValue =
-        source.engine === "ngspice" ? raw : vacaskValueToProject(raw);
-    } catch (error) {
-      invalid ??= fail(
-        "SIMULATION_PARAMETER_INVALID",
-        error instanceof Error ? error.message : String(error),
-      );
-      originalOffset = span.endOffset;
-      nextOffset = end;
-      continue;
-    }
+    const projectValue = raw;
     const number = parseSpiceNumber(projectValue);
     const expression = parameterExpressionBody(projectValue);
     if (
@@ -587,7 +495,7 @@ export function planCircuitSourceEdit(
     ) {
       invalid ??= fail(
         "SIMULATION_PARAMETER_INVALID",
-        `Finish the native number or parenthesized expression for ${span.descriptor.label} before applying`,
+        `Finish the SPICE number or braced expression for ${span.descriptor.label} before applying`,
       );
       originalOffset = span.endOffset;
       nextOffset = end;

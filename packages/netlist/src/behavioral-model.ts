@@ -20,7 +20,7 @@ export type BehavioralElement =
       expression?: boolean;
     }
   | {
-      /** A lossless line: SPICE `T`, Spectre `tline`; VACASK has none. */
+      /** A lossless line: SPICE `T`, Spectre `tline`. */
       kind: "transmission-line";
       name: string;
       /** Port 1's two nodes, then port 2's. */
@@ -65,8 +65,8 @@ export function passive(
   return { kind, name, nodes: [positive, negative], value, expression };
 }
 
-/** The instance parameter a passive element's value sets, in Spectre and VACASK. */
-export const PASSIVE_VALUE = {
+/** The instance parameter a passive element's value sets in Spectre. */
+const PASSIVE_VALUE = {
   resistor: "r",
   capacitor: "c",
   inductor: "l",
@@ -111,7 +111,7 @@ export function printSpectreBehavioralModel(model: BehavioralModel): string[] {
 }
 
 /** Translate only the reviewed expression notation; never parse device cards. */
-export function projectBehavioralExpression(
+function projectBehavioralExpression(
   raw: string,
   scalar: (raw: string) => string,
 ): string {

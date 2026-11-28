@@ -54,21 +54,12 @@ function uniqueEntryIndex(
 function findJoinedExecutionFilesRange(
   text: string,
   files: readonly { readonly text: string }[],
-  options?: {
-    readonly requiredIndex?: number;
-    readonly excludeRange?: { readonly start: number; readonly end: number };
-  },
+  requiredIndex: number,
 ): { start: number; end: number } | null {
-  const required = options?.requiredIndex;
-  const exclude = options?.excludeRange;
-  if (required !== undefined && (required < 0 || required >= files.length))
-    return null;
-  const maxStart = required ?? files.length - 1;
-  for (let start = 0; start <= maxStart; start++) {
-    if (exclude && start >= exclude.start && start <= exclude.end) continue;
+  if (requiredIndex < 0 || requiredIndex >= files.length) return null;
+  for (let start = 0; start <= requiredIndex; start++) {
     let pos = 0;
     for (let end = start; end < files.length; end++) {
-      if (exclude && end >= exclude.start && end <= exclude.end) break;
       const piece = files[end]!.text;
       if (end > start) {
         if (text[pos] !== "\n") break;
@@ -76,8 +67,7 @@ function findJoinedExecutionFilesRange(
       }
       if (!text.startsWith(piece, pos)) break;
       pos += piece.length;
-      if (pos === text.length && (required === undefined || end >= required))
-        return { start, end };
+      if (pos === text.length && end >= requiredIndex) return { start, end };
     }
   }
   return null;
@@ -100,39 +90,7 @@ export function isRawMultiFileTestbench(
   return (
     entryIndex >= 0 &&
     files[entryIndex]!.text === deck &&
-    findJoinedExecutionFilesRange(testbench, files, {
-      requiredIndex: entryIndex,
-    }) !== null
-  );
-}
-
-/**
- * Validate raw `netlist` and `testbench` metadata texts against submitted
- * `files` and `entryPath`: every path is unique, `deck` matches the entry file,
- * `testbench` equals a contiguous slice including `entryPath`, and a non-empty
- * `netlist` equals a disjoint contiguous slice.
- */
-export function isValidRawExecutionInputMetadata(
-  input: {
-    readonly netlist: string;
-    readonly testbench: string;
-    readonly deck: string;
-  },
-  files: readonly { readonly path: string; readonly text: string }[],
-  entryPath = "deck.cir",
-): boolean {
-  if (!input.deck || !input.testbench || files.length === 0) return false;
-  const entryIndex = uniqueEntryIndex(files, entryPath);
-  if (entryIndex < 0 || files[entryIndex]!.text !== input.deck) return false;
-  const testbenchRange = findJoinedExecutionFilesRange(input.testbench, files, {
-    requiredIndex: entryIndex,
-  });
-  if (!testbenchRange) return false;
-  if (input.netlist === "") return true;
-  return (
-    findJoinedExecutionFilesRange(input.netlist, files, {
-      excludeRange: testbenchRange,
-    }) !== null
+    findJoinedExecutionFilesRange(testbench, files, entryIndex) !== null
   );
 }
 
@@ -197,7 +155,7 @@ export function isSimulationEnvironmentMetadata(
     typeof candidate.fingerprint === "string" &&
     SHA256_PATTERN.test(candidate.fingerprint) &&
     !!simulator &&
-    (simulator.name === "vacask" || simulator.name === "ngspice") &&
+    simulator.name === "ngspice" &&
     typeof simulator.version === "string" &&
     simulator.version.length > 0 &&
     (simulator.binarySha256 === null ||

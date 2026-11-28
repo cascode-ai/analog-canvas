@@ -71,7 +71,6 @@ export default {
         "scripts/**/*.mjs!",
         "worker/**/*.ts!",
         "containers/**/*.mjs!",
-        "!scripts/lib/native-cross-project-fixture.mjs!",
         ...testSupport,
       ],
       paths: builtPackageSources,

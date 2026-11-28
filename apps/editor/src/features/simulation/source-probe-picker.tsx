@@ -1,17 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import type { SimulationSourceExpression } from "@icm/model";
-import type { SourceProbeChoice } from "./source-probe-choices";
+import type { SourceProbeChoice } from "./source-ngspice-probe-choices";
 
 export function SourceProbePicker({
   choices,
   kind,
-  notice,
   onAdd,
   onClose,
 }: {
   choices: readonly SourceProbeChoice[];
   kind: "voltage" | "current" | "device-op";
-  notice?: string | undefined;
   onAdd(label: string, expression: SimulationSourceExpression): boolean;
   onClose(): void;
 }) {
@@ -64,7 +62,6 @@ export function SourceProbePicker({
         <strong>Save {kind}</strong>
         <button onClick={finish}>Done</button>
       </header>
-      {notice && <p role="status">{notice}</p>}
       <input
         autoFocus
         value={query}

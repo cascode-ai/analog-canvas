@@ -36,34 +36,20 @@ same way for Gallery [simulation checks](community-gallery.md#simulation-checks)
 
 ### Engine selection
 
-- The executor Profile decides the engine (`ngspice` or `vacask`); there is no
-  second selector. Both share folder, edit, preparation, Run and artifact APIs.
-- VACASK runs its native language, never SPICE passed through; its source owns
-  `parameters`, `include ... section=...`, analyses, sweeps, options, saves and
-  Python postprocessing. Native hierarchy is case-sensitive and colon-qualified.
-  Synthetic export supply ports are not selectable Canvas Nets.
-- VACASK source `dc` is mode-specific (OP evaluates the waveform at t=0 unless
-  `type="dc"`); a generated waveform also carrying `dc` yields informational
-  `SIMULATION_NATIVE_SOURCE_DC_MODE`. ngspice DC/transient semantics are not
-  emulated.
+- The executor Profile selects the `ngspice` engine. All folders share the
+  folder, edit, preparation, Run and artifact APIs.
 - Device OP saves use Profile-reviewed outputs; terminal currents use the shared
-  derived-IR series-source transformation. Explicit saves are never widened;
-  unsupported acquisitions get a specific diagnostic, never a reconstructed
-  threshold, gm or region.
+  derived-IR `.probe` / series-source transformation. Explicit saves are never
+  widened; unsupported acquisitions get a specific diagnostic, never a
+  reconstructed threshold, gm or region.
 
 ### Shared external implementations
 
 - Project `modelSources` resolve through the design-export inventory; each
   reachable owner and helper closure emits once after includes and sections
   expand. Folders and generated names never shadow owned definitions.
-- VACASK projects only applied SPICE R/C/L, independent sources, linear E/G/F/H
-  and X calls within the owned closure (ordered ports, scalar formals). Native
-  Spectre passes strict SPICE conversion first and never runs as Spectre. SPICE
-  names keep case-insensitive identity in VACASK.
-- The VACASK projection refuses before execution with a source-owner
-  diagnostic: opaque/B sources, model cards, `.param`, `.global`, functions,
-  conditionals, external library loads, undeclared helper calls, formal `m` without forwarding, placeholders.
-  Static Apply stays less strict than execution.
+- Native Spectre model sources pass strict SPICE conversion before ngspice
+  execution and never run as Spectre.
 - DC/AC/PULSE/SIN/PWL clauses enter the canonical waveform contract; an
   explicit DC bias differing from the waveform's initial value refuses.
 - Model dependencies merge by identity, path and digest and must match the
@@ -91,7 +77,7 @@ listing neither devices nor cell libraries is never default. With several or
 none, Agent `simulation_folder` create refuses `SIMULATION_PROFILE_REQUIRED`
 with the candidates for a hosted-run `template`; without one it makes the
 author's Testbench and names them in `folder.profileCandidates`. The GUI form
-mirrors this call and falls back to the VACASK candidate only offline.
+mirrors this call and falls back to the SKY130 ngspice Profile identity offline.
 
 An author's Testbench (#2110, `template: "testbench"`) has no Profile and no
 configuration file; its entry is the `testbench.spice` below, which includes
@@ -139,8 +125,8 @@ source folders one way, preserving IDs, text and repairable references.
 
 ## Canvas compilation
 
-`compileNgspiceSourceSimulation`/`prepareSourceExecutionInput` and VACASK
-`compileSourceSimulation` consume one snapshot and reuse electrical extraction.
+`compileNgspiceSourceSimulation` / `prepareSourceExecutionInput` consume one
+snapshot and reuse electrical extraction.
 
 - The Profile never remaps the circuit, so preview, export and simulation share
   identity, invocation, parameters and connectivity; simulation only adds

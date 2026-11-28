@@ -15,18 +15,15 @@ their own simulator. Never retry the refusal.
 ## Select the actual engine
 
 Read the returned Profile and source language; config version alone does not
-identify a simulator. VACASK owns native `parameters`, analyses, saves and
-Python postprocessing: get current helper text from `simulation` /
-`authoring-help` (especially `embed` and `postprocess`) and emit scalars with
-`report_measurement`. Never put ngspice `.param`, `.temp`, `meas`, `let` or
-rawfile snippets into VACASK; ngspice uses its own SPICE source, measurement
-commands and rawfile collection. Never convert silently.
+identify a simulator. ngspice uses SPICE source (`.param`, `.temp`, `meas`,
+`let`, `.control` blocks) and explicit rawfile collection. Never convert
+silently.
 
-For config version 2, author analysis, saving and measurement in the native
-language; collection does not replace authored output. Version 1's JSON
+For config version 2, author analysis, saving and measurement in SPICE source;
+collection does not replace authored output. Version 1's JSON
 output/measurement/device-OP helpers are legacy-only; read the returned config
 version and schema before choosing a helper. Helpers are optional, never an
-execution prerequisite or a limit on authorized native edits.
+execution prerequisite or a limit on authorized source edits.
 
 ## Folders, runs and results
 
@@ -74,8 +71,7 @@ write out.raw all
 Write after each analysis to collect; the collector takes one literal relative
 path, with appendwrite for several plots. A log-only task needs no write. The
 executor inserts no capture commands. A preparation's device/vector mapping is
-discovery; the collected signals show what was saved. This is not VACASK
-syntax.
+discovery; the collected signals show what was saved.
 
 Compute derived metrics in native code or scripts and state formula, units and
 validity: VGS − VTH is not vgsteff; gm/(2π·Cgg) is a quasi-static fT estimate

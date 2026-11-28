@@ -7,7 +7,7 @@ import type {
   Problem,
   SimulationSourceLocation,
 } from "@icm/simulation-service/contract";
-import type { SimulationSignalTarget } from "@icm/netlist";
+import type { NgspiceSignalTarget as SimulationSignalTarget } from "@icm/netlist";
 import type { BrowserSimulationSession } from "./browser-simulation-session";
 import type { ProjectRunHistory } from "./project-run-history";
 import type { SimulationAgentGuidanceProps } from "./simulation-agent-guidance";

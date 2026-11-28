@@ -1,17 +1,13 @@
 import { readFileSync } from "node:fs";
 import { vi } from "vitest";
 import type { CircuitProject } from "@icm/model";
-import {
-  assembleNativeExecutionOutput,
-  type ExecutionInput,
-} from "@icm/simulation-service";
 import type { ArtifactRef } from "@icm/simulation-service/contract";
 import { ArtifactDownloadError } from "@icm/simulation-service/files";
 import { AgentArtifacts } from "../../../../worker/agent-artifacts";
 import { routeSimulationRequest } from "../../../../worker/simulation";
 import {
-  nativeEnvironment,
-  nativeWorkerEnv,
+  ngspiceEnvironment,
+  ngspiceWorkerEnv,
 } from "../../../../worker/simulation.test-fixture";
 import type { EditorDocumentController } from "../document/document-controller";
 import type { BrowserAgentProjectHostOptions } from "./browser-agent-project-host";
@@ -21,29 +17,38 @@ import {
 } from "./live-agent-editor.test-support";
 import { listWorkspaceProjects, workspaceResponses } from "./workspace-copy";
 
-const dividerSource = readFileSync(
-  new URL("../../../../netlists/vacask-divider/divider.sim", import.meta.url),
-  "utf8",
-).replace(/  sweep supply[\s\S]*?endc/u, "endc");
+const dividerSource = [
+  "* resistive divider, operating point",
+  "V1 in 0 DC 1",
+  "R1 in mid 1k",
+  "R2 mid 0 1k",
+  ".control",
+  "set filetype=ascii",
+  "op",
+  "write divider_op.raw v(in) v(mid) i(v1)",
+  ".endc",
+  ".end",
+  "",
+].join("\n");
 const dividerRawfile = readFileSync(
   new URL(
-    "../../../../netlists/vacask-divider/divider_op.raw",
+    "../../../../fixtures/ngspice-rawfile/divider-op.raw",
     import.meta.url,
   ),
   "utf8",
 );
 
-/** A native divider operating point, as an Agent authors it. */
+/** An ngspice divider operating point, as an Agent authors it. */
 export function dividerFiles() {
   return [
     {
       path: "experiment.json",
       text: JSON.stringify({
         version: 2,
-        environment: { profileId: nativeEnvironment.profileId },
+        environment: { profileId: ngspiceEnvironment.profileId },
       }),
     },
-    { path: "main.sim", text: dividerSource },
+    { path: "run.cir", text: dividerSource },
   ];
 }
 
@@ -58,7 +63,7 @@ export function dividerFolder(
     version: 4,
     input: {
       kind: "source",
-      entry: "main.sim",
+      entry: "run.cir",
       configPath: "experiment.json",
       circuitBindings: [],
       files: dividerFiles(),
@@ -68,46 +73,32 @@ export function dividerFolder(
 }
 
 /**
- * The executor's answer for one run, assembled from a captured divider run,
- * or, `failed`, from VACASK exiting on a source it could not run.
+ * The executor's answer for one run, assembled from a captured ngspice divider
+ * run, or, `failed`, from ngspice exiting on a source it could not run.
  */
-async function capturedDividerRun(input: ExecutionInput, failed = false) {
-  const output = await assembleNativeExecutionOutput(
-    input,
-    {
-      execution: {
-        stdout: failed
-          ? ""
-          : "Running analysis 'divider_op'.\n  Elapsed time: 0.001\n",
-        stderr: failed ? "Error: unknown model 'rbad'.\n" : "",
-        exitCode: failed ? 1 : 0,
-        signal: null,
-        timedOut: false,
-        cancelled: false,
-        spawnError: null,
-        durationMs: 1,
-      },
-      timeoutMs: 1000,
-      rawfiles: failed
-        ? []
-        : [{ path: "divider_op.raw", text: dividerRawfile }],
-      executedFiles: input.files,
-      diagnostics: [],
-      truncated: false,
-    },
-    nativeEnvironment,
-  );
+function capturedDividerRun(
+  body: { collection?: { rawfile: string | null } },
+  failed = false,
+) {
+  const rawfilePath = body.collection?.rawfile ?? null;
   return Response.json({
-    ...output.result,
-    rawfiles: output.rawfiles,
-    executedFiles: output.executedFiles,
-    cancelled: output.cancelled,
+    exitCode: failed ? 1 : 0,
+    stdout: failed ? "" : "Doing analysis at TEMP = 27.000000\n",
+    stderr: failed ? "Error: unknown model 'rbad'.\n" : "",
+    timedOut: false,
+    durationMs: 1,
+    ...(body.collection !== undefined ? { collection: body.collection } : {}),
+    rawfileRequested: rawfilePath !== null,
+    ...(!failed && rawfilePath !== null
+      ? { rawfile: dividerRawfile, rawfileName: rawfilePath }
+      : {}),
+    environment: ngspiceEnvironment,
   });
 }
 
 /**
  * The hosted simulation service the editor calls over the network: the
- * Worker's own route, whose native executor answers with a captured divider
+ * Worker's own route, whose ngspice executor answers with a captured divider
  * run. Only this side is scripted; the editor's Simulation resource is real.
  */
 export class HostedSimulationService {
@@ -119,7 +110,7 @@ export class HostedSimulationService {
   private repliesLost = false;
   private failures = 0;
 
-  /** The next execution fails as VACASK does on a source it cannot run. */
+  /** The next execution fails as ngspice does on a source it cannot run. */
   failNext(): void {
     this.failures++;
   }
@@ -148,7 +139,7 @@ export class HostedSimulationService {
     );
     const response = await routeSimulationRequest(
       new Request(new URL(String(url), "http://localhost"), init),
-      nativeWorkerEnv(async (target, run) => {
+      ngspiceWorkerEnv(async (target, run) => {
         if (new URL(target).pathname === "/cancel")
           return Response.json({ accepted: true });
         this.executions++;
@@ -157,10 +148,7 @@ export class HostedSimulationService {
         if (failed) this.failures--;
         try {
           await gate;
-          return await capturedDividerRun(
-            JSON.parse(String(run?.body)),
-            failed,
-          );
+          return capturedDividerRun(JSON.parse(String(run?.body)), failed);
         } finally {
           this.active--;
         }

@@ -42,8 +42,8 @@ describe("explicit local executor adapter", () => {
       forward,
     );
     const body = {
-      language: "vacask",
-      files: [{ path: "run.sim", text: "native" }],
+      mode: "raw",
+      files: [{ path: "run.cir", text: "SPICE\n.end\n" }],
       runToken: "same-token",
     };
     const reply = await handler(request(body));

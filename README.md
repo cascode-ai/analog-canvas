@@ -203,14 +203,14 @@ and [delivery cadence](docs/deployment.md#development-and-delivery-cadence).
 - `worker/`: Cloudflare Worker host and Durable Objects for static hosting,
   Gallery, accounts, Cloud Projects, simulation, and Agent relay sessions.
 - `containers/`: simulator images, gateways, and operator-host topologies for
-  ngspice and the historically named VACASK candidate used by Production.
+  ngspice.
 - `netlists/`: one circuit per directory for the SPICE import corpus,
   simulation examples and qualification, and Agent layout evaluation.
 - `fixtures/`: Project, SPICE, rawfile, export, Agent API, and visual-reference
   test inputs and goldens.
 - `scripts/` and `config/`: build, generation, validation-gate, release, and
-  deployment tooling, with the gate catalog and pinned MCP and VACASK
-  declarations; the manual Razavi calibration (`scripts/calibration/`) and
+  deployment tooling, with the gate catalog and pinned MCP declarations;
+  the manual Razavi calibration (`scripts/calibration/`) and
   PDF extraction (`scripts/pdf-vector-extract/`) tools.
 - `references/`: the pinned external research-source manifest; its sources
   are fetched into the ignored `.reference-src/`.

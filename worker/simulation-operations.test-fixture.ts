@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { nativeWorkerEnv } from "./simulation.test-fixture";
+import { ngspiceWorkerEnv } from "./simulation.test-fixture";
 import { SimulationControlDO } from "./simulation-control-do";
 import type {
   SimulationArtifactBucket,
@@ -113,7 +113,7 @@ export function createSimulationOperationsHarness(
         jobs.push(message);
       },
     },
-    ...nativeWorkerEnv(),
+    ...ngspiceWorkerEnv(),
   });
   const principal = {
     id: "user-a",

@@ -167,25 +167,6 @@ function authoredDeclarations(
   return { make, top, globals, primitiveModels };
 }
 
-/** A source-only query of the same declaration table used by Canvas scopes. */
-export function authoredModelSymbols(
-  events: readonly AuthoredCircuitEvent[],
-  names: readonly string[],
-  syntax: { key(name: string): string; flatDefinitions?: boolean },
-) {
-  const { top, primitiveModels } = authoredDeclarations(events, syntax);
-  return [...new Set(names)]
-    .filter(
-      (name) =>
-        top.definitions.has(syntax.key(name)) ||
-        top.opaque.has(syntax.key(name)),
-    )
-    .map((name) => ({
-      name,
-      primitives: primitiveModels(name, true),
-    }));
-}
-
 /** One resolver owns enumeration and explicit resolution, including formal-port
  * substitution. Adapters own lexical identity and simulator path spelling. */
 export function authoredCircuitScopes(

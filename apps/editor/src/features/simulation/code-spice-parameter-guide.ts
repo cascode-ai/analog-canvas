@@ -149,6 +149,6 @@ export function insertSpiceHelp(
 }
 
 const guide = createParameterGuide(parameterGuide);
-const dismissParameterGuide = guide.dismissParameterGuide;
+export const dismissParameterGuide = guide.dismissParameterGuide;
 export const dismissSpiceGuide = guide.dismiss;
 export const spiceParameterGuide = guide.extension;

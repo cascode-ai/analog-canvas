@@ -91,9 +91,7 @@ export async function handleProjectSourceFiles(
   host: ProjectSimulationFileHost,
   op: OwnedOperation,
   active: () => boolean,
-  selectEngine?: (
-    folder: ProjectSimulationFolder,
-  ) => Promise<"ngspice" | "vacask">,
+  selectEngine?: (folder: ProjectSimulationFolder) => Promise<"ngspice">,
 ): Promise<FileReply> {
   if (!op.owner || op.owner.kind !== "project-folder")
     return problem(
@@ -142,7 +140,7 @@ export async function handleProjectSourceFiles(
     );
   };
   if (op.action === "list") return listProjectSource(before);
-  let engine: "ngspice" | "vacask" = "vacask";
+  let engine: "ngspice" = "ngspice";
   const needsGenerated =
     op.action === "read"
       ? before.folder.input.circuitBindings.some((b) => b.path === op.path)

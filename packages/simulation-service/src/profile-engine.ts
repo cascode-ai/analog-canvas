@@ -4,21 +4,14 @@ import {
 } from "@icm/model";
 import { problem, type Capabilities, type Problem } from "./contract.js";
 
-export type SimulationEngine = "ngspice" | "vacask";
+export type SimulationEngine = "ngspice";
 
-/** Compatibility for a single-engine executor that predates explicit Profile
- * dialects. Mixed discovery must declare the engine on each Profile. */
+/** Resolve the execution dialect for an advertised Profile. */
 export function profileEngine(
   profile: Capabilities["profiles"][number],
   collection?: Capabilities["rawfileCollection"],
 ): SimulationEngine | undefined {
   if (profile.engine) return profile.engine;
-  if (
-    profile.modelLibrary ||
-    profile.modelSymbols ||
-    collection === "native-multi-ascii"
-  )
-    return "vacask";
   if (collection === "declared-single-ascii") return "ngspice";
   return undefined;
 }

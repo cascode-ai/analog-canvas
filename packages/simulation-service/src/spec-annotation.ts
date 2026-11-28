@@ -10,18 +10,17 @@ import {
 
 /**
  * A line that declares a Spec: `* @spec NAME [CONDITION] [unit=…] [group=…]
- * [label=…]` in ngspice source, the same after `//` in VACASK source. The
- * grammar after the marker is shared.
+ * [label=…]` in SPICE source.
  */
-const SIMULATION_SPEC_LINE = /^\s*(?:\*|\/\/)\s*@spec\b/iu;
+const SIMULATION_SPEC_LINE = /^\s*\*\s*@spec\b/iu;
 
 const DECIMAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/iu;
 /**
  * A decimal or scientific number with one SPICE scale suffix and nothing
  * after it (#2558): `16.5u`, `2.5meg`, `10k`. Case-insensitive, as SPICE,
- * except a bare `M`, which SPICE reads as milli and VACASK as mega; it is
- * refused with both readings rather than guessed. Atto, `mil` and trailing
- * unit text (`10kOhm`) stay refused with the accepted form.
+ * except a bare `M`, which SPICE reads as milli while other tools read it as
+ * mega; it is refused with both readings rather than guessed. Atto, `mil` and
+ * trailing unit text (`10kOhm`) stay refused with the accepted form.
  */
 const SUFFIXED =
   /^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)(meg|[tgkmunpf])$/iu;
@@ -86,7 +85,7 @@ function spiceSuffixReplacement(token: string): string | undefined {
   const numeric = SPICE_NUMERIC.exec(token)![0];
   const scaled = (power: number) => scaledText(numeric, power);
   const power = Math.round(Math.log10(spiceScaleFactor(parsed.suffix)!));
-  // SPICE reads M as milli; most other tools, VACASK among them, as mega.
+  // SPICE reads M as milli; most other tools read it as mega.
   if (parsed.suffix === "m" && token[numeric.length] === "M")
     return `${scaled(power)} (SPICE reads M as milli) or ${scaled(6)} for mega`;
   return scaled(power);
@@ -271,7 +270,7 @@ export function parseSimulationSpecAnnotation(
     );
   const tokens = metadataText
     .trim()
-    .replace(/^(?:\*|\/\/)\s*@spec\b/iu, "")
+    .replace(/^\*\s*@spec\b/iu, "")
     .trim()
     .split(/\s+/u);
   const name = tokens.shift() ?? "";

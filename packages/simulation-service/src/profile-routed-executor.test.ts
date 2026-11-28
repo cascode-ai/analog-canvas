@@ -47,7 +47,7 @@ const input = (profileId: string): ExecutionInput => ({
 describe("Profile-routed execution", () => {
   it("runs and cancels a local Profile locally and every other Profile on the hosted executor", async () => {
     const local = recording("local", ["sky"]);
-    const hosted = recording("hosted", ["sky", "vacask"]);
+    const hosted = recording("hosted", ["sky", "sg13"]);
     const executor = createProfileRoutedExecutor(
       { profileIds: ["sky"], executor: local.executor },
       hosted.executor,
@@ -55,11 +55,11 @@ describe("Profile-routed execution", () => {
     await expect(executor.execute(input("sky"), "a")).resolves.toMatchObject({
       by: "local",
     });
-    await expect(executor.execute(input("vacask"), "b")).resolves.toMatchObject(
-      { by: "hosted" },
-    );
+    await expect(executor.execute(input("sg13"), "b")).resolves.toMatchObject({
+      by: "hosted",
+    });
     await executor.cancel("a", "sky");
-    await executor.cancel("b", "vacask");
+    await executor.cancel("b", "sg13");
     expect(local.calls).toEqual(["execute:a", "cancel:a"]);
     expect(hosted.calls).toEqual(["execute:b", "cancel:b"]);
   });
@@ -84,27 +84,27 @@ describe("Profile-routed execution", () => {
 
   it("asks each executor only for its own Profiles", async () => {
     const local = recording("local", ["sky"]);
-    const hosted = recording("hosted", ["vacask"]);
+    const hosted = recording("hosted", ["sg13"]);
     const executor = createProfileRoutedExecutor(
       { profileIds: ["sky"], executor: local.executor },
       hosted.executor,
     );
     await executor.capabilities("sky");
-    await executor.capabilities("vacask");
+    await executor.capabilities("sg13");
     expect(local.calls).toEqual(["capabilities:sky"]);
-    expect(hosted.calls).toEqual(["capabilities:vacask"]);
+    expect(hosted.calls).toEqual(["capabilities:sg13"]);
   });
 
   it("lists the local Profiles in place of the hosted ones, and alone when the hosted executor is unreachable", async () => {
     const local = recording("local", ["sky"]);
-    const hosted = recording("hosted", ["vacask", "sky"]);
+    const hosted = recording("hosted", ["sg13", "sky"]);
     const routed = createProfileRoutedExecutor(
       { profileIds: ["sky"], executor: local.executor },
       hosted.executor,
     );
     expect((await routed.capabilities()).profiles.map((p) => p.id)).toEqual([
       "sky",
-      "vacask",
+      "sg13",
     ]);
     const offline = createProfileRoutedExecutor(
       { profileIds: ["sky"], executor: local.executor },

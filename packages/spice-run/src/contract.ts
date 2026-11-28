@@ -72,8 +72,7 @@ export interface SimulationEnvironmentFacts {
   profileId: string | null;
   platform: string;
   simulator: {
-    /** ngspice identifies historical results, not a target-runtime fallback. */
-    name: "vacask" | "ngspice";
+    name: "ngspice";
     version: string;
     binarySha256: string | null;
   };

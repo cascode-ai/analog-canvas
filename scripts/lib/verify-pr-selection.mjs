@@ -129,11 +129,11 @@ function censusGroup(path) {
     return ["copy", "insert"];
   if (path === "packages/derived/src/instance-label-placement.ts")
     return ["transform"];
-  // The census exports historical drawings as SPICE, not simulation source or
-  // VACASK results. Unknown design helpers still get the conservative check.
+  // The census exports historical drawings as SPICE, not simulation source
+  // helpers. Unknown design helpers still get the conservative check.
   if (
     path.startsWith("packages/netlist/src/") &&
-    !/^packages\/netlist\/src\/(?:simulation-|vacask-)/u.test(path)
+    !/^packages\/netlist\/src\/simulation-/u.test(path)
   )
     return ["netlist"];
   return [];

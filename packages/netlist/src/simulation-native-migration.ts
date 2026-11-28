@@ -4,7 +4,7 @@ import {
   type CircuitProject,
   type ProjectSimulationFolder,
 } from "@icm/model";
-import { compileSourceSimulation } from "./simulation-source-compile.js";
+import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 
 /**
  * Explicit, non-destructive migration boundary. Never silently erase a legacy
@@ -26,26 +26,26 @@ export function migrateSimulationConfigToNative(
       "replace Canvas variable bindings with explicit parameter expressions and Cell interfaces",
     );
   if (config.runPlan.mode !== "nominal")
-    pending.push("move the saved sweep into native control Code");
+    pending.push("move the saved sweep into SPICE control Code");
   if (config.outputs.length)
     pending.push(
-      "translate named outputs/expressions into native VACASK acquisition and control Code",
+      "translate named outputs/expressions into SPICE save/write control Code",
     );
   if (config.deviceOperatingPoints.length)
     pending.push(
-      "use Helper to save native Device OP vectors, then remove legacy Device OP selections",
+      "use Helper to save Device OP vectors, then remove legacy Device OP selections",
     );
   if (config.measurements.length)
     pending.push(
-      "translate saved measurement rules into native VACASK control/postprocessing Code",
+      "translate saved measurement rules into SPICE meas control Code",
     );
   if (config.collection.rawfile !== null)
     pending.push(
-      "translate the legacy write/collection contract to native analysis artifacts, then remove collection.rawfile; VACASK does not use a single declared write path",
+      "declare the write path in SPICE control Code, then remove collection.rawfile",
     );
   if (config.environment.corner)
     pending.push(
-      "declare the model dependency and native include section in Code, then remove environment.corner",
+      "declare the model dependency and .lib section in Code, then remove environment.corner",
     );
   if (pending.length)
     return {
@@ -62,7 +62,7 @@ export function migrateSimulationConfigToNative(
       null,
       2,
     ) + "\n";
-  const compiled = compileSourceSimulation(project, next);
+  const compiled = compileNgspiceSourceSimulation(project, next);
   if (!compiled.ok)
     return {
       ok: false,

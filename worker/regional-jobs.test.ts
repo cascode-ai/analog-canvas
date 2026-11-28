@@ -11,9 +11,9 @@ import { TopologyTaskDO, routeTopologyTaskRequest } from "./topology-task";
 import { createSimulationOperationsHarness } from "./simulation-operations.test-fixture";
 import { routeManagedSimulationRequest } from "./simulation-operations";
 import {
-  nativeInput,
-  nativeStreamingReply,
-  nativeWorkerEnv,
+  ngspiceInput,
+  ngspiceStreamingReply,
+  ngspiceWorkerEnv,
 } from "./simulation.test-fixture";
 
 afterEach(() => vi.unstubAllGlobals());
@@ -159,7 +159,7 @@ const startBody = () => ({
   requestId: "same-intent",
   preparedId: "prepared",
   preparedDigest: "a".repeat(64),
-  input: nativeInput(),
+  input: ngspiceInput(),
 });
 
 describe("regional managed jobs", () => {
@@ -372,9 +372,9 @@ describe("regional managed jobs", () => {
   it("streams the original result across entries and keeps another account and forged peer commands out", async () => {
     const { cn, overseas, auth } = await pair();
     try {
-      cn.executionEnv.VACASK = nativeWorkerEnv(async (_url, init) =>
-        nativeStreamingReply(JSON.parse(String(init?.body)), false),
-      ).VACASK;
+      cn.executionEnv.NGSPICE = ngspiceWorkerEnv(async (_url, init) =>
+        ngspiceStreamingReply(JSON.parse(String(init?.body)), false),
+      ).NGSPICE;
       const started = await cn.call(
         "/api/simulation/runs",
         "POST",

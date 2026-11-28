@@ -73,19 +73,13 @@ it("discovers independent SKY130 and SG13 Profiles and prepares the selected mod
   expect((await onlySg13!.json()).configured).toBe(true);
 });
 
-it("refuses conflicting engine identities and results from the wrong executor", async () => {
+it("refuses results from the wrong executor", async () => {
   const fetcher = vi.fn(async () =>
     Response.json({
       environment: { ...health.environment, profileId: sky130.id },
     }),
   );
   vi.stubGlobal("fetch", fetcher);
-  const collision = await routeSimulationRequest(
-    post({ operation: "capabilities" }),
-    { ...env, VACASK_PROFILE_ID: sg13.id },
-  );
-  expect(collision!.status).toBe(503);
-  expect(fetcher).not.toHaveBeenCalled();
   const result = await routeSimulationRequest(
     post({
       environment: { profileId: sg13.id },

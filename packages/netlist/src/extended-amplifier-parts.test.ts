@@ -9,8 +9,6 @@ import { subcircuitDescriptor } from "@icm/devices";
 
 import { findBuiltInBodies } from "./built-in-bodies.js";
 import { createDesignNetlistExport } from "./export.js";
-import { analyzeDesignNetlist } from "./extract.js";
-import { printVacaskWithLocations } from "./vacask-printer.js";
 
 function amplifierCell(
   symbolId: string,
@@ -78,20 +76,15 @@ function exported(project: CircuitProject) {
   expect(spectreResult.status, JSON.stringify(spectreResult.diagnostics)).toBe(
     "ready",
   );
-  const analysis = analyzeDesignNetlist(project, { format: "spice" });
-  expect(analysis.ir).not.toBeNull();
-  const vacask = printVacaskWithLocations(analysis.ir!);
-  expect(vacask.ok).toBe(true);
   return {
     spice: spiceResult.status === "ready" ? spiceResult.file.text : "",
     spectre: spectreResult.status === "ready" ? spectreResult.file.text : "",
-    vacask: vacask.ok ? vacask.text : "",
   };
 }
 
 describe("extended op-amp and amplifier variants (#2443)", () => {
-  it("exports single-to-diff-amplifier symmetrically about vocm in SPICE, Spectre and VACASK", () => {
-    const { spice, spectre, vacask } = exported(
+  it("exports single-to-diff-amplifier symmetrically about vocm in SPICE and Spectre", () => {
+    const { spice, spectre } = exported(
       amplifierCell("single-to-diff-amplifier", {
         parameters: { gain: "10", vocm: "0.9" },
       }),
@@ -104,11 +97,10 @@ describe("extended op-amp and amplifier variants (#2443)", () => {
     expect(spectre).toContain(
       "subckt single_to_diff_amplifier (VDD VSS VIN VOP VON)",
     );
-    expect(vacask).toContain("subckt single_to_diff_amplifier");
   });
 
   it("exports fully-differential-transconductance with complementary gm/2 branches", () => {
-    const { spice, spectre, vacask } = exported(
+    const { spice, spectre } = exported(
       amplifierCell("fully-differential-transconductance", {
         parameters: { gm: "2m" },
       }),
@@ -119,7 +111,6 @@ describe("extended op-amp and amplifier variants (#2443)", () => {
     expect(spice).toContain("GPLUS 0 VOP VIP VIN {gm/2}");
     expect(spice).toContain("GMINUS 0 VON VIN VIP {gm/2}");
     expect(spectre).toContain("GPLUS (0 VOP VIP VIN) vccs gm=gm/2");
-    expect(vacask).toContain("subckt fully_differential_transconductance");
   });
 
   it("exports opamp-compensated for 1 or 2 compensation pins and recognizes both on import", () => {
@@ -226,7 +217,7 @@ describe("extended op-amp and amplifier variants (#2443)", () => {
   });
 
   it("exports differential-line-driver with complementary tri-state outputs", () => {
-    const { spice, spectre, vacask } = exported(
+    const { spice, spectre } = exported(
       amplifierCell("differential-line-driver"),
     );
     expect(spice).toContain(
@@ -235,7 +226,6 @@ describe("extended op-amp and amplifier variants (#2443)", () => {
     expect(spectre).toContain(
       "subckt differential_line_driver (VDD VSS VIN VOP VON EN)",
     );
-    expect(vacask).toContain("subckt differential_line_driver");
   });
 
   it.skipIf(!process.env.NGSPICE_BIN)(

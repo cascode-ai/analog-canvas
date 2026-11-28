@@ -1,6 +1,6 @@
 import type { ProjectModelSource } from "@icm/model";
 import { inspectProjectModelSource } from "./project-model-source.js";
-import { inspectVacaskSource } from "./vacask-source.js";
+import { inspectSpectreSource } from "./spectre-source-lexer.js";
 
 /** Namespace owned declarations and actual call/model targets; expressions remain authored bytes. */
 export function namespaceModelSource(
@@ -41,7 +41,7 @@ export function namespaceModelSource(
   }
   const files = source.files.map((file) => {
     const replacements: { start: number; end: number; text: string }[] = [];
-    const native = inspectVacaskSource(file.path, file.text, false).statements;
+    const native = inspectSpectreSource(file.path, file.text).statements;
     const seen = new Map<number, string>();
     for (const occurrence of inspected.graph.statements) {
       const { path, statement } = occurrence;

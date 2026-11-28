@@ -15,7 +15,4 @@ export * from "./prepare-source.js";
 export { prepareFolderExecutionInput } from "./prepare-input.js";
 export { executionSpecReport } from "./spec-results.js";
 export * from "./simulation-check.js";
-export * from "./source-context.js";
 export * from "./profile-engine.js";
-export * from "./native-execution-output.js";
-export * from "./native-execution-input.js";

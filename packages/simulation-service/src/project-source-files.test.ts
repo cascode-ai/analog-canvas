@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { nativeSky130OtaFixture } from "../test-support/sky130-ota.js";
 import {
   SimulationFiles,
   sha256,
@@ -9,7 +8,8 @@ import {
 } from "./files.js";
 import { ProblemSchema, problem } from "./contract.js";
 import { externalModelFixture } from "../../netlist/src/external-model-fixture.test-support.js";
-import { createSimulationFolder } from "@icm/model";
+import { CircuitProjectSchema, createSimulationFolder } from "@icm/model";
+import { currentFiveTransistorOtaCircuitSource } from "../../../apps/editor/src/examples/five-transistor-ota.test-support.js";
 
 const owner = { kind: "project-folder" as const, folderId: "folder-a" };
 function fixture() {
@@ -83,9 +83,17 @@ function fixture() {
 }
 
 describe("Project and session File Resource ownership", () => {
-  it("reports the blocking native model error, not an earlier pending-draft warning", async () => {
+  it("reports the blocking model error, not an earlier pending-draft warning", async () => {
     const project = externalModelFixture();
     const source = project.modelSources![0]!;
+    source.language = "spectre";
+    source.entry = "model.scs";
+    source.files = [
+      {
+        path: "model.scs",
+        text: "subckt external_amp (IN OUT)\nB1 (OUT 0) bsource v=sin(time)\nends external_amp\n",
+      },
+    ];
     source.draft = {
       entry: source.entry,
       baseRevision: source.revision,
@@ -110,7 +118,7 @@ describe("Project and session File Resource ownership", () => {
           throw Error("read must not commit");
         },
       },
-      async () => "vacask",
+      async () => "ngspice",
     );
     const result = await files.handle({
       action: "read",
@@ -121,14 +129,13 @@ describe("Project and session File Resource ownership", () => {
       ok: false,
       error: {
         code: "SIMULATION_CIRCUIT_UNAVAILABLE",
-        message: expect.stringContaining("behavioral-source"),
         diagnostics: expect.arrayContaining([
           expect.objectContaining({
             code: "MODEL_SOURCE_DIALECT",
             path: source.entry,
             modelSource: { sourceId: source.id, revision: source.revision },
             sourceRef: expect.objectContaining({
-              start: expect.objectContaining({ line: 3 }),
+              start: expect.objectContaining({ line: 2 }),
             }),
           }),
         ]),
@@ -136,7 +143,16 @@ describe("Project and session File Resource ownership", () => {
     });
   });
   it("reads generated code without mappings only when text detail is selected", async () => {
-    const { project, folder } = nativeSky130OtaFixture();
+    const project = CircuitProjectSchema.parse(
+      currentFiveTransistorOtaCircuitSource(),
+    );
+    const folder = createSimulationFolder({
+      id: "folder-1",
+      name: "OTA",
+      profileId: "test",
+      documentId: project.topDocumentId,
+    });
+    project.simulationFolders = [folder];
     const sourceOwner = {
       kind: "project-folder" as const,
       folderId: folder.id,

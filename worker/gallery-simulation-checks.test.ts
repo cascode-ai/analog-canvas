@@ -117,8 +117,6 @@ function checkEnvironment({ held = false } = {}) {
   const gallery = environment();
   const simulation = createSimulationOperationsHarness("queue");
   closers.push(simulation.close);
-  delete simulation.env.SIMULATION_PROFILE_ID;
-  delete simulation.env.VACASK;
   const waiting: SimulationJobMessage[] = [];
   const deliver = async (message: SimulationJobMessage, attempt = 0) => {
     await consumeSimulationJobs(

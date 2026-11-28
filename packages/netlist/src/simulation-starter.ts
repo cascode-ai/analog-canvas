@@ -31,7 +31,7 @@ export function createSimulationStarter(
     name: string;
     /** None for an author's Testbench, run outside Canvas (#2110). */
     profileId?: string | undefined;
-    engine?: "ngspice" | "vacask";
+    engine?: "ngspice";
     documentId?: string;
     mode: "circuit" | "dut" | "text";
     template?: "op" | "ac" | "tran" | "testbench";

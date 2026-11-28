@@ -2,44 +2,50 @@ import { describe, expect, it } from "vitest";
 import {
   createSimulationEnvironmentMetadata,
   isRawMultiFileTestbench,
-  isValidRawExecutionInputMetadata,
   verifySimulationEnvironmentMetadata,
 } from "./metadata.js";
 
-describe("native environment identity", () => {
-  it("fingerprints VACASK honestly and keeps legacy result identities readable", async () => {
-    const native = await createSimulationEnvironmentMetadata({
+describe("simulation environment identity", () => {
+  it("fingerprints ngspice honestly and rejects tampered or unknown simulator names", async () => {
+    const measured = await createSimulationEnvironmentMetadata({
       executor: "local-host",
       reproducibility: "observed",
       profileId: null,
       platform: "linux/x64",
       simulator: {
-        name: "vacask",
-        version: "0.3.4",
+        name: "ngspice",
+        version: "46",
         binarySha256: "a".repeat(64),
       },
       models: null,
       startupSha256: "b".repeat(64),
     });
-    expect(await verifySimulationEnvironmentMetadata(native)).toEqual(native);
-    expect(native.reproducibility).toBe("observed");
-    const tampered = {
-      ...native,
-      simulator: { ...native.simulator, name: "ngspice" as const },
-    };
-    expect(await verifySimulationEnvironmentMetadata(tampered)).toBeNull();
-    const legacy = await createSimulationEnvironmentMetadata(tampered);
-    expect(await verifySimulationEnvironmentMetadata(legacy)).toEqual(legacy);
-    expect(legacy.fingerprint).not.toBe(native.fingerprint);
+    expect(await verifySimulationEnvironmentMetadata(measured)).toEqual(
+      measured,
+    );
+    expect(measured.reproducibility).toBe("observed");
+    const bumped = await createSimulationEnvironmentMetadata({
+      ...measured,
+      simulator: { ...measured.simulator, version: "47" },
+    });
+    expect(await verifySimulationEnvironmentMetadata(bumped)).toEqual(bumped);
+    expect(bumped.fingerprint).not.toBe(measured.fingerprint);
     expect(
       await verifySimulationEnvironmentMetadata({
-        ...native,
-        simulator: { ...native.simulator, name: "other" },
+        ...measured,
+        simulator: { ...measured.simulator, version: "47" },
       }),
     ).toBeNull();
+    for (const name of ["vacask", "other"])
+      expect(
+        await verifySimulationEnvironmentMetadata({
+          ...measured,
+          simulator: { ...measured.simulator, name },
+        }),
+      ).toBeNull();
   });
 
-  it("binds raw netlist and testbench metadata texts to unique submitted file slices (#1407)", () => {
+  it("binds raw testbench metadata text to unique submitted file slices", () => {
     const files = [
       {
         path: "run.cir",
@@ -63,24 +69,6 @@ describe("native environment identity", () => {
         "run.cir",
       ),
     ).toBe(true);
-    expect(
-      isValidRawExecutionInputMetadata(
-        {
-          netlist: files[2]!.text,
-          testbench: authoredSecond,
-          deck: files[0]!.text,
-        },
-        entrySecond,
-        "run.cir",
-      ),
-    ).toBe(true);
-    expect(
-      isValidRawExecutionInputMetadata(
-        { netlist: files[2]!.text, testbench: authored, deck: files[0]!.text },
-        files,
-        "run.cir",
-      ),
-    ).toBe(true);
     // Rejects duplicate file paths (unexecuted bytes could otherwise be signed).
     expect(
       isRawMultiFileTestbench(
@@ -90,31 +78,12 @@ describe("native environment identity", () => {
         "run.cir",
       ),
     ).toBe(false);
-    // Rejects empty deck, overlapping netlist/testbench, bridging across entry, wrong order.
+    // Rejects empty deck, wrong order, or missing entry slice.
     expect(
       isRawMultiFileTestbench(
         "x",
         "",
         [{ path: "run.cir", text: "" }],
-        "run.cir",
-      ),
-    ).toBe(false);
-    expect(
-      isValidRawExecutionInputMetadata(
-        { netlist: files[1]!.text, testbench: authored, deck: files[0]!.text },
-        files,
-        "run.cir",
-      ),
-    ).toBe(false);
-    const sandwiched = [
-      { path: "a.inc", text: "A\n" },
-      { path: "run.cir", text: "ENTRY\n" },
-      { path: "b.inc", text: "B\n" },
-    ];
-    expect(
-      isValidRawExecutionInputMetadata(
-        { netlist: "A\n\nB\n", testbench: "ENTRY\n", deck: "ENTRY\n" },
-        sandwiched,
         "run.cir",
       ),
     ).toBe(false);

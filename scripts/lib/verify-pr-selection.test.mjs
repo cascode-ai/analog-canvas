@@ -203,9 +203,8 @@ describe("verify:pr selection", () => {
   it("does not require Gallery drawings for simulation source, assertion and result changes", () => {
     expect(
       censusChecks([
-        "packages/netlist/src/simulation-source-vacask.ts",
-        "packages/netlist/src/vacask-language.ts",
-        "packages/netlist/src/vacask-postprocess.ts",
+        "packages/netlist/src/simulation-source-ngspice.ts",
+        "packages/netlist/src/simulation-source-graph.ts",
         "packages/netlist/src/simulation-diagnostic.ts",
       ]),
     ).toEqual([]);

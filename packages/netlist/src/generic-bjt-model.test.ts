@@ -6,7 +6,6 @@ import { createDesignNetlistExport, designExtractsNetlist } from "./export.js";
 import { analyzeDesignNetlist } from "./extract.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
 import { externalModelFixture } from "./external-model-fixture.test-support.js";
-import { printVacaskWithLocations } from "./vacask-printer.js";
 
 const NPN_CARD = ".model NPN NPN(IS=1e-16 BF=100 VAF=100)";
 const PNP_CARD = ".model PNP PNP(IS=1e-16 BF=50 VAF=50)";
@@ -227,26 +226,5 @@ describe("the generic bipolar models (#1420)", () => {
       { format: "spectre", deckSources: [] },
     );
     expect(run.ir!.cells.flatMap((cell) => cell.models ?? [])).toEqual([]);
-  });
-
-  it("writes the same transistors for VACASK", () => {
-    const ir = analyzeDesignNetlist(
-      bjtProject([
-        { id: "q1", reference: "Q1" },
-        { id: "q2", reference: "Q2", symbolId: "pnp" },
-      ]),
-    ).ir!;
-    const printed = printVacaskWithLocations(ir, false);
-    expect(printed.ok).toBe(true);
-    if (!printed.ok) return;
-    expect(printed.text).toContain('load "spice/bjt.osdi"');
-    expect(printed.text).toContain(
-      "model NPN sp_bjt type=1 is=1e-16 bf=100 vaf=100",
-    );
-    expect(printed.text).toContain(
-      "model PNP sp_bjt type=-1 is=1e-16 bf=50 vaf=50",
-    );
-    expect(printed.text).toContain("Q1 (collector base emitter) NPN");
-    expect(printed.text).toContain("Q2 (collector base emitter) PNP");
   });
 });

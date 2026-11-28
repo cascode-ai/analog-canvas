@@ -51,27 +51,11 @@ Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
   results are not saved in the Project. Lost responses never re-execute. Agents
   get raw series; the product derives no charts or summaries.
 
-## Native Worker execution boundary
+## Worker execution boundary
 
-- `worker/simulation.ts` routes by Profile; `worker/simulation-vacask.ts` takes
-  VACASK source only. `VACASK_PROFILE_ID` (or `SIMULATION_PROFILE_ID` on an
-  isolated native Worker) selects the Profile; `/health` supplies the measured
-  environment. Required: verified pinned VACASK identity, matching Profile,
-  `inputs: ["source"]`, `rawfileCollection: "native-multi-ascii"`. The Worker
-  holds no model path, corner list or analysis interpretation.
-- The label is `SKY130 · VACASK <release> (preview)` with the release read
-  strictly from the simulator version (`0.3.4-icm-hard-switch2` → `0.3.4`); an
-  executor-declared label wins; unreadable releases show the Profile id.
-- Targets (`VACASK_UPSTREAM_URL`/`VACASK_UPSTREAM_TOKEN` operator host, or a
-  `VACASK` container binding) are locations, not engines; missing targets never
-  fall back; an ngspice target never registers VACASK. Hosted VACASK preview
-  registration is retired in Production and China; [Deployment](../deployment.md)
-  owns active simulator registration.
-- Worker and harness share `validateNativeExecutionInput` (revision, entry bytes,
-  disjoint portable paths, registry digests, bounds). The Worker forwards exact
-  files and checks hashes, executed bytes and runtime fingerprint against
-  admission, withholding mismatches rather than retrying. Cancellation bypasses
-  readiness checks; refusals keep bounded details and Retry-After.
+- `worker/simulation.ts` routes by ngspice Profile (`worker/simulation-ngspice.ts`).
+  Missing targets never fall back. [Deployment](../deployment.md) owns active
+  simulator registration.
 
 ### Execution receipt
 
@@ -81,9 +65,7 @@ Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
   waveforms; body and endpoints unchanged.
 - The Worker checks the receipt and forwards the length-bounded stream, which
   the dispatcher writes to R2 with its expected SHA-256 (transfer integrity).
-  ngspice receipts match bundled Profile facts with no post-run `/health`;
-  VACASK capability facts are cached ≤30 s per binding, credential and Profile
-  and dropped on failure.
+  ngspice receipts match bundled Profile facts with no post-run `/health`.
 - Without the header, bounded JSON validation applies; malformed receipts fail
   without fallback; interrupted bodies are uncertain, never rerun.
 - `x-analog-execution-transfer: receipt-v1` opts into a 256 MiB response
@@ -92,9 +74,6 @@ Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
   come from runtime configuration, never the client.
 
 ## Ngspice baseline model-library selection
-
-These sections are ngspice-only; one engine's configuration never registers the
-other.
 
 ```ts
 type ModelLibrarySelection =
@@ -126,7 +105,7 @@ type ModelLibrarySelection =
 - For seeded sampling, select `statistical` or `nominal-mismatch`, then run
   `setseed 7101` and `reset` before analysis in the ngspice control block.
   Use the upstream `mm_ok=1` instance switch on models that expose it.
-  The lateral PNP has no local mismatch term. VACASK SG13G2 remains unqualified.
+  The lateral PNP has no local mismatch term.
 - PSP103 native OP exposes `ide` as `id`, `vgs` and `vds`. These are native,
   polarity-normalized model quantities (including PMOS); derivative fields are
   unavailable. The current Helper refuses hierarchical PSP PMOS drain current
@@ -224,13 +203,11 @@ type ModelLibrarySelection =
 
 - `inputRevision` is opaque freshness state.
 - `netlistSha256` covers the drawn circuit as sent (generated files joined by
-  newlines in compile order), or the empty netlist when there is none, when an
-  ngspice input would exceed its budget, or for VACASK. For ngspice,
-  `testbenchSha256` covers the authored testbench files as sent (joined by
-  newlines in compile order, falling back to the executed entry when an input
-  would exceed its budget) and `deckSha256` covers the executed entry; for
-  VACASK both cover the executed entry. `catalog.files` holds every other file's
-  SHA-256.
+  newlines in compile order), or the empty netlist when there is none or when an
+  input exceeds its budget. `testbenchSha256` covers the authored testbench
+  files as sent (joined by newlines in compile order, falling back to the
+  executed entry when an input exceeds its budget) and `deckSha256` covers the
+  executed entry. `catalog.files` holds every other file's SHA-256.
 - Hosted executors report `pinned` only after matching the Profile, the browser
   executor only after matching its `browser` section; nothing is fabricated.
   Metadata is provenance, not correctness.
@@ -374,7 +351,7 @@ Shared minimums for the hosted runner and the local host:
 
 ## Validation
 
-- Rawfile/result tests use ngspice- and VACASK-generated divider, RC and resistor
+- Rawfile/result tests use ngspice-generated divider, RC and resistor
   Noise fixtures with closed-form expectations; harness tests use real processes
   and misbehaving stand-ins. The browser executor's tests run the vendored
   WebAssembly on one RC deck through the route and check the pins.

@@ -24,24 +24,15 @@ import {
 import {
   generateCircuitSource,
   planCircuitSourceEdit,
-  nativeVoltageAcquisition,
-  nativeAcquisitionEdit,
-  simulationSignals,
-  nativeSimulationDevices,
-  nativeTerminalCurrent,
   migrateSimulationConfigToNative,
-  vacaskIdentifier,
-  nativeVoltageSelectorNode,
   ngspiceScopeKey,
   ngspiceSignals,
-  ngspiceAcquisitionEdit,
+  ngspiceVoltageAcquisition,
   ngspiceSimulationDevices,
   ngspiceTerminalCurrent,
 } from "@icm/netlist";
 import { ngspiceProbeChoices } from "./source-ngspice-probe-choices";
 import type { SimulationFiles } from "@icm/simulation-service/files";
-import { resolveSimulationEngine } from "@icm/simulation-service";
-import { authoringEngine } from "./authoring-engine";
 import { sha256 } from "@icm/simulation-service/files";
 import type {
   Problem,
@@ -63,10 +54,6 @@ import {
   simulationArtifactCategory,
   simulationExplorerArtifactCategory,
 } from "./simulation-artifact-files";
-import {
-  sourceProbeChoices,
-  sourceProbeEnvironment,
-} from "./source-probe-choices";
 import { SourceProbePicker } from "./source-probe-picker";
 import { SimulationActionIcon } from "./simulation-action-icon";
 import { flushSelectedFolders } from "./flush-selected-folders";
@@ -170,15 +157,7 @@ const inputProblem = (code: string, message: string): Problem => ({
 /** Local dirty buffers only; Project files, circuit parameters and runs keep their existing owners. */
 export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
   function SourceCodePane(props, ref) {
-    const folderEngine = (folder: ProjectSimulationFolder) => {
-      const selected = props.capabilities
-        ? resolveSimulationEngine(folder, props.capabilities)
-        : undefined;
-      return selected?.ok
-        ? selected.engine
-        : (authoringEngine(folder) ?? "vacask");
-    };
-    const engine = folderEngine(props.folder);
+    const engine = "ngspice" as const;
     const ui = useWorkspaceInteractions();
     const current = useRef(props);
     current.current = props;
@@ -272,27 +251,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
       configState.ok && configState.authority === "legacy-config";
     const signals = useMemo(
       () =>
-        (engine === "ngspice" ? ngspiceSignals : simulationSignals)(
-          props.project,
-          {
-            ...input,
-            files: input.files.map((file) => ({
-              ...file,
-              text:
-                drafts.current.get(`${props.folder.id}\u0000${file.path}`)
-                  ?.text ?? file.text,
-            })),
-          },
-        ),
-      [props.project, input, draftRevision, engine],
-    );
-    const [probePicker, setProbePicker] = useState<
-      "voltage" | "current" | "device-op"
-    >();
-    const probeEnvironment = useMemo(() => {
-      const folder = {
-        ...props.folder,
-        input: {
+        ngspiceSignals(props.project, {
           ...input,
           files: input.files.map((file) => ({
             ...file,
@@ -300,36 +259,27 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               drafts.current.get(`${props.folder.id}\u0000${file.path}`)
                 ?.text ?? file.text,
           })),
-        },
-      };
-      return probePicker && engine !== "ngspice"
-        ? sourceProbeEnvironment(
-            props.project,
-            folder,
-            props.capabilities?.profiles,
-          )
-        : { input: folder.input, libraries: [] };
-    }, [
-      props.project,
-      input,
-      draftRevision,
-      probePicker,
-      props.capabilities,
-      props.folder,
-      engine,
-    ]);
+        }),
+      [props.project, input, draftRevision],
+    );
+    const [probePicker, setProbePicker] = useState<
+      "voltage" | "current" | "device-op"
+    >();
+    const probeInput = useMemo(
+      () => ({
+        ...input,
+        files: input.files.map((file) => ({
+          ...file,
+          text:
+            drafts.current.get(`${props.folder.id}\u0000${file.path}`)?.text ??
+            file.text,
+        })),
+      }),
+      [input, draftRevision, props.folder.id],
+    );
     const probeChoices = useMemo(
-      () =>
-        probePicker
-          ? engine === "ngspice"
-            ? ngspiceProbeChoices(props.project, probeEnvironment.input)
-            : sourceProbeChoices(
-                props.project,
-                probeEnvironment.input,
-                probeEnvironment.libraries,
-              )
-          : [],
-      [props.project, probePicker, probeEnvironment, engine],
+      () => (probePicker ? ngspiceProbeChoices(props.project, probeInput) : []),
+      [props.project, probePicker, probeInput],
     );
     const binding = input.circuitBindings.find(
       (b) => b.emission === "top-level",
@@ -351,27 +301,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           path.endsWith(".json")
             ? input.entry
             : path;
-        const source =
-          drafts.current.get(`${props.folder.id}\u0000${targetPath}`)?.text ??
-          input.files.find((file) => file.path === targetPath)?.text ??
-          "";
-        // Validate before acknowledging the picker. A rejected helper must not
-        // mark the signal Added or switch away from the user's current file.
-        const proposed = (
-          engine === "ngspice" ? ngspiceAcquisitionEdit : nativeAcquisitionEdit
-        )(
-          source,
-          targetPath === path ? sourceCursor.current : 0,
-          vectors,
-          targetPath === input.entry,
-          directives,
-        );
-        if (!proposed.ok) {
-          props.onProblem(
-            inputProblem(proposed.error.code, proposed.error.message),
-          );
-          return false;
-        }
         if (targetPath !== path) setPath(targetPath);
         props.onProblem(undefined);
         setSaveRequest({
@@ -404,41 +333,20 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               f.text,
           })),
         };
-        const context =
-          engine === "ngspice"
-            ? { input: sourceInput, libraries: [] }
-            : sourceProbeEnvironment(
-                props.project,
-                { ...props.folder, input: sourceInput },
-                props.capabilities?.profiles,
-              );
-        const device = (
-          engine === "ngspice"
-            ? ngspiceSimulationDevices
-            : nativeSimulationDevices
-        )(props.project, context.input, context.libraries).find(
+        const device = ngspiceSimulationDevices(
+          props.project,
+          sourceInput,
+        ).find(
           (item) =>
             item.documentId === expression.documentId &&
             item.instanceId === expression.instanceId &&
             JSON.stringify(item.occurrence) ===
               JSON.stringify(expression.occurrence) &&
-            (engine === "ngspice"
-              ? ngspiceScopeKey(item.circuit) ===
-                ngspiceScopeKey(expression.circuit)
-              : item.circuit.bindingId === expression.circuit.bindingId &&
-                JSON.stringify(item.circuit.callPath) ===
-                  JSON.stringify(expression.circuit.callPath)),
+            ngspiceScopeKey(item.circuit) ===
+              ngspiceScopeKey(expression.circuit),
         );
         const result = device
-          ? engine === "ngspice"
-            ? ngspiceTerminalCurrent(
-                device as Parameters<typeof ngspiceTerminalCurrent>[0],
-                expression.pinName,
-              )
-            : nativeTerminalCurrent(
-                device as Parameters<typeof nativeTerminalCurrent>[0],
-                expression.pinName,
-              )
+          ? ngspiceTerminalCurrent(device, expression.pinName)
           : {
               ok: false as const,
               message:
@@ -464,7 +372,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         );
         return false;
       }
-      const resolved = nativeVoltageAcquisition(
+      const resolved = ngspiceVoltageAcquisition(
         props.project,
         {
           ...input,
@@ -476,7 +384,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           })),
         },
         expression,
-        engine,
       );
       if (!resolved.ok) {
         props.onProblem(
@@ -703,7 +610,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
               current.current.project,
               draft.binding,
               folder.input,
-              folderEngine(folder),
+              engine,
             );
             if (!regenerated.ok || regenerated.source.text !== draft.base) {
               props.onProblem(
@@ -962,11 +869,11 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         props.project,
         binding,
         folder?.input,
-        folder ? folderEngine(folder) : engine,
+        engine,
       );
       return generated.ok
         ? generated.source.text
-        : generated.diagnostics.map((d) => `// ${d.message}`).join("\n");
+        : generated.diagnostics.map((d) => `* ${d.message}`).join("\n");
     };
     const requestSave = async () => {
       if (sourceSaveRequest.current) return;
@@ -1290,7 +1197,6 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
         activePath={path}
         sourceContext={
           <SourceCircuitContext
-            engine={engine}
             project={props.project}
             activeDocumentId={props.activeDocumentId}
             input={{
@@ -1405,17 +1311,11 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           onCursor={(offset) => {
             sourceCursor.current = offset;
           }}
-          onHelperError={(message) =>
-            props.onProblem(
-              inputProblem("SIMULATION_SAVE_EDIT_INVALID", message),
-            )
-          }
           helperContent={
             probePicker ? (
               <SourceProbePicker
                 key={`${props.folder.id}:${probePicker}`}
                 choices={probeChoices}
-                notice={probeEnvironment.notice}
                 kind={probePicker}
                 onAdd={saveSignal}
                 onClose={() => setProbePicker(undefined)}
@@ -1439,19 +1339,13 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           signalNames={() =>
             Object.fromEntries(
               Object.entries(signals).map(([vector, signal]) => [
-                engine === "ngspice"
-                  ? vector
-                  : `v(${vacaskIdentifier(vector)})`,
+                vector,
                 signal.label,
               ]),
             )
           }
           onFocusSignal={(vector) => {
-            const node = vector
-              ? engine === "ngspice"
-                ? vector.toLowerCase()
-                : nativeVoltageSelectorNode(vector)
-              : undefined;
+            const node = vector ? vector.toLowerCase() : undefined;
             props.onPreviewSignal?.(
               node ? (signals[node]?.targets[0] ?? null) : null,
             );
@@ -1567,13 +1461,7 @@ export const SourceCodePane = forwardRef<SourceCodeHandle, Props>(
           path={path}
           text={text}
           historyKey={`${props.folder.id}:${buffer?.committed ?? props.project.structureRevision}`}
-          mode={
-            path.endsWith(".json")
-              ? "json"
-              : engine === "ngspice"
-                ? "ngspice"
-                : "native"
-          }
+          mode={path.endsWith(".json") ? "json" : "ngspice"}
           entry={path === input.entry}
           generated={Boolean(originalGenerated)}
           validateText={(text) => {

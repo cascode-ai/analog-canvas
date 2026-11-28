@@ -273,11 +273,12 @@ describe("MCP simulation tools on the live editor", () => {
       });
       await tool("connect", { claimCode: "session-1.code" });
       const help = await tool("simulation", {
-        request: { operation: "authoring-help", name: "embed" },
+        request: { operation: "authoring-help" },
       });
       expect(help.ok).toBe(true);
-      expect(help.helpers[0].source).toContain("def report_measurement(");
-      expect(help.helpers[0].source).toContain("def report_plot(");
+      expect(
+        help.helpers.some((item: { name?: string }) => item.name === "ac"),
+      ).toBe(true);
       expect(service.executions).toBe(0);
       const bad = await tool("simulation", {
         request: {
@@ -302,7 +303,7 @@ describe("MCP simulation tools on the live editor", () => {
           action: "update",
           owner: { kind: "session-workspace", workspaceId },
           expectedRevision: 0,
-          entry: "main.sim",
+          entry: "run.cir",
           writes: dividerFiles(),
         },
       });
@@ -358,6 +359,9 @@ describe("MCP simulation tools on the live editor", () => {
       const fileIds = finished.run.artifacts.map(
         (item: { id: string; fileId?: string }) => item.fileId ?? item.id,
       );
+      const nonEmptyFileIds = finished.run.artifacts
+        .filter((item: { byteLength: number }) => item.byteLength > 0)
+        .map((item: { id: string; fileId?: string }) => item.fileId ?? item.id);
       expect(relay.uploaded).toEqual([]);
       const csv = finished.run.artifacts.find(
         (item: { name: string }) => item.name === "op-0.csv",
@@ -370,8 +374,9 @@ describe("MCP simulation tools on the live editor", () => {
         }),
       ).toMatchObject({ ok: true });
       expect(relay.uploaded).toEqual([csv.id]);
-      // The captured raw record declares "notype"; the unit stays unknown.
-      expect((await readFile(path, "utf8")).split("\n")).toContain("output,2,");
+      expect((await readFile(path, "utf8")).split("\n")).toContain(
+        "v(mid),0.5,V",
+      );
       const basePath = join(directory, "workspace");
       const synced = await tool("simulation_files", {
         request: { action: "sync", runId: started.run.id },
@@ -384,7 +389,7 @@ describe("MCP simulation tools on the live editor", () => {
       });
       expect(synced.files).toHaveLength(finished.run.artifacts.length);
       expect(relay.uploaded).toEqual(expect.arrayContaining(fileIds));
-      expect(relay.served).toEqual(expect.arrayContaining(fileIds));
+      expect(relay.served).toEqual(expect.arrayContaining(nonEmptyFileIds));
       expect(synced.projection).toBe("summary");
       expect(synced.runs).toBeUndefined();
       expect(synced.files[0].sha256).toBeUndefined();

@@ -2,7 +2,6 @@ import { prepareExecutionInput } from "./prepare-input.js";
 import type { CircuitProject } from "@icm/model";
 import { readSimulationExperimentConfig } from "@icm/model";
 import { simulationAnalysisToCsv } from "@icm/spice-run";
-import { nativeAuthoringHelp } from "@icm/netlist";
 import { simulationLanguageHelp, NGSPICE_LANGUAGE_REFERENCE } from "@icm/spice";
 import { profileEngine } from "./profile-engine.js";
 import {
@@ -23,7 +22,6 @@ import {
   type ReleaseEvidence,
 } from "./files.js";
 import { executionSpecReport, simulationSpecsToCsv } from "./spec-results.js";
-import { executionArtifactEntries } from "./execution-artifacts.js";
 import { resultCatalog } from "./result-catalog.js";
 
 import {
@@ -77,7 +75,7 @@ type InputArtifact = {
 };
 type InternalRun = {
   view: Run;
-  engine: "ngspice" | "vacask";
+  engine: "ngspice";
   prepared: Prepared;
   token: string;
   done: Promise<void>;
@@ -184,7 +182,6 @@ export class SimulationService {
     const op = parsed.data;
     try {
       if (op.operation === "authoring-help") {
-        let engine: "ngspice" | "vacask" = "vacask";
         if (op.profileId) {
           const caps = await this.executor.capabilities(op.profileId);
           const profile = caps.profiles.find((p) => p.id === op.profileId);
@@ -196,35 +193,30 @@ export class SimulationService {
               "Select an advertised Profile for authoring help",
               "input",
             );
-          engine = selected;
         }
-        const helpers =
-          engine === "vacask"
-            ? nativeAuthoringHelp(op)
-            : simulationLanguageHelp
-                .filter((h) => h.context === "deck" || h.context === "control")
-                .filter(
-                  (h) =>
-                    (!op.name || h.name === op.name) &&
-                    (!op.context ||
-                      h.context ===
-                        (op.context === "circuit" ? "deck" : "control")),
-                )
-                .map((h) => ({
-                  name: h.name,
-                  context:
-                    h.context === "deck"
-                      ? ("circuit" as const)
-                      : ("control" as const),
-                  signature: h.signature,
-                  summary: h.summary,
-                  reference: `${NGSPICE_LANGUAGE_REFERENCE}#${h.section}`,
-                  source: h.signature,
-                }));
+        const helpers = simulationLanguageHelp
+          .filter((h) => h.context === "deck" || h.context === "control")
+          .filter(
+            (h) =>
+              (!op.name || h.name === op.name) &&
+              (!op.context ||
+                h.context === (op.context === "circuit" ? "deck" : "control")),
+          )
+          .map((h) => ({
+            name: h.name,
+            context:
+              h.context === "deck"
+                ? ("circuit" as const)
+                : ("control" as const),
+            signature: h.signature,
+            summary: h.summary,
+            reference: `${NGSPICE_LANGUAGE_REFERENCE}#${h.section}`,
+            source: h.signature,
+          }));
         return op.name && !helpers.length
           ? problem(
               "SIMULATION_HELPER_NOT_FOUND",
-              "No matching helper; omit name to list available native helpers. This catalogue is not an execution allow-list.",
+              "No matching helper; omit name to list available ngspice helpers. This catalogue is not an execution allow-list.",
               "read",
             )
           : { ok: true, helpers };
@@ -346,8 +338,6 @@ export class SimulationService {
                     ({
                       devices: _devices,
                       dependencies: _dependencies,
-                      modelSymbols: _symbols,
-                      modelLibrary: _library,
                       ...profile
                     }) => profile,
                   )
@@ -1402,7 +1392,7 @@ export class SimulationService {
     };
     const entry: InternalRun = {
       view,
-      engine: prepared.input.language === "vacask" ? "vacask" : "ngspice",
+      engine: "ngspice",
       prepared: structuredClone(prepared.view),
       token: crypto.randomUUID(),
       done: Promise.resolve(),
@@ -1529,17 +1519,7 @@ export class SimulationService {
             text: output.executedDeck,
             metadata: { role: "executed" },
           });
-        const executionEntries = executionArtifactEntries(output);
         pendingArtifacts.push(
-          ...executionEntries.map((item) => ({
-            name: item.name,
-            mediaType: "text/plain",
-            text: item.text,
-            metadata: {
-              role: item.kind,
-              sourcePath: item.path,
-            },
-          })),
           {
             name: "result.json",
             mediaType: "application/json",
@@ -1567,47 +1547,37 @@ export class SimulationService {
         const published = await this.files.publishEvidence(
           run.view.id,
           pendingArtifacts,
-          (refs) => {
-            const nativeArtifacts = executionEntries.map((item) => {
-              const artifact = refs.find(
-                (ref) => ref.name === item.name && ref.role === item.kind,
-              );
-              if (!artifact) throw new Error("ARTIFACT_STORAGE_UNAVAILABLE");
-              return { kind: item.kind, path: item.path, artifact };
-            });
-            return {
-              name: "evidence-manifest.json",
-              mediaType: "application/json",
-              text: JSON.stringify(
-                {
-                  schemaVersion: 1,
-                  run: {
-                    id: run.view.id,
-                    preparedId: run.view.preparedId,
-                    inputRevision: run.view.inputRevision,
-                  },
-                  prepared: {
-                    digest: run.prepared.digest,
-                    mode: run.prepared.mode,
-                    environment: run.prepared.environment,
-                    vectors: run.prepared.vectors,
-                    signalNames: run.prepared.signalNames,
-                    signalTargets: run.prepared.signalTargets,
-                    outputs: run.prepared.outputs,
-                    deviceOperatingPoints: run.prepared.deviceOperatingPoints,
-                    measurements: run.prepared.measurements ?? [],
-                  },
-                  environment: output.result.metadata.environment,
-                  ...(nativeArtifacts.length ? { nativeArtifacts } : {}),
-                  artifacts: refs.map((ref) => ({ ...ref })),
-                  catalog: makeCatalog(refs),
+          (refs) => ({
+            name: "evidence-manifest.json",
+            mediaType: "application/json",
+            text: JSON.stringify(
+              {
+                schemaVersion: 1,
+                run: {
+                  id: run.view.id,
+                  preparedId: run.view.preparedId,
+                  inputRevision: run.view.inputRevision,
                 },
-                null,
-                2,
-              ),
-              metadata: { role: "manifest" },
-            };
-          },
+                prepared: {
+                  digest: run.prepared.digest,
+                  mode: run.prepared.mode,
+                  environment: run.prepared.environment,
+                  vectors: run.prepared.vectors,
+                  signalNames: run.prepared.signalNames,
+                  signalTargets: run.prepared.signalTargets,
+                  outputs: run.prepared.outputs,
+                  deviceOperatingPoints: run.prepared.deviceOperatingPoints,
+                  measurements: run.prepared.measurements ?? [],
+                },
+                environment: output.result.metadata.environment,
+                artifacts: refs.map((ref) => ({ ...ref })),
+                catalog: makeCatalog(refs),
+              },
+              null,
+              2,
+            ),
+            metadata: { role: "manifest" },
+          }),
           makeCatalog,
           run.view.artifacts,
         );

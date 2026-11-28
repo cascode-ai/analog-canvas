@@ -123,8 +123,7 @@ derive from `parameters`.
 - Generated masters are compiler-owned: one `generatedDefinitions` inventory
   carries comparator, logic, signal and magnetic bodies through printing and
   simulation, each emitted once. Factories produce typed recipes; printers own
-  syntax only. VACASK prints reviewed nonlinear equations as behavioral sources
-  (OpenVAF). Backend availability is not a PDK gate.
+  syntax only. Backend availability is not a PDK gate.
 - The name is never the key ([rules](../../packages/netlist/src/library-part-calls.ts)):
   - An unbound Library part, storing its own body's name (or no binding, its
     symbol's master being that body), calls its generated body, whatever the
@@ -189,8 +188,8 @@ fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
   `icm_opamp_enable_gnd`), `opamp_bias` (`VBIAS` driven at `vbias` via 100 Ω;
   optional `EN` mute via `icm_opamp_bias_en`) and `differential_line_driver`
   (complementary `OUT+`/`OUT-` driven through `ron` when `V(EN) > ven`,
-  tri-stated to `roff` below) are smooth behavioral bodies included in SPICE,
-  Spectre and VACASK.
+  tri-stated to `roff` below) are smooth behavioral bodies included in SPICE
+  and Spectre.
 - Board/magnetic subcircuits (#2444): `relay` prints as behavioral
   `spdt_relay` (coil `rcoil` 150 Ω; `COM` transfers smoothly from `NC` to `NO`
   above `|V(COIL+,COIL-)| = von`). `center-tap-xfmr` prints as coupled-inductor
@@ -210,7 +209,7 @@ fixed `VDD`/`VSS` ports; logic ports follow Symbol pins.
   change delay and narrow pulses can be suppressed. Input is high impedance,
   output is an ideal voltage drive; no physical loading or power is modeled.
   Invalid parameters block export with `INVALID_DELAY_CELL_PARAMETER`.
-  SPICE, VACASK and Spectre project the same recipe; Spectre execution is not
+  SPICE and Spectre project the same recipe; Spectre execution is not
   qualified.
 - Adder: V(Y) = ±V(A) ± V(B). `signA`/`signB` are `+` (default) or `-` (`−` read
   and stored as `-`); signs pick the body (`adder`, `adder_minus_a`,
@@ -256,8 +255,7 @@ VON`) and `icm_ideal_comparator_differential_vdd` (`VDD VIP VIN VOP VON`)
   N2, no supplies) is one lossless line, SPICE `T1 p1 n1 p2 n2 Z0={z0}
 TD={td}`, Spectre `T1 (p1 n1 p2 n2) tline z0=z0 td=td`; defaults `z0` =
   50 Ω, `td` = 1 ns. A line given by frequency and normalized length takes
-  `td` = nl/f (`{0.25/1G}`). It is an `X` call of that body, as the crystal
-  is; VACASK has no line (`VACASK_UNSUPPORTED_DEVICE`).
+  `td` = nl/f (`{0.25/1G}`). It is an `X` call of that body, as the crystal is.
 - Semiconductor devices SPICE has no card for are `X` calls of textbook
   equivalent circuits, no supplies, each body carrying its own model cards
   with the generic cards' parameters (`de` the DIODE card, `qn`/`qp` the
@@ -304,7 +302,7 @@ TD={td}`, Spectre `T1 (p1 n1 p2 n2) tline z0=z0 td=td`; defaults `z0` =
 - A body transistor marked off prints `off` (SPICE) or `region=off`
   (Spectre). Photodiode and varactor diode are D cards on `DIODE`, the
   phototransistor a Q card on `NPN`, the MESFET a J card on `NJF`.
-- SPICE and VACASK include all bodies but VACASK the transmission line;
+- SPICE includes all bodies;
   Spectre includes comparator, combinational gates (`bsource` with RC delay),
   the crystal, the potentiometer, the transmission line and the semiconductor
   devices; DFF,
@@ -324,13 +322,13 @@ TD={td}`, Spectre `T1 (p1 n1 p2 n2) tline z0=z0 td=td`; defaults `z0` =
 
 - Every switch is an ngspice `S` card through `ideal_switch` (`SW`: RON 1 Ω,
   ROFF 1e12 Ω, VT 0.5 V, VH 0) printed once per using Cell; Spectre uses a hard
-  `bsource`, VACASK `icm_switch`. No clock is invented.
+  `bsource`. No clock is invented.
 - A chopper or SPDT (`spdt-switch`, `simple-spdt-switch`) calls one generated
   body of ideal switches on the clock its label names, passed last:
   `ideal_chopper` (`INP INN OUTP OUTN CK`; straight while high, crossed while
   low) and `ideal_spdt` (`COM A B CK`; COM–A while high, COM–B while low).
   SPICE switches each path with an `S` card, the low side on the negated
-  threshold; Spectre and VACASK use the hard `bsource`. One side conducts at
+  threshold; Spectre uses the hard `bsource`. One side conducts at
   a time; the complement is the part's own.
 - Two-terminal switches follow the phase their label names, shown or hidden
   (Φ₁ → `PHI1`; a label showing its own name is its own phase,
@@ -373,24 +371,20 @@ TD={td}`, Spectre `T1 (p1 n1 p2 n2) tline z0=z0 td=td`; defaults `z0` =
   subcircuit, a `.lib` section or a `.control` block are not the file's. The stand-in card itself, as the
   export writes it in SPICE or Spectre (type and parameters, in any case or
   order), suppresses nothing: a netlist the editor wrote, imported again, holds
-  it (#1789). VACASK prints `sp_diode`/`sp_bjt`
-  (`type=±1`). Spectre export carries native stand-ins with the same parameters:
+  it (#1789). Spectre export carries native stand-ins with the same parameters:
   `model DIODE diode is=1e-14 n=1` (`DSCH` likewise), `model NPN bjt type=npn is=1e-16 bf=100 vaf=100`,
   `model PNP bjt type=pnp is=1e-16 bf=50 vaf=50` and
-  `model NJF jfet type=n vto=-2 beta=1e-3 lambda=0.01` (`PJF` `type=p`). VACASK
-  has no qualified JFET mapping and refuses `NJF`/`PJF` with
-  `VACASK_UNSUPPORTED_MODEL`. Spectre run decks carry none of these stand-ins;
-  their model libraries remain the authority.
-- A netlist handed out (panel, copy, save, `SPICE+RNL`, `Spectre+RNL`) carries
-  BSIM4 stand-ins for generic `NMOS`/`PMOS` in each Cell naming them
-  (information `GENERIC_MOS_MODEL`), so it reads back with each part's channel
-  and runs: `.model NMOS nmos level=54` and `.model PMOS pmos level=54` in
-  SPICE, `model NMOS bsim4 type=n` and `model PMOS bsim4 type=p` in Spectre.
-  BSIM4 takes the `nf` every MOS carries, which a level-1 card refuses; only
-  ngspice and Spectre are promised to read them. A run's deck carries none
-  (#1420: VACASK has no mapping for a Cell's own MOS card) and, like `SW`
-  everywhere, SPICE reports information `GENERIC_MODEL_UNDEFINED`, silenced
-  likewise.
+  `model NJF jfet type=n vto=-2 beta=1e-3 lambda=0.01` (`PJF` `type=p`).
+- A netlist handed out (panel, copy, save, `SPICE+RNL`, `Spectre+RNL`) and an
+  ngspice run's deck (#2555) carry BSIM4 stand-ins for generic `NMOS`/`PMOS` in
+  each Cell naming them (information `GENERIC_MOS_MODEL`), so exported decks
+  read back with each part's channel and run: `.model NMOS nmos level=54` and
+  `.model PMOS pmos level=54` in SPICE, `model NMOS bsim4 type=n` and
+  `model PMOS bsim4 type=p` in Spectre. BSIM4 takes the `nf` every MOS carries,
+  which a level-1 card refuses; only ngspice and Spectre are promised to read
+  them. Author-defined cards in the run's sources still suppress the stand-in.
+  Generic `SW` carries no stand-in; SPICE reports information
+  `GENERIC_MODEL_UNDEFINED`, silenced when the author defines the model.
 - An imported part naming a model no card in its sources declares
   (`instanceEvidence` `typed-only`, or `untyped` for its family's box) keeps
   its external reference until an author selects a Canvas target. For a
@@ -420,7 +414,7 @@ TD={td}`, Spectre `T1 (p1 n1 p2 n2) tline z0=z0 td=td`; defaults `z0` =
   `LP p_plus p_minus {lp}`, `LS s_plus s_minus {ls}`, `K1 LP LS {k}`),
   `ct_inductor` (the T-coil without `CB`, `k` default 0).
 - Windings start at the polarity dot (pin 1 and the tap; P+ and S+). Spectre uses
-  `inductor`/`mutual_inductor`; VACASK `mutual` with nonnegative coupling.
+  `inductor`/`mutual_inductor`.
 - Errors: `MAGNETIC_PARAMETER_NOT_ACCEPTED`, `MAGNETIC_COUPLING_OUT_OF_RANGE`.
 
 ## Net rules
@@ -472,8 +466,7 @@ Printers are pure functions of a validated IR.
   one [GPDK045 library include](#process-configuration). An independent
   source the SPICE import kept as written, its AC and PULSE, SIN or PWL in its
   dc text (`0.9 AC 1 0 PULSE(…)`), prints in Spectre's terms
-  (`type=pulse val0=… dc=0.9 mag=1 phase=0`), read as the VACASK projection
-  reads it; SPICE prints the text unchanged.
+  (`type=pulse val0=… dc=0.9 mag=1 phase=0`); SPICE prints the text unchanged.
 - Values hold numbers as SPICE reads them; Spectre prints each one in its own
   spelling: the digits as written, the scale respelled (SPICE's `Meg` is
   Spectre's `M`, SPICE's `M` and `m` its `m`, `mil` a plain decimal) and no

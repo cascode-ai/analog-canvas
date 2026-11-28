@@ -481,8 +481,8 @@ export function extractCell(
     models.push(structuredClone(IDEAL_SWITCH_MODEL));
   // The parts a generic card stands in for, and the Cell then carries it.
   // Export carries stand-ins in either dialect so they read back. Spectre
-  // runs keep relying on the reader's libraries; SPICE runs carry the cards
-  // (VACASK prints them from the SPICE cards). Names match as SPICE reads them.
+  // runs keep relying on the reader's libraries; SPICE runs carry the cards.
+  // Names match as SPICE reads them.
   // An imported part naming a model no card declares never takes one,
   // whatever the name: its type draws it, and its model is the reader's.
   // A netlist Canvas wrote, imported again, holds only the stand-in, which
@@ -589,7 +589,7 @@ export function extractCell(
     reportGenericDepletionMos(document, genericDepletion, diagnostics);
   // A netlist handed out carries the MOS stand-ins, in either dialect, so it
   // reads back with each part's channel; so does an ngspice run's deck, which
-  // otherwise cannot find them (#2555). A VACASK run's does not (#1420).
+  // otherwise cannot find them (#2555).
   const genericMos =
     options.run && !options.mosStandIns
       ? []

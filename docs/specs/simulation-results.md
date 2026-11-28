@@ -31,9 +31,9 @@ owns receipts and artifacts. Exact shapes:
 - Probes name existing objects plus hierarchy occurrence; the
   probe→vector mapping is made at compile time, never inferred from results.
 - Vector spellings are exact identities: lookup, IDs, labels and CSV never
-  case-fold (VACASK can return `Out` and `out`). Name normalization belongs to
-  the source adapter. ngspice authored call paths ignore case within the same binding. Physical AC acquisitions stay complex with units even
-  when all imaginary parts are zero.
+  case-fold. Name normalization belongs to the source adapter; ngspice authored
+  call paths ignore case within the same binding. Physical AC acquisitions stay
+  complex with units even when all imaginary parts are zero.
 
 ## Reading the rawfile
 
@@ -52,12 +52,6 @@ Numbers come from the ASCII rawfile, never console text.
   `Integrated Noise`; repeats keep raw evidence with a diagnostic, never
   guessed pairs. Unread plots are a `warning` by name, an `error` when alone.
   No supported analysis left → unusable.
-- VACASK noise: native PSD kept; ASD = `sqrt(output PSD)` and
-  `sqrt(output PSD / squared transfer)`; undefined referral is null, not 0.
-  Integrals are trapezoidal RMS estimates over recorded samples
-  (`integrationMethod: "trapezoidal-psd"`, labelled `sampled PSD`), no
-  extrapolation, sorting or bridging; missing ones are absent (blank in CSV,
-  omitted in GUI/MCP).
 - `dims=1` short vectors in AC/DC/TRAN become the record's `scalars` (first
   value); padding is not sweep data. Undeclared constants stay waveforms;
   malformed dimensions are diagnostics.
@@ -101,15 +95,13 @@ without dimension evidence must be rerun.
 
 ## Measurements
 
-Console `meas`/`report_measurement` reports come only from the executed
-include graph, keep Console order and are never associated with raw records
-by name. Native `meas` enters the Spec report; raw scalars stay in raw
-data/CSV. Optional `* @spec` (ngspice) / `// @spec` (VACASK) comments declare
-limits, ranges or targets; the source adapter owns includes, sections and
-names. One shared evaluator reads captured input only: missing/ambiguous
+Console `meas` reports come only from the executed include graph, keep Console
+order and are never associated with raw records by name. Native `meas` enters
+the Spec report; raw scalars stay in raw data/CSV. Optional `* @spec` comments
+declare limits, ranges or targets; the source adapter owns includes, sections
+and names. One shared evaluator reads captured input only: missing/ambiguous
 metrics are not evaluated, metrics without rules unconstrained
-([Spec annotations](../agent/simulation-specs.md)). VACASK values without
-rules use `source.kind: "log"` with declared units. Legacy JSON measurement
+([Spec annotations](../agent/simulation-specs.md)). Legacy JSON measurement
 configuration stays readable but is not regenerated.
 
 ## CSV

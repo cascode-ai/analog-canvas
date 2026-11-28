@@ -1,28 +1,26 @@
-import type { SimulationSourceInput, SourceSpan } from "@icm/model";
-import {
-  inspectSourceFileGraph,
-  type InspectedSourceItem,
-  type SimulationSourceDiagnostic,
-} from "./source-file-graph.js";
+import type { SourceSpan } from "@icm/model";
+import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
 
-export interface VacaskSourceToken {
+export interface SpectreSourceToken {
   kind: "word" | "string" | "symbol";
   /** Decoded string/identifier, case preserved. Original spelling lives in text. */
   value: string;
   start: number;
   end: number;
 }
-export interface VacaskSourceStatement {
+
+export interface SpectreSourceStatement {
   rawText: string;
   sourceRef: SourceSpan;
-  tokens: VacaskSourceToken[];
+  tokens: SpectreSourceToken[];
 }
 
-/** Lexical inspection, not a second simulator grammar or expression evaluator.
- * Unknown native statements stay available for the simulator to interpret.
- * Based on pinned VACASK input-overview/identifiers/strings and dfllexer.l. */
-export function inspectVacaskSource(path: string, text: string, entry = false) {
-  const statements: VacaskSourceStatement[] = [];
+/**
+ * Lexical scanner for Spectre model-source declarations.
+ * Keeps original text and spans intact without interpreting model equations.
+ */
+export function inspectSpectreSource(path: string, text: string) {
+  const statements: SpectreSourceStatement[] = [];
   const diagnostics: SimulationSourceDiagnostic[] = [];
   const comments: { start: number; end: number; sourceRef: SourceSpan }[] = [];
   const starts = [0];
@@ -43,21 +41,15 @@ export function inspectVacaskSource(path: string, text: string, entry = false) {
     start: position(start),
     end: position(end),
   });
-  let cursor = entry
-    ? text.includes("\n")
-      ? text.indexOf("\n") + 1
-      : text.length
-    : 0;
-  let tokens: VacaskSourceToken[] = [];
+  let cursor = 0;
+  let tokens: SpectreSourceToken[] = [];
   const brackets: string[] = [];
   function fail(message: string, at = cursor) {
     at = Math.min(at, text.length);
-    // Keep a lexical failure visible to section-aware graph filtering even if
-    // an unterminated comment/string did not produce an ordinary statement.
     if (!tokens.length)
       tokens.push({ kind: "word", value: "", start: at, end: at });
     diagnostics.push({
-      code: "VACASK_SOURCE_SYNTAX",
+      code: "MODEL_SOURCE_SYNTAX",
       severity: "error",
       message,
       sourceRef: span(tokens[0]!.start, Math.max(at, tokens[0]!.start)),
@@ -74,7 +66,11 @@ export function inspectVacaskSource(path: string, text: string, entry = false) {
     });
     tokens = [];
   }
-  function emit(kind: VacaskSourceToken["kind"], start: number, value: string) {
+  function emit(
+    kind: SpectreSourceToken["kind"],
+    start: number,
+    value: string,
+  ) {
     tokens.push({ kind, value, start, end: Math.min(text.length, cursor) });
   }
   while (cursor < text.length) {
@@ -186,8 +182,6 @@ export function inspectVacaskSource(path: string, text: string, entry = false) {
       continue;
     }
     let value = "";
-    // Quoted and unquoted identifier fragments concatenate. Single quote
-    // doubling is an identifier escape, not a SPICE arithmetic expression.
     while (cursor < text.length) {
       const part = text[cursor]!;
       if (part === "'") {
@@ -226,92 +220,4 @@ export function inspectVacaskSource(path: string, text: string, entry = false) {
   if (brackets.length) fail("Unterminated bracketed statement");
   flush();
   return { statements, diagnostics, comments };
-}
-
-/** Native includes use the same ownership graph as the existing compiler.
- * No SPICE-to-native fallback, extension-based language guessing or host reads. */
-export function inspectVacaskSourceGraph(
-  input: SimulationSourceInput,
-  options: { includeComments?: boolean } = {},
-) {
-  return inspectSourceFileGraph(
-    input,
-    (path, text, entry) => {
-      const parsed = inspectVacaskSource(path, text, entry);
-      const diagnostics = [...parsed.diagnostics];
-      const items: InspectedSourceItem<VacaskSourceStatement>[] =
-        parsed.statements.map((statement) => {
-          const item: InspectedSourceItem<VacaskSourceStatement> = {
-            statement,
-            sourceRef: statement.sourceRef,
-          };
-          const [head, name, ...rest] = statement.tokens;
-          const bare = (
-            token: VacaskSourceToken | undefined,
-            keyword?: string,
-          ) =>
-            token?.kind === "word" &&
-            text.slice(token.start, token.end) === token.value &&
-            (keyword === undefined || token.value === keyword);
-          const sectionName = (token: VacaskSourceToken | undefined) =>
-            bare(token) && /^[A-Za-z_$][A-Za-z0-9_$]*$/u.test(token!.value);
-          const fail = (message: string) =>
-            diagnostics.push({
-              code: "VACASK_SOURCE_SYNTAX",
-              severity: "error",
-              message,
-              sourceRef: statement.sourceRef,
-            });
-          if (bare(head, "include")) {
-            if (name?.kind !== "string" || text[name.start] !== '"')
-              fail("Native include requires a literal double-quoted filename");
-            else if (!rest.length) item.include = { requestedPath: name.value };
-            else if (
-              rest.length === 3 &&
-              bare(rest[0], "section") &&
-              rest[1]?.value === "=" &&
-              sectionName(rest[2])
-            )
-              item.include = {
-                requestedPath: name.value,
-                section: rest[2]!.value,
-              };
-            else
-              fail(
-                "Use a native include with an optional section; foreign-language includes are not this migration's native compilation path",
-              );
-          } else if (bare(head, "section")) {
-            if (!sectionName(name) || rest.length)
-              fail("section requires exactly one native identifier");
-            else item.section = { kind: "start", name: name!.value };
-          } else if (bare(head, "endsection")) {
-            if (name) fail("endsection takes no name");
-            else item.section = { kind: "end", name: "" };
-          } else if (bare(head) && head!.value.startsWith("."))
-            fail(
-              "SPICE directives are not native VACASK source; preserve and explicitly translate the old experiment before running it",
-            );
-          return item;
-        });
-      // Optional lexical comments use the same include/section traversal as
-      // executable statements. Embedded strings never appear in this list.
-      if (options.includeComments) {
-        for (const comment of parsed.comments) {
-          items.push({
-            sourceRef: comment.sourceRef,
-            statement: {
-              rawText: text.slice(comment.start, comment.end),
-              sourceRef: comment.sourceRef,
-              tokens: [],
-            },
-          });
-        }
-        items.sort(
-          (a, b) => a.sourceRef.start.offset - b.sourceRef.start.offset,
-        );
-      }
-      return { items, diagnostics };
-    },
-    { sectionKey: (name) => name, rootFallback: true, flatSections: true },
-  );
 }

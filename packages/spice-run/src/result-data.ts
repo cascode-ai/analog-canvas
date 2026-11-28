@@ -38,8 +38,7 @@ import type { SimulationDiagnostic } from "./index.js";
  * invented unit, because a wrong unit on a chart axis is worse than no unit.
  */
 export interface SimulationProbe {
-  /** Exact simulator vector name. Consumers must not case-fold identities;
-   * native VACASK may contain both Out and out with different values. */
+  /** Exact simulator vector name. Consumers must not case-fold identities. */
   readonly name: string;
   readonly quantity: string;
   readonly unit: string | null;

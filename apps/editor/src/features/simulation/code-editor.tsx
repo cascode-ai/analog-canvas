@@ -60,11 +60,6 @@ import {
 import * as spiceGuide from "./code-spice-parameter-guide";
 import { ngspiceAcquisitionEdit } from "@icm/netlist";
 import {
-  nativeCodeLanguage,
-  nativeCompletion,
-  nativeHoverHelp,
-} from "./code-native-language";
-import {
   editorOffset,
   editorText,
   sourceOffset,
@@ -75,29 +70,14 @@ import {
   exactSourceHistory,
   restoreExactSource,
 } from "./code-source-state";
-import {
-  controlContext,
-  insertNativeHelp,
-  nativeParameterGuide,
-  dismissParameterGuide,
-  dismissNativeGuide,
-  parameterGuide,
-  nativeEntry,
-  nativeCompanions,
-} from "./code-parameter-guide";
 import { CodeHelperList, type CodeHelperAction } from "./code-helper-list";
-import {
-  inspectNativeLanguage,
-  nativeAcquisitionEdit,
-  nativeParameterDeclarationEdit,
-} from "@icm/netlist";
 
 export interface SimulationCodeEditorProps {
   path: string;
   text: string;
   /** A committed revision/history boundary. Do not change this while typing a local draft. */
   historyKey: string;
-  mode?: "native" | "ngspice" | "json";
+  mode?: "ngspice" | "json";
   entry?: boolean;
   readOnly?: boolean;
   diagnostics?: readonly SimulationSourceDiagnostic[] | undefined;
@@ -111,7 +91,6 @@ export interface SimulationCodeEditorProps {
   /** Generated Circuit uses its mapped-span planner here; invalid numeric drafts may remain editable. */
   acceptChange?(text: string): boolean;
   onRejectedChange?(): void;
-  onHelperError?(message: string): void;
   onParameterDeclaration?(): void;
   declarationRequest?: string | undefined;
   onSave?(): void;
@@ -271,21 +250,16 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
               const guide =
                 callbacks.current.mode === "json"
                   ? null
-                  : callbacks.current.mode === "ngspice"
-                    ? spiceGuide.parameterGuide(update.state)
-                    : parameterGuide(update.state);
+                  : spiceGuide.parameterGuide(update.state);
               setArgumentHint(guide?.parameters[guide.index]?.label ?? "");
               const line = update.state.doc.lineAt(
                 update.state.selection.main.head,
               );
               const word = line.text.trim();
               setUnknownCommand(
-                /^[\p{L}]{2,}$/u.test(word) &&
-                  !(
-                    callbacks.current.mode === "ngspice"
-                      ? spiceCompletion
-                      : nativeCompletion
-                  )(
+                callbacks.current.mode !== "json" &&
+                  /^[\p{L}]{2,}$/u.test(word) &&
+                  !spiceCompletion(
                     new CompletionContext(
                       update.state,
                       update.state.selection.main.head,
@@ -419,28 +393,17 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       return;
     handledDeclaration.current = props.declarationRequest;
     const text = editor.state.field(exactSourceField);
-    const edit =
-      props.mode === "ngspice"
-        ? (() => {
-            const from =
-              text.indexOf("\n") < 0 ? text.length : text.indexOf("\n") + 1;
-            const insert =
-              (from && text[from - 1] !== "\n" ? "\n" : "") +
-              ".param variable=1\n";
-            return {
-              text: text.slice(0, from) + insert + text.slice(from),
-              anchor: from + insert.length - 1,
-              changes: [{ from, insert }],
-            };
-          })()
-        : nativeParameterDeclarationEdit(text, true);
-    const { from, insert } = edit.changes[0]!;
+    const from = text.indexOf("\n") < 0 ? text.length : text.indexOf("\n") + 1;
+    const insert =
+      (from && text[from - 1] !== "\n" ? "\n" : "") + ".param variable=1\n";
+    const nextText = text.slice(0, from) + insert + text.slice(from);
+    const anchor = from + insert.length - 1;
     editor.dispatch({
       changes: { from: editorOffset(text, from), insert },
-      selection: { anchor: editorOffset(edit.text, edit.anchor) },
+      selection: { anchor: editorOffset(nextText, anchor) },
       effects: [
-        restoreExactSource.of(edit.text),
-        dismissParameterGuide.of(false),
+        restoreExactSource.of(nextText),
+        spiceGuide.dismissParameterGuide.of(false),
       ],
       userEvent: "input.complete",
     });
@@ -460,9 +423,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       props.mode === "json"
     )
       return;
-    const edit = (
-      props.mode === "ngspice" ? ngspiceAcquisitionEdit : nativeAcquisitionEdit
-    )(
+    const edit = ngspiceAcquisitionEdit(
       editor.state.doc.toString(),
       saveAnchor.current?.session === props.saveRequest.session &&
         saveAnchor.current.path === props.path
@@ -472,10 +433,6 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       !!props.entry,
       props.saveRequest.directives,
     );
-    if (!edit.ok) {
-      props.onHelperError?.(edit.error.message);
-      return;
-    }
     const anchor = edit.anchor;
     // Compose insertions into one undoable transaction. Replacing the whole
     // document would normalize untouched mixed newlines in the exact-source field.
@@ -542,16 +499,12 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
       {props.helperContent ??
         (helperOpen && (
           <CodeHelperList
-            language={props.mode ?? "native"}
-            control={(props.mode === "ngspice"
-              ? (text: string, _entry: boolean) =>
-                  spiceGuide.controlContext(text)
-              : controlContext)(
+            language={props.mode ?? "ngspice"}
+            control={spiceGuide.controlContext(
               view.current?.state.doc.sliceString(
                 0,
                 view.current.state.selection.main.head,
               ) ?? "",
-              !!props.entry,
             )}
             actions={[
               ...(props.helperActions ?? []),
@@ -570,8 +523,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
                         );
                         const prefix = line.text.trim() ? "\n" : "";
                         const from = line.text.trim() ? line.to : line.from;
-                        // The language's own line comment: `*` for SPICE,
-                        // `//` for VACASK, which rejects `*`.
+                        // The language's own line comment (`*` for SPICE).
                         const marker =
                           editor.state.languageDataAt<{ line?: string }>(
                             "commentTokens",
@@ -596,7 +548,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
             onChoose={(rule) => {
               const editor = view.current;
               if (!editor || props.readOnly || props.mode === "json") return;
-              if (rule.name === "parameters" && props.onParameterDeclaration) {
+              if (rule.name === ".param" && props.onParameterDeclaration) {
                 props.onParameterDeclaration();
                 return;
               }
@@ -605,23 +557,13 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
               );
               // Replace an unfinished command only. Existing populated code is preserved.
               if (/^\s*[.\p{L}\w]*$/u.test(line.text))
-                props.mode === "ngspice"
-                  ? spiceGuide.insertSpiceHelp(editor, {
-                      ...rule,
-                      context: rule.context === "circuit" ? "deck" : "control",
-                    })
-                  : insertNativeHelp(editor, rule);
+                spiceGuide.insertSpiceHelp(editor, rule);
               else {
                 editor.dispatch({
                   changes: { from: line.to, insert: "\n" },
                   selection: { anchor: line.to + 1 },
                 });
-                props.mode === "ngspice"
-                  ? spiceGuide.insertSpiceHelp(editor, {
-                      ...rule,
-                      context: rule.context === "circuit" ? "deck" : "control",
-                    })
-                  : insertNativeHelp(editor, rule);
+                spiceGuide.insertSpiceHelp(editor, rule);
               }
             }}
           />
@@ -640,9 +582,7 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
             event.key === "Escape" &&
             props.mode !== "json" &&
             view.current &&
-            (props.mode === "ngspice"
-              ? spiceGuide.dismissSpiceGuide
-              : dismissNativeGuide)(view.current)
+            spiceGuide.dismissSpiceGuide(view.current)
           ) {
             event.preventDefault();
             event.stopPropagation();
@@ -664,14 +604,16 @@ export default function SimulationCodeEditor(props: SimulationCodeEditorProps) {
             else startCompletion(editor);
             return;
           }
-          editor.dispatch({ effects: dismissParameterGuide.of(false) });
+          editor.dispatch({
+            effects: spiceGuide.dismissParameterGuide.of(false),
+          });
           const line = editor.state.doc.lineAt(
             editor.state.selection.main.head,
           );
           const prefix = line.text.trim().toLowerCase();
           if (
             /^[.\p{L}\w]+$/u.test(prefix) &&
-            !(props.mode === "ngspice" ? spiceCompletion : nativeCompletion)(
+            !spiceCompletion(
               new CompletionContext(
                 editor.state,
                 editor.state.selection.main.head,
@@ -699,18 +641,12 @@ function sourceExtensions(
     props.mode === "json"
       ? [json()]
       : [
-          nativeEntry.of(!!props.entry),
-          nativeCompanions.of(props.relatedSources ?? []),
-          props.mode === "ngspice" ? spiceCodeLanguage : nativeCodeLanguage,
-          props.mode === "ngspice"
-            ? spiceGuide.spiceParameterGuide
-            : nativeParameterGuide,
+          spiceCodeLanguage,
+          spiceGuide.spiceParameterGuide,
           autocompletion({
             override: [
               (context) =>
-                (callbacks.current.mode === "ngspice"
-                  ? spiceCompletion
-                  : nativeCompletion)(
+                spiceCompletion(
                   context,
                   callbacks.current.relatedSources,
                   callbacks.current.signalNames,
@@ -766,7 +702,7 @@ function sourceExtensions(
               },
             };
           }),
-          props.mode === "ngspice" ? spiceHoverHelp : nativeHoverHelp,
+          spiceHoverHelp,
         ];
   return [
     ...language,
@@ -780,18 +716,15 @@ function sourceExtensions(
           current.mode === "json"
             ? []
             : [
-                ...(current.mode === "ngspice"
-                  ? inspectSimulationSource(
-                      {
-                        id: current.path,
-                        path: current.path,
-                        text,
-                        hash: "",
-                        encoding: "utf-8",
-                      },
-                      current.entry,
-                    )
-                  : inspectNativeLanguage(current.path, text, current.entry)
+                ...inspectSimulationSource(
+                  {
+                    id: current.path,
+                    path: current.path,
+                    text,
+                    hash: "",
+                    encoding: "utf-8",
+                  },
+                  current.entry,
                 ).diagnostics,
                 // A run reads Spec annotations with this parser; its
                 // invalid-spec detail shows on the line before any run.
@@ -802,11 +735,13 @@ function sourceExtensions(
         ) as Diagnostic[];
         if (current.generated) {
           for (const match of text.matchAll(/<([A-Za-z][A-Za-z0-9_]*)>/g)) {
+            const prefix = text
+              .slice(text.lastIndexOf("\n", match.index) + 1, match.index)
+              .trimStart();
             if (
-              text
-                .slice(text.lastIndexOf("\n", match.index) + 1, match.index)
-                .trimStart()
-                .startsWith("//")
+              prefix.startsWith("*") ||
+              prefix.startsWith(";") ||
+              prefix.startsWith("//")
             )
               continue;
             diagnostics.push({

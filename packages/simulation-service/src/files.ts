@@ -195,7 +195,7 @@ export class SimulationFiles {
     private projectHost?: ProjectSimulationFileHost,
     private selectEngine?: (
       folder: import("@icm/model").ProjectSimulationFolder,
-    ) => Promise<"ngspice" | "vacask">,
+    ) => Promise<"ngspice">,
     private artifactStore?: SimulationArtifactStore,
   ) {}
   clear() {

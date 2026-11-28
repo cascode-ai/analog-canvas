@@ -44,7 +44,7 @@ function starterFolder(
   project: { topDocumentId: string },
   id: string,
   name: string,
-  engine: "vacask" | "ngspice" = "vacask",
+  engine: "ngspice" = "ngspice",
 ) {
   return createSimulationFolder({
     id,
@@ -315,11 +315,11 @@ test("Helper keeps signal selection continuous and shares the file row without s
   const pickerBox = (await picker.boundingBox())!;
   expect(Math.abs(pickerBox.x - popupBox.x)).toBeLessThan(2);
   expect(Math.abs(pickerBox.height - popupBox.height)).toBeLessThan(2);
-  const output = picker.getByRole("button", { name: /— vout(?:\s|$)/ });
+  const output = picker.getByRole("button", { name: /— v\(vout\)(?:\s|$)/ });
   await output.click();
   await expect(search).toBeFocused();
   await expect(output).toContainText("Added");
-  await picker.getByRole("button", { name: /— vinp(?:\s|$)/ }).click();
+  await picker.getByRole("button", { name: /— v\(vinp\)(?:\s|$)/ }).click();
   await expect(search).toBeFocused();
   await expect(editor).toContainText("save v(vout) v(vinp)");
   await expect(output).toBeDisabled();
@@ -344,15 +344,19 @@ test("Helper keeps signal selection continuous and shares the file row without s
   await expect(editor).not.toBeFocused();
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(canvas).not.toHaveClass(/simulation-net-pick-active/);
-  // An incomplete source must remain repairable, not falsely acknowledge an
-  // acquisition that the editor refused to insert.
+  // An invalid vector command must be refused without falsely acknowledging it.
   const validSource = folderFile(folder).text;
-  await editor.fill(`${validSource}\nsave v(`);
+  await editor.fill(validSource);
   await chooseHelperEntry(page, "Save voltage…");
-  await output.click();
-  await expect(output).not.toContainText("Added");
-  await expect(output).toBeEnabled();
-  await expect(editor).not.toContainText("v(vout)");
+  await search.fill("v(vout); quit");
+  const badVector = picker.getByRole("button", {
+    name: "Use native vector: v(vout); quit",
+    exact: true,
+  });
+  await badVector.click();
+  await expect(badVector).not.toContainText("Added");
+  await expect(badVector).toBeEnabled();
+  await expect(editor).not.toContainText("v(vout); quit");
   await search.press("Escape");
   await editor.fill(validSource);
   await chooseHelperEntry(page, "Save voltage…");
@@ -524,14 +528,17 @@ test("a new experiment's setup fits its card, creates only on Create, and asks f
         parameters: {},
       },
     });
-  const vacask = {
-    id: "vacask-sky130-candidate",
-    engine: "vacask",
+  const secondary = {
+    id: "ihp-sg13g2-complete-ngspice46-v2",
+    engine: "ngspice",
     corners: [],
   };
   await page.route("**/api/simulate", (route) =>
     route.fulfill({
-      json: { ...capabilities, profiles: [...capabilities.profiles, vacask] },
+      json: {
+        ...capabilities,
+        profiles: [...capabilities.profiles, secondary],
+      },
     }),
   );
   await openSimulation(page, project);
@@ -576,7 +583,7 @@ test("a new experiment's setup fits its card, creates only on Create, and asks f
     }),
   ).toBeVisible();
   await expect(folder).toHaveCount(0);
-  await environment.selectOption(vacask.id);
+  await environment.selectOption(secondary.id);
   await page.getByRole("button", { name: "Create", exact: true }).click();
   await expect(folder).toBeVisible();
   await page
@@ -586,7 +593,7 @@ test("a new experiment's setup fits its card, creates only on Create, and asks f
     readSimulationExperimentConfig(
       (await exportedProject(page)).simulationFolders[0],
     ),
-  ).toMatchObject({ config: { environment: { profileId: vacask.id } } });
+  ).toMatchObject({ config: { environment: { profileId: secondary.id } } });
 });
 
 test("Simulation defaults a new experiment to an ordinary authored Cell", async ({
@@ -699,10 +706,7 @@ test("Simulation defaults a new experiment to an ordinary authored Cell", async 
   await expect(page.getByTestId("library-toggle")).toBeEnabled();
 });
 
-async function openWorkspace(
-  page: Page,
-  engine: "vacask" | "ngspice" = "vacask",
-) {
+async function openWorkspace(page: Page, engine: "ngspice" = "ngspice") {
   const project = parseProject(JSON.stringify(ota));
   project.simulationFolders = ["Alpha", "Beta"].map((name) =>
     starterFolder(project, name, name, engine),

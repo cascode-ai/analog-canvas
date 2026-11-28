@@ -11,19 +11,12 @@ Cancelling either prompt must leave the original Project installed. Never infer
 that a Project is empty from its currently visible Cell.
 
 The starter programs cover 4 RC, 3 RLC, 4 common-source and 8 OTA experiments.
-All 19 starter experiments are native VACASK; see
-[RC acceptance](../../../../netlists/native-rc-filters/README.md),
-[RLC acceptance](../../../../netlists/native-rlc-filter/README.md) and
-[common-source acceptance](../../../../netlists/native-common-source/README.md) and
-[OTA acceptance](../../../../netlists/native-ota/README.md).
+All 19 starter experiments and the separate twelve-folder Library OTA lab
+(`five-transistor-ota-sky130.icproj.json`) target ngspice (`sky130-core-continuous-ngspice46-v1`).
 AC exposes a complex Gain trace; the workspace shows Specs and Console, and CSV
-keeps real/imaginary data for external dB/phase views. Compiling a native program
-does not establish equivalence to another simulator. The separate twelve-folder
-[Library OTA lab](../../../../netlists/native-ota-library/README.md) is native as
-well; its older source is retained for import tests.
-
-The common-source starter requests an explicit BSIM4 4.8.3 TT candidate, a
-model-version upgrade requiring separate qualification.
+keeps real/imaginary data for external dB/phase views. The older pre-migration
+Library OTA source is retained in `netlists/native-ota-library/legacy-source.icproj.json`
+for import compatibility tests.
 
 OTA experiment 08 intentionally uses Canvas only for the `ota_5t` subcircuit.
 Its sources, load and feedback are in `testbench.spice`; the visible open-loop
@@ -34,26 +27,3 @@ New experiment comments are created once, then owned by the user. Source context
 uses the live draft include graph and calls subcircuit references “sources”, not
 proof of instantiation. Dynamic source loading or broken includes are marked for
 Prepare verification. Code parameter overrides do not rewrite Canvas values.
-
-## Export reviewed examples
-
-After building the Agent adapter/exporter dependencies, use a fresh or empty
-output directory:
-
-```sh
-pnpm --filter @icm/agent-adapter... --filter @icm/exporters... build
-node scripts/build-native-simulation-examples.mjs output/passive-candidate --project rc --project rlc
-```
-
-This exports the bundled Projects without reconstructing their schematics or
-maintaining a duplicate set of programs. It writes SVG/PNG/inspection artifacts,
-authored files under `source/`, and actual native compiled files under `prepared/`.
-Existing evidence is never overwritten. `manifest.json` is written last with
-`compiled-not-executed`; Profile identity belongs to each folder. Compilation
-does not run or qualify an environment, and no cloud endpoint is contacted.
-
-Omitting `--project` selects all five Projects and all 31 folders: the four
-starters plus the twelve-folder Library OTA lab (`--project ota-library`,
-exported from `five-transistor-ota-sky130.icproj.json`). Every selected
-folder must compile before any output is written; failures are not silently
-skipped. The bundled OTA is the single source, as for the other examples.

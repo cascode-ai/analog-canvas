@@ -1,9 +1,5 @@
-/** Profile routing is shared; each engine retains its own verified wire protocol.
- * No retry or engine fallback is performed here. */
-import {
-  routeVacaskSimulationRequest,
-  type SimulationEnv as VacaskEnv,
-} from "./simulation-vacask";
+/** Profile routing across configured ngspice Profiles.
+ * No retry or fallback across Profiles is performed here. */
 import {
   routeNgspiceSimulationRequest,
   type SimulationEnv as NgspiceEnv,
@@ -14,7 +10,7 @@ import { sessionUserOf } from "./auth";
 import type { AuthEnv } from "./auth-do";
 import { bearerMatches } from "./bearer";
 import { computesOnHostedSimulation } from "./hosted-simulation-access";
-export type { SimulationRequestBody } from "./simulation-vacask";
+export type { SimulationRequestBody } from "./simulation-ngspice";
 
 /** The answer to a signed-out request for computation. */
 export function signInToSimulate(): Response {
@@ -102,13 +98,9 @@ async function boundedText(
   return text;
 }
 
-export interface SimulationEnv extends VacaskEnv, NgspiceEnv {
+export interface SimulationEnv extends NgspiceEnv {
   /** SG13 executor behind the trusted ngspice gateway; same gateway bearer. */
   SG13G2_UPSTREAM_URL?: string;
-  /** Opt-in independent native endpoint; never overwrites the ngspice origin. */
-  VACASK_PROFILE_ID?: string;
-  VACASK_UPSTREAM_URL?: string;
-  VACASK_UPSTREAM_TOKEN?: string;
 }
 
 export async function routeSimulationRequest(
@@ -116,9 +108,6 @@ export async function routeSimulationRequest(
   env: SimulationEnv,
   runnerKey?: string,
 ): Promise<Response | null> {
-  // Keep existing isolated native harnesses working without changing their config.
-  if (!env.VACASK_PROFILE_ID && env.SIMULATION_PROFILE_ID)
-    return routeVacaskSimulationRequest(request, env, runnerKey);
   if (new URL(request.url).pathname !== "/api/simulate") return null;
   if (request.method !== "POST")
     return Response.json({ error: "method-not-allowed" }, { status: 405 });
@@ -138,12 +127,6 @@ export async function routeSimulationRequest(
   } catch {
     return Response.json({ error: "invalid-json" }, { status: 400 });
   }
-  const nativeId = env.VACASK_PROFILE_ID?.trim();
-  if (nativeId && [ngspiceProfile.id, sg13g2Profile.id].includes(nativeId))
-    return Response.json(
-      { error: "simulation-profile-configuration-invalid" },
-      { status: 503 },
-    );
   const profileId = body.environment?.profileId;
   const ngspiceProfiles = [
     { profile: ngspiceProfile, environment: env },
@@ -165,29 +148,10 @@ export async function routeSimulationRequest(
   const selectedNgspice = ngspiceProfiles.find(
     ({ profile }) => profile.id === (profileId ?? ngspiceProfile.id),
   );
-  if (profileId !== undefined && !selectedNgspice && profileId !== nativeId)
+  if (profileId !== undefined && !selectedNgspice)
     return Response.json(
       { error: "simulation-profile-unavailable" },
       { status: 400 },
-    );
-  const nativeEnv: VacaskEnv = {
-    ...(env.VACASK ? { VACASK: env.VACASK } : {}),
-    ...(nativeId ? { SIMULATION_PROFILE_ID: nativeId } : {}),
-    ...(env.VACASK_UPSTREAM_URL
-      ? { SIMULATION_UPSTREAM_URL: env.VACASK_UPSTREAM_URL }
-      : {}),
-    ...(env.VACASK_UPSTREAM_TOKEN
-      ? { SIMULATION_UPSTREAM_TOKEN: env.VACASK_UPSTREAM_TOKEN }
-      : {}),
-    SIMULATION_DEFAULT_EXECUTOR: env.VACASK_UPSTREAM_URL
-      ? "operator-host"
-      : "cloudflare-container",
-  };
-  if (nativeId && profileId === nativeId)
-    return annotateEngine(
-      await routeVacaskSimulationRequest(request, nativeEnv, runnerKey),
-      body.operation,
-      "vacask",
     );
   if (body.language !== undefined)
     return Response.json(
@@ -196,7 +160,7 @@ export async function routeSimulationRequest(
     );
   if (
     body.operation === "cancel" &&
-    (nativeId || ngspiceProfiles.length > 1) &&
+    ngspiceProfiles.length > 1 &&
     profileId === undefined
   )
     return Response.json(
@@ -220,8 +184,8 @@ export async function routeSimulationRequest(
   )
     return response;
   // Discovery advertises all configured Profiles in parallel so one degraded
-  // upstream does not multiply probe latency across every other engine.
-  const [defaults, additionalResponses, native] = await Promise.all([
+  // upstream does not multiply probe latency across every other Profile.
+  const [defaults, additionalResponses] = await Promise.all([
     response.json() as Promise<{
       configured: boolean;
       profiles: unknown[];
@@ -238,15 +202,6 @@ export async function routeSimulationRequest(
           ),
         ),
     ),
-    nativeId
-      ? routeVacaskSimulationRequest(
-          new Request(request.url, {
-            method: "POST",
-            body: JSON.stringify({ operation: "capabilities" }),
-          }),
-          nativeEnv,
-        )
-      : Promise.resolve(null),
   ]);
   for (const additional of additionalResponses) {
     if (additional?.ok) {
@@ -262,28 +217,13 @@ export async function routeSimulationRequest(
       }
     }
   }
-  if (native?.ok) {
-    const caps = (await native.json()) as {
-      configured: boolean;
-      profiles: unknown[];
-    };
-    if (caps.configured) {
-      defaults.configured = true;
-      defaults.profiles.push(
-        ...caps.profiles.map((profile) => ({
-          ...(profile as object),
-          engine: "vacask",
-        })),
-      );
-    }
-  }
   return Response.json(defaults);
 }
 
 async function annotateEngine(
   response: Response | null,
   operation: unknown,
-  engine: "ngspice" | "vacask",
+  engine: "ngspice",
 ) {
   if (operation !== "capabilities" || !response?.ok) return response;
   const caps = (await response.json()) as { profiles: object[] };

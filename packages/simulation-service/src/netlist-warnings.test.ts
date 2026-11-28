@@ -22,13 +22,13 @@ describe("the netlist findings a run shows", () => {
           message: "M1's body follows the Cell's PMOS default VDDL",
         },
         {
-          code: "SIMULATION_NATIVE_SOURCE_DC_MODE",
-          message: 'V1: dc is used only with type="dc"',
+          code: "IDEAL_OPAMP_SUPPLY_AMBIGUOUS",
+          message: "U1: multiple VDD supplies found; using ±5 V rails",
         },
       ]),
     ).toEqual([
       "M1's body follows the Cell's PMOS default VDDL",
-      'V1: dc is used only with type="dc"',
+      "U1: multiple VDD supplies found; using ±5 V rails",
     ]);
   });
 });

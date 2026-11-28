@@ -1,19 +1,12 @@
 import type { CircuitProject, SimulationSourceInput } from "@icm/model";
-import {
-  inspectVacaskSourceGraph,
-  inspectSimulationSourceGraph,
-} from "@icm/netlist";
+import { inspectSimulationSourceGraph } from "@icm/netlist";
 
 /** Static source dependencies, not a claim that a subcircuit was instantiated. */
 export function sourceCircuitContext(
   project: CircuitProject,
   input: SimulationSourceInput,
-  engine: "ngspice" | "vacask" = "vacask",
 ) {
-  const graph =
-    engine === "ngspice"
-      ? inspectSimulationSourceGraph(input)
-      : inspectVacaskSourceGraph(input);
+  const graph = inspectSimulationSourceGraph(input);
   const uncertain = graph.diagnostics.some((d) => d.severity === "error");
   const references = input.circuitBindings.filter((binding) =>
     graph.paths.includes(binding.path),
@@ -29,11 +22,10 @@ export function sourceCircuitContext(
     }
   };
   references.forEach((binding) => visit(binding.documentId));
-  const overrides = graph.statements.some(({ statement }) =>
-    "tokens" in statement
-      ? statement.tokens[0]?.value === "alter"
-      : statement.kind === "control_command" &&
-        /^(alter|altermod|alterparam)$/iu.test(statement.command),
+  const overrides = graph.statements.some(
+    ({ statement }) =>
+      statement.kind === "control_command" &&
+      /^(alter|altermod|alterparam)$/iu.test(statement.command),
   );
   return {
     documentIds,

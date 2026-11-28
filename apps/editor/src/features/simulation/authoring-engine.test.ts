@@ -2,18 +2,15 @@ import { expect, it } from "vitest";
 import { createSimulationFolder } from "@icm/model";
 import { authoringEngine } from "./authoring-engine";
 
-it.each(["vacask", "ngspice"] as const)(
-  "keeps %s source editing available offline without guessing by Profile name",
-  (engine) => {
-    const folder = createSimulationFolder({
-      id: "f",
-      name: "f",
-      profileId: "arbitrary",
-      engine,
-    });
-    expect(authoringEngine(folder)).toBe(engine);
-  },
-);
+it("keeps ngspice source editing available offline without guessing by Profile name", () => {
+  const folder = createSimulationFolder({
+    id: "f",
+    name: "f",
+    profileId: "arbitrary",
+    engine: "ngspice",
+  });
+  expect(authoringEngine(folder)).toBe("ngspice");
+});
 it("refuses mixed or unidentified offline source rather than executing a fallback", () => {
   const folder = createSimulationFolder({
     id: "f",

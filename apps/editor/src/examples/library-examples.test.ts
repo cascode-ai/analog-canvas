@@ -16,7 +16,7 @@ import { flattenRichText, readSimulationExperimentConfig } from "@icm/model";
 import type { CircuitProject } from "@icm/model";
 import {
   analyzeDesignNetlist,
-  compileSourceSimulation,
+  compileNgspiceSourceSimulation,
   createDesignNetlistExport,
   printSpiceNetlist,
 } from "@icm/netlist";
@@ -529,7 +529,7 @@ describe("the bundled five-transistor Sky130 OTA", () => {
     });
   });
 
-  it("ships twelve native folders with original analysis coverage and Canvas bindings", async () => {
+  it("ships twelve ngspice folders with original analysis coverage and Canvas bindings", async () => {
     const expected = [
       ["simulation-setup-ota-op-ac", "OP + DC + AC + TRAN", "tt"],
       ["simulation-setup-ota-full-tt", "OP + DC + AC + TRAN + NOISE", "tt"],
@@ -555,7 +555,7 @@ describe("the bundled five-transistor Sky130 OTA", () => {
           folder.input.files
             .find((f) => f.path === folder.input.entry)
             ?.text.match(
-              /include "models\/library\.inc" section=(tt|ff|ss|fs|sf)/u,
+              /\.lib\s+"models\/sky130\.lib\.spice"\s+(tt|ff|ss|fs|sf)\b/iu,
             )?.[1],
         ];
       }),
@@ -569,27 +569,26 @@ describe("the bundled five-transistor Sky130 OTA", () => {
           ? "document-ota-5t-testbench-sin"
           : testbench.id,
       );
-      const compiled = await compileSourceSimulation(project, folder);
+      const compiled = await compileNgspiceSourceSimulation(project, folder);
       expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
       if (!compiled.ok) continue;
-      expect(compiled.language).toBe("vacask");
       expect(compiled.config.outputs).toEqual([]);
       expect(compiled.config.measurements).toEqual([]);
       expect(
         compiled.files.find((f) => f.path === "circuit.spice")?.text,
-      ).toContain("mag=1");
+      ).toContain("AC 1");
       const code = compiled.files.find(
         (f) => f.path === folder.input.entry,
       )!.text;
       if (folder.id === "simulation-setup-ota-op-ac") {
-        expect(code).toContain("from=0.88 to=0.92 step=0.005");
-        expect(code).toContain('from=1 to=1000000000 mode="dec" points=10');
-        expect(code).toContain("stop=0.000004 step=2e-8 maxstep=2e-8");
+        expect(code).toContain("dc vinp 0.88 0.92 0.005");
+        expect(code).toContain("ac dec 10 1 1G");
+        expect(code).toContain("tran 20n 4u 0 20n");
       }
       if (folder.id.endsWith("sin-tt"))
         expect(
           compiled.files.find((f) => f.path === "circuit.spice")?.text,
-        ).toContain('type="sine"');
+        ).toContain("SIN(");
     }
   });
 

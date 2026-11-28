@@ -5,9 +5,6 @@ import { configDefaults, defineConfig } from "vitest/config";
 // rule in docs/testing/README.md#pull-request-checks.
 const standaloneTests = [
   "containers/ngspice/entrypoint.test.mjs",
-  "scripts/analyze-native-simulation-examples.test.mjs",
-  "scripts/build-native-simulation-examples.test.mjs",
-  "scripts/native-example-runner.test.mjs",
   "scripts/resource-seed-runtime.test.mjs",
   "scripts/simulation-control-runtime.test.mjs",
 ];

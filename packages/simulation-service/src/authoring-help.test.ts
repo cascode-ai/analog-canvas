@@ -1,11 +1,11 @@
 import { expect, it, vi } from "vitest";
 import { createEmptyProject } from "@icm/model";
-import { nativeAuthoringHelp } from "@icm/netlist";
+import { simulationLanguageHelp } from "@icm/spice";
 import { SimulationService } from "./service.js";
 import { SimulationFiles } from "./files.js";
 import { SimulationReplySchema } from "./contract.js";
 
-it("selects ngspice help by Profile instead of emitting VACASK syntax", async () => {
+it("selects ngspice help by Profile", async () => {
   const capabilities = vi.fn(async () => ({
     profiles: [{ id: "ng", engine: "ngspice", corners: [] }],
   }));
@@ -41,7 +41,7 @@ it("selects ngspice help by Profile instead of emitting VACASK syntax", async ()
   expect(SimulationReplySchema.safeParse(reply).success).toBe(true);
 });
 
-it("exposes the GUI catalogue without contacting the executor or changing authored state, and recovers a missing helper", async () => {
+it("exposes the ngspice catalogue without contacting the executor or changing authored state, and recovers a missing helper", async () => {
   const capabilities = vi.fn(() => {
     throw Error("offline");
   });
@@ -58,12 +58,12 @@ it("exposes the GUI catalogue without contacting the executor or changing author
     () => project,
   );
   const reply = await service.handle(
-    { operation: "authoring-help", name: "embed" },
+    { operation: "authoring-help", name: "ac" },
     "help",
   );
-  expect(SimulationReplySchema.parse(reply)).toEqual({
+  expect(SimulationReplySchema.parse(reply)).toMatchObject({
     ok: true,
-    helpers: nativeAuthoringHelp({ name: "embed" }),
+    helpers: [expect.objectContaining({ name: "ac", context: "control" })],
   });
   expect(
     await service.handle(
@@ -75,7 +75,14 @@ it("exposes the GUI catalogue without contacting the executor or changing author
     error: { code: "SIMULATION_HELPER_NOT_FOUND", recovery: "fix-input" },
   });
   const next = await service.handle({ operation: "authoring-help" }, "again");
-  expect(next).toEqual({ ok: true, helpers: nativeAuthoringHelp() });
+  expect(next).toMatchObject({ ok: true });
+  if (next.ok && "helpers" in next) {
+    expect(next.helpers.length).toBe(
+      simulationLanguageHelp.filter(
+        (h) => h.context === "deck" || h.context === "control",
+      ).length,
+    );
+  }
   expect(
     await service.handle(
       { operation: "authoring-help", context: "invalid" },

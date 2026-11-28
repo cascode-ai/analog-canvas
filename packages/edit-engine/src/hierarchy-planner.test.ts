@@ -5,11 +5,7 @@ import {
   subcircuitDescriptor,
 } from "@icm/devices";
 import { describe, expect, it } from "vitest";
-import {
-  analyzeDesignNetlist,
-  createDesignNetlistExport,
-  printVacaskWithLocations,
-} from "@icm/netlist";
+import { createDesignNetlistExport } from "@icm/netlist";
 import { parseProject, serializeProject } from "@icm/project-protocol";
 
 import {
@@ -1309,14 +1305,6 @@ describe("a Library gate, flip-flop, op-amp or comparator takes a Cell of its Pr
             /subckt (?:tcoil|xfmr|ct_inductor|ideal_chopper)\b/u,
           );
         }
-        const vacask = printVacaskWithLocations(
-          analyzeDesignNetlist(bound).ir!,
-        );
-        if (!vacask.ok) throw new Error(JSON.stringify(vacask));
-        expect(vacask.text).toMatch(new RegExp(`\\) ${model}\\b`, "u"));
-        expect(vacask.text).not.toMatch(
-          /subckt (?:tcoil|xfmr|ct_inductor|ideal_chopper)\b/u,
-        );
         // Clearing the model returns the part as it was placed.
         expect(gate(bind(bound, "")).netlist).toEqual(placed);
       }

@@ -193,7 +193,7 @@ async function apply(editor: LiveEditor, actions: unknown[]) {
 function profileService(
   ...profiles: {
     id: string;
-    engine: "ngspice" | "vacask";
+    engine: "ngspice";
     devices?: string[];
   }[]
 ): typeof fetch {
@@ -1433,79 +1433,73 @@ describe("MCP tools on the live editor", () => {
     });
   });
 
-  it.each(["ngspice", "vacask"] as const)(
-    "creates a %s template for a Cell of the live Project from the selected Profile",
-    async (engine) => {
-      const editor = await connected({
-        project: otaProject(),
-        simulationService: profileService({ id: "selected", engine }),
-      });
-      const { tool, controller, http } = editor;
-      const structureRevision = controller.project.structureRevision;
-      const created = await tool("simulation_folder", {
-        action: "create",
-        name: "Bias",
-        profileId: "selected",
-        rootDocumentId: dutDocumentId,
-        dut: { name: dutName, ports: dutPorts },
-      });
-      expect(created).toMatchObject({
-        ok: true,
-        dut: {
-          name: dutName,
-          ports: dutPorts,
-          subckt: expect.stringContaining(`.subckt ${dutName}`),
-        },
-      });
-      // The receipt is about the folder, not the open drawing (#1231).
-      expect(Object.keys(created)[0]).toBe("folder");
-      expect(created).not.toHaveProperty("diagnostics");
-      expect(created).not.toHaveProperty("diagnosticDelta");
-      expect(snapshotReads(http)).toEqual(["bootstrap", "full"]);
-      expect(controller.project.structureRevision).toBe(structureRevision + 1);
-      const folder = controller.project.simulationFolders.find(
-        (item) => item.id === created.folder.id,
-      )!;
-      expect(folder).toMatchObject({
-        name: "Bias",
-        input: {
-          circuitBindings: [
-            { documentId: dutDocumentId, emission: "subcircuit" },
-          ],
-        },
-      });
-      expect(folder.input.files).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            path: "run.cir",
-            text: expect.stringContaining(
-              engine === "ngspice" ? ".control\n" : "\ncontrol\n",
-            ),
-          }),
-          expect.objectContaining({
-            path: "testbench.spice",
-            text: expect.stringContaining(
-              engine === "ngspice"
-                ? `XDUT ${dutPorts.join(" ")} ${dutName}`
-                : `XDUT (${dutPorts.map((port) => `'${port}'`).join(" ")}) '${dutName}'`,
-            ),
-          }),
-        ]),
-      );
-      const after = structuredClone(controller.project);
-      expect(
-        await tool("simulation_folder", {
-          action: "create",
-          name: "Unknown",
-          profileId: "unknown",
+  it("creates an ngspice template for a Cell of the live Project from the selected Profile", async () => {
+    const engine = "ngspice" as const;
+    const editor = await connected({
+      project: otaProject(),
+      simulationService: profileService({ id: "selected", engine }),
+    });
+    const { tool, controller, http } = editor;
+    const structureRevision = controller.project.structureRevision;
+    const created = await tool("simulation_folder", {
+      action: "create",
+      name: "Bias",
+      profileId: "selected",
+      rootDocumentId: dutDocumentId,
+      dut: { name: dutName, ports: dutPorts },
+    });
+    expect(created).toMatchObject({
+      ok: true,
+      dut: {
+        name: dutName,
+        ports: dutPorts,
+        subckt: expect.stringContaining(`.subckt ${dutName}`),
+      },
+    });
+    // The receipt is about the folder, not the open drawing (#1231).
+    expect(Object.keys(created)[0]).toBe("folder");
+    expect(created).not.toHaveProperty("diagnostics");
+    expect(created).not.toHaveProperty("diagnosticDelta");
+    expect(snapshotReads(http)).toEqual(["bootstrap", "full"]);
+    expect(controller.project.structureRevision).toBe(structureRevision + 1);
+    const folder = controller.project.simulationFolders.find(
+      (item) => item.id === created.folder.id,
+    )!;
+    expect(folder).toMatchObject({
+      name: "Bias",
+      input: {
+        circuitBindings: [
+          { documentId: dutDocumentId, emission: "subcircuit" },
+        ],
+      },
+    });
+    expect(folder.input.files).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "run.cir",
+          text: expect.stringContaining(".control\n"),
         }),
-      ).toMatchObject({
-        ok: false,
-        error: { code: "SIMULATION_PROFILE_UNAVAILABLE" },
-      });
-      expect(controller.project).toEqual(after);
-    },
-  );
+        expect.objectContaining({
+          path: "testbench.spice",
+          text: expect.stringContaining(
+            `XDUT ${dutPorts.join(" ")} ${dutName}`,
+          ),
+        }),
+      ]),
+    );
+    const after = structuredClone(controller.project);
+    expect(
+      await tool("simulation_folder", {
+        action: "create",
+        name: "Unknown",
+        profileId: "unknown",
+      }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: "SIMULATION_PROFILE_UNAVAILABLE" },
+    });
+    expect(controller.project).toEqual(after);
+  });
 
   it("creates a folder on the Profile qualified for its Cell's devices when none is named (#1349)", async () => {
     // The SIN testbench also holds a varactor no Profile qualifies.
@@ -1526,12 +1520,12 @@ describe("MCP tools on the live editor", () => {
           parameters: {},
         },
       });
-    // As Production advertises them: ngspice names the SKY130 devices it
-    // qualifies, VACASK names none.
+    // As Production advertises them: SKY130 names the SKY130 devices it
+    // qualifies, SG13G2 names none of them.
     const { tool, controller } = await connected({
       project,
       simulationService: profileService(
-        { id: "vacask", engine: "vacask" },
+        { id: "sg13g2", engine: "ngspice" },
         {
           id: "sky130",
           engine: "ngspice",
@@ -1565,7 +1559,7 @@ describe("MCP tools on the live editor", () => {
       folder: {
         name: "SIN",
         entry: "testbench.spice",
-        profileCandidates: ["vacask", "sky130"],
+        profileCandidates: ["sg13g2", "sky130"],
       },
     });
     expect(sin.folder).not.toHaveProperty("profileId");
@@ -1588,7 +1582,7 @@ describe("MCP tools on the live editor", () => {
       ok: false,
       error: {
         code: "SIMULATION_PROFILE_REQUIRED",
-        candidates: ["vacask", "sky130"],
+        candidates: ["sg13g2", "sky130"],
       },
     });
     expect(controller.project).toEqual(before);
@@ -1729,7 +1723,7 @@ describe("MCP tools on the live editor", () => {
     project.simulationFolders.push(structuredClone(authored));
     const editor = await connected({
       project,
-      simulationService: profileService({ id: "test", engine: "vacask" }),
+      simulationService: profileService({ id: "test", engine: "ngspice" }),
     });
     const { tool, controller } = editor;
     const folder = (id: string) =>
@@ -1770,7 +1764,7 @@ describe("MCP tools on the live editor", () => {
         files: expect.arrayContaining([
           expect.objectContaining({
             path: "run.cir",
-            text: expect.stringContaining("analysis op op"),
+            text: expect.stringContaining(".control\n"),
           }),
         ]),
       },
@@ -1813,7 +1807,7 @@ describe("MCP tools on the live editor", () => {
           expect.objectContaining({
             path: "testbench.spice",
             text: expect.stringContaining(
-              `XDUT (${dutPorts.map((port) => `'${port}'`).join(" ")}) '${dutName}'`,
+              `XDUT ${dutPorts.join(" ")} ${dutName}`,
             ),
           }),
         ]),

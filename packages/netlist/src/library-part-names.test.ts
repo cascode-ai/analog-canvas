@@ -19,7 +19,6 @@ import {
 } from "./extract.js";
 import type { NetlistFormat } from "./net-name-codec.js";
 import { addOwnSubcircuit } from "./own-subcircuit.test-support.js";
-import { printVacaskWithLocations } from "./vacask-printer.js";
 
 /**
  * One unbound Library part X1 inside Cell `dut`, each signal pin on a Cell
@@ -323,7 +322,7 @@ describe("a Library part never calls an author's definition because of its name 
     "put",
     "shockley-diode",
   ])(
-    "writes %s's yielding body under its reserved name in VACASK and in the authoring analysis",
+    "writes %s's yielding body under its reserved name in extraction and in the authoring analysis",
     (symbolId) => {
       const project = unboundPart(symbolId);
       const plain = partCall(project, "spice").target;
@@ -337,13 +336,6 @@ describe("a Library part never calls an author's definition because of its name 
             .ir!.cells.flatMap((cell) => cell.instances)
             .find((call) => call.id === "part")?.target,
         ).toBe(`icm_${plain}`);
-      const printed = printVacaskWithLocations(
-        analyzeDesignNetlist(project).ir!,
-      );
-      expect(printed.ok).toBe(true);
-      if (!printed.ok) return;
-      expect(printed.text).toMatch(new RegExp(`^subckt icm_${plain} `, "mu"));
-      expect(printed.text).toMatch(new RegExp(`\\) icm_${plain}\\b`, "u"));
     },
   );
 });

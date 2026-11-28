@@ -7,11 +7,10 @@ import {
   exactSourceHistory,
   restoreExactSource,
 } from "./code-source-state";
-import { nativeParameterDeclarationEdit } from "@icm/netlist";
 
 describe("exact-source code history", () => {
-  it("restores the declaration caret and exact bytes when redoing a native helper edit", () => {
-    const text = "Title\r\ncontrol\nendc\r\n";
+  it("restores the declaration caret and exact bytes when redoing a helper insertion", () => {
+    const text = "Title\r\n.control\n.endc\r\n.end\n";
     let state = EditorState.create({
       doc: editorText(text),
       extensions: [
@@ -20,17 +19,17 @@ describe("exact-source code history", () => {
         exactSourceHistory,
       ],
     });
-    const edit = nativeParameterDeclarationEdit(text, true);
-    const change = edit.changes[0]!;
+    const from = text.indexOf("\n") + 1;
+    const insert = ".param variable=1\n";
+    const nextText = text.slice(0, from) + insert + text.slice(from);
+    const anchor = from + insert.length - 1;
     state = state.update({
-      changes: { from: editorOffset(text, change.from), insert: change.insert },
-      selection: { anchor: editorOffset(edit.text, edit.anchor) },
-      effects: restoreExactSource.of(edit.text),
+      changes: { from: editorOffset(text, from), insert },
+      selection: { anchor: editorOffset(nextText, anchor) },
+      effects: restoreExactSource.of(nextText),
       userEvent: "input.complete",
     }).state;
-    expect(state.selection.main.head).toBe(
-      editorOffset(edit.text, edit.anchor),
-    );
+    expect(state.selection.main.head).toBe(editorOffset(nextText, anchor));
     state = state.update({
       selection: state.selection,
       userEvent: "select",
@@ -53,10 +52,8 @@ describe("exact-source code history", () => {
         },
       }),
     ).toBe(true);
-    expect(state.field(exactSourceField)).toBe(edit.text);
-    expect(state.selection.main.head).toBe(
-      editorOffset(edit.text, edit.anchor),
-    );
+    expect(state.field(exactSourceField)).toBe(nextText);
+    expect(state.selection.main.head).toBe(editorOffset(nextText, anchor));
   });
   it("undoes and redoes grouped edits without converting original mixed newlines", () => {
     const text = "* 🧪\r\nR1 a b 1k\nR2 b 0 2k\r\n.end\n";
