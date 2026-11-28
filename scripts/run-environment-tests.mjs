@@ -20,20 +20,11 @@ function prepareEnvironment(lane, name) {
     if (!statSync(env[key], { throwIfNoEntry: false })?.isFile())
       throw new Error(`${key} is not a file: ${env[key]}`);
   }
-  for (const key of lane.directoriesFromEnv ?? []) {
-    if (!env[key]) throw new Error(`${key} is required`);
-    if (!statSync(env[key], { throwIfNoEntry: false })?.isDirectory())
-      throw new Error(`${key} is not a directory: ${env[key]}`);
-  }
   for (const path of lane.files ?? []) {
     if (!statSync(resolve(root, path), { throwIfNoEntry: false })?.isFile())
       throw new Error(
         `Required file is missing: ${path}; build the lane's dependencies first`,
       );
-  }
-  if (lane.filesFromEnv?.includes("VACASK_BIN")) {
-    env.SIM_MODULE_PATH = env.VACASK_MODULES;
-    delete env.VACASK_WSL_BIN;
   }
   for (const [command, ...args] of lane.commands ?? []) {
     const result = spawnSync(command, args, {

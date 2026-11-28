@@ -43,8 +43,8 @@ test("GUI retains the sign-in failure after a rejected run is read again", async
   }
 });
 
-// The GUI's one end-to-end native run: replayed VACASK records by default,
-// the real executable with ICM_E2E_VACASK_REAL=1.
+// The GUI's replayed native run while VACASK engine removal completes in its
+// follow-up PR.
 test("GUI shows unruled VACASK measurements and opens their Console evidence", async ({
   page,
 }) => {

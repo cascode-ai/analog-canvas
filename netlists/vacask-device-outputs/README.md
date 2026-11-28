@@ -4,18 +4,8 @@ This repository-owned circuit uses the **default illustrative** NMOS/PMOS
 parameters of VACASK's supplied `spice/bsim4v8.osdi` (`sp_bsim4v8`). It is not
 SKY130, foundry data, a replacement PDK, or a hosted Profile qualification.
 It tests whether native OP fields can safely be mapped to the product's
-electrical quantities before implementing the remaining device helpers.
-
-Run the existing local qualification tool, after building `@icm/spice-run`:
-
-```text
-node scripts/vacask-qualification.mjs --binary <vacask> --modules <module-directory> --device-outputs
-```
-
-The optional probe extends the existing report, fresh run directories, startup
-control and digest recording. It does not create another product runner or
-receipt system. Inputs, raw output and logs remain under the reported `output/`
-directory, including when a numerical comparison fails.
+electrical quantities. Hosted VACASK qualification scripts are retired; these
+captured fixtures remain only until the follow-up VACASK engine removal.
 
 ## What is checked
 
@@ -85,19 +75,7 @@ device checks. `chainrule-corrected/` contains the four unmodified raw outputs;
 the original failing package outputs above are deliberately retained. Compiling
 the **unmodified** supplied source reproduces the original mismatches and OTA
 noise exactly, ruling out recompilation alone as the explanation.
-
-Reproduce with the unpacked official package and the existing qualification tool:
-
-```text
-node scripts/vacask-bsim4-build.mjs --package <unpacked-package>
-node scripts/vacask-qualification.mjs --binary <vacask> --modules <printed-candidate-modules> --device-outputs
-```
-
-The builder never edits the package or registers its output. Its fresh candidate
-directory retains corrected source, compiler log and a `build.json` containing
-input/output/compiler/module digests and compile arguments. Unknown source
-revisions are refused; this is not a general model converter. Foundry model
-parameters and numeric acceptance thresholds are unchanged.
+(The offline VACASK BSIM4 builder and qualification scripts have been retired.)
 
 Captured identities:
 

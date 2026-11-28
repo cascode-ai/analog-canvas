@@ -27,8 +27,6 @@ const config :Workerd.Config = (
         (name = "SIMULATION_UPSTREAM_URL", text = "https://ngspice.canvas-operator.invalid"),
         (name = "SG13G2_UPSTREAM_URL", text = "https://ngspice.canvas-operator.invalid/sg13g2"),
         (name = "SIMULATION_DEFAULT_EXECUTOR", text = "operator-host"),
-        (name = "VACASK_UPSTREAM_URL", text = "https://vacask.canvas-operator.invalid"),
-        (name = "VACASK_PROFILE_ID", text = "vacask-sky130-candidate"),
         (name = "REGIONAL_RATE_LIMITS", text = "{\"API_RATE_LIMITER\":{\"limit\":1200,\"period\":60}}"),
         (name = "PROJECTS_STORE_NAME", text = "gallery"),
         (name = "PROJECT_REGION", text = "cn"),
@@ -37,7 +35,6 @@ const config :Workerd.Config = (
         (name = "PROJECT_SYNC_MAX_BYTES", text = "1073741824"),
         (name = "SIMULATION_SMOKE_TOKEN", text = embed "/simulation-smoke-token"),
         (name = "SIMULATION_UPSTREAM_TOKEN", text = embed "/operator-token"),
-        (name = "VACASK_UPSTREAM_TOKEN", text = embed "/operator-token"),
         (name = "RESOURCE_SYNC_TOKEN", text = embed "/resource-inbound-token"),
         (name = "RESOURCE_SYNC_PEER_TOKEN", text = embed "/resource-outbound-token"),
         (name = "RESOURCE_ACTION_PEER", text = embed "/peer-origin"),
@@ -83,14 +80,12 @@ const config :Workerd.Config = (
       bindings = [
         (name = "PEER_ORIGIN", text = embed "/peer-origin"),
         (name = "IDENTITY_URL", text = embed "/identity-url"),
-        (name = "OPERATORS", text = "[{\"name\":\"ngspice\",\"origin\":\"https://ngspice.canvas-operator.invalid\",\"binding\":\"NGSPICE_OPERATOR\",\"prefixes\":[\"\",\"/sg13g2\"]},{\"name\":\"vacask\",\"origin\":\"https://vacask.canvas-operator.invalid\",\"binding\":\"VACASK_OPERATOR\",\"prefixes\":[\"\"]}]"),
-        (name = "NGSPICE_OPERATOR", service = "ngspice-operator"),
-        (name = "VACASK_OPERATOR", service = "vacask-operator")
+        (name = "OPERATORS", text = "[{\"name\":\"ngspice\",\"origin\":\"https://ngspice.canvas-operator.invalid\",\"binding\":\"NGSPICE_OPERATOR\",\"prefixes\":[\"\",\"/sg13g2\"]}]"),
+        (name = "NGSPICE_OPERATOR", service = "ngspice-operator")
       ],
       globalOutbound = "internet"
     )),
     (name = "ngspice-operator", external = (address = "127.0.0.1:19094", http = ())),
-    (name = "vacask-operator", external = (address = "127.0.0.1:19095", http = ())),
     (name = "internet", network = (allow = ["public"], tlsOptions = (trustBrowserCas = true)))
   ],
   sockets = [(name = "http", address = "127.0.0.1:8792", http = (), service = "canvas")]

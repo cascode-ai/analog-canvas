@@ -16,14 +16,6 @@ import { describe, expect, it } from "vitest";
 
 const compose = readFileSync("containers/ngspice/host/compose.yaml", "utf8");
 const deploy = readFileSync("containers/ngspice/host/deploy.sh", "utf8");
-const vacaskCompose = readFileSync(
-  "containers/vacask/host/compose.yaml",
-  "utf8",
-);
-const vacaskDeploy = readFileSync(
-  "containers/vacask/host/deploy-preview.sh",
-  "utf8",
-);
 
 describe("the operator simulator host", () => {
   it("keeps the untrusted executor private, unprivileged, bounded and without the host token", () => {
@@ -88,17 +80,6 @@ describe("the operator simulator host", () => {
           );
       }
     }
-    expect(
-      vacaskCompose.match(
-        /user: "\$\{VACASK_RUN_UID:-10001\}:\$\{VACASK_RUN_UID:-10001\}"/gu,
-      ),
-    ).toHaveLength(2);
-    expect(vacaskDeploy).toMatch(
-      /VACASK_RUN_UID=10002 docker compose -p icm-vacask-regional/u,
-    );
-    expect(vacaskDeploy).toMatch(
-      /VACASK_RUN_UID=10001 docker compose -p icm-vacask-preview/u,
-    );
   });
 
   it("never prunes the host's other Docker data", () => {

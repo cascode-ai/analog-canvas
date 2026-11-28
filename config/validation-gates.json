@@ -278,7 +278,6 @@
       "apps/editor/e2e/agent-bus-reuse.spec.ts",
       "apps/editor/e2e/agent-bus-productivity.spec.ts",
       "apps/editor/e2e/agent-simulation.spec.ts",
-      "apps/editor/e2e/mcp-native-simulation.spec.ts",
       "apps/editor/e2e/simulation-e2e-fixtures.ts",
       "apps/editor/e2e/native-simulation-executor.mjs",
       "apps/editor/e2e/native-simulation-executor.d.mts",
@@ -975,18 +974,6 @@
   },
   "manualChecks": [
     {
-      "id": "mcp-native",
-      "groups": ["agent", "analogSimulation"],
-      "specs": ["apps/editor/e2e/mcp-native-simulation.spec.ts"],
-      "workflow": ".github/workflows/simulator-host.yml",
-      "job": "vacask-compat-build",
-      "workflowInputs": {
-        "action": "vacask-compat-build"
-      },
-      "command": ["node", "scripts/run-environment-tests.mjs", "mcp-native"],
-      "requires": "Built editor/MCP dependencies, Chromium and the pinned VACASK executable/modules; ICM_E2E_VACASK_REAL=1."
-    },
-    {
       "id": "browser-performance",
       "groups": ["editorViewport"],
       "specs": ["apps/editor/e2e/performance.spec.ts"],
@@ -1001,7 +988,7 @@
     },
     {
       "id": "mcp-sg13g2",
-      "groups": ["analogSimulation"],
+      "groups": ["agent", "analogSimulation"],
       "specs": ["apps/editor/e2e/sg13g2-simulation.spec.ts"],
       "workflow": ".github/workflows/sg13g2-tests.yml",
       "job": "qualify",

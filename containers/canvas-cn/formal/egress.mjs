@@ -13,11 +13,6 @@ const DEFAULT_OPERATORS = [
     binding: "NGSPICE_OPERATOR",
     prefixes: [""],
   },
-  {
-    origin: "https://vacask.canvas-operator.invalid",
-    binding: "VACASK_OPERATOR",
-    prefixes: [""],
-  },
 ];
 
 function operatorFor(destination, env) {

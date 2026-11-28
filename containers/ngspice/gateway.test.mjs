@@ -125,9 +125,9 @@ describe("operator-host simulation gateway", () => {
     oversized = true;
     await expect(run().then((response) => response.text())).rejects.toThrow();
   });
-  it("preserves native replies above 4 MiB while enforcing the shared ceiling", async () => {
+  it("preserves large replies above 4 MiB while enforcing the shared ceiling", async () => {
     const compose = await readFile(
-      "containers/vacask/host/compose.yaml",
+      "containers/ngspice/host/compose.yaml",
       "utf8",
     );
     const configuredLimit = Number(

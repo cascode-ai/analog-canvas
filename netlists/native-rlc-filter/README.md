@@ -30,11 +30,9 @@ ngspice runtime is added. RC and RLC copies are checked against one report sourc
 resistor/capacitor/inductor modules, voltage sources and declared Python3.
 It is not a qualified hosted environment; a Worker configuration that sets
 `VACASK_PROFILE_ID` routes it to the separate VACASK gateway.
-Python uses only its standard library plus the copied reporting helpers. See
-the [native runtime instructions](../../containers/vacask/README.md).
+Python uses only its standard library plus the copied reporting helpers.
 
 ## Acceptance
 
-`containers/vacask/starter-journey.test.mjs` checks all three source
-folders. Ideal passives qualify no foundry MOS model, corner, hostile-code
+Ideal passives qualify no foundry MOS model, corner, hostile-code
 isolation or cloud deployment.

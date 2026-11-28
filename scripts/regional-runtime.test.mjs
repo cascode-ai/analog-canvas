@@ -72,8 +72,11 @@ describe("regional runtime declaration", () => {
       '(name = "SG13G2_UPSTREAM_URL", text = "https://ngspice.canvas-operator.invalid/sg13g2")',
     );
     expect(config).toContain(
-      '(name = "VACASK_PROFILE_ID", text = "vacask-sky130-candidate")',
+      '(name = "SIMULATION_UPSTREAM_URL", text = "https://ngspice.canvas-operator.invalid")',
     );
+    expect(config).not.toContain("VACASK_UPSTREAM_URL");
+    expect(config).not.toContain("VACASK_PROFILE_ID");
+    expect(config).not.toContain("VACASK_OPERATOR");
     expect(config).toContain(
       '(name = "PROJECT_WRITES_ENABLED", text = embed "/project-writes-enabled")',
     );

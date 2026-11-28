@@ -68,11 +68,7 @@ const fallbackSpecs = [
 describe("CI validation planning", () => {
   it("plans opt-in browser evidence separately from ordinary CI coverage", () => {
     for (const [spec, workflow, job] of [
-      [
-        "mcp-native-simulation",
-        ".github/workflows/simulator-host.yml",
-        "vacask-compat-build",
-      ],
+      ["sg13g2-simulation", ".github/workflows/sg13g2-tests.yml", "qualify"],
       ["performance", ".github/workflows/performance.yml", "measure"],
     ]) {
       const path = `apps/editor/e2e/${spec}.spec.ts`;
@@ -449,19 +445,19 @@ describe("CI validation planning", () => {
     );
   });
 
-  it("requires named manual native MCP evidence for MCP implementation and spec edits", () => {
+  it("requires named manual SG13G2 MCP evidence for MCP implementation and spec edits", () => {
     for (const path of [
       "apps/mcp-server/src/main.ts",
-      "apps/editor/e2e/mcp-native-simulation.spec.ts",
+      "apps/editor/e2e/sg13g2-simulation.spec.ts",
     ]) {
       const plan = ciPlan([path]);
       expect(plan.mode, path).toBe("focused");
       expect(plan.e2eArgs, path).not.toContain(
-        "apps/editor/e2e/mcp-native-simulation.spec.ts",
+        "apps/editor/e2e/sg13g2-simulation.spec.ts",
       );
       expect(
         planValidation([path], catalog).manualChecks.map((check) => check.id),
-      ).toContain("mcp-native");
+      ).toContain("mcp-sg13g2");
     }
   });
 
@@ -803,10 +799,7 @@ describe("CI validation planning", () => {
       ]),
     );
     expect(specNames).not.toContain("apps/editor/e2e/gallery-wall.spec.ts");
-    expect(plan.manualChecks.map((check) => check.id)).toEqual([
-      "mcp-native",
-      "mcp-sg13g2",
-    ]);
+    expect(plan.manualChecks.map((check) => check.id)).toEqual(["mcp-sg13g2"]);
   });
 
   it("follows fixtures through another fixture and the page-module registry", () => {

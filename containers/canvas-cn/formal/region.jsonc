@@ -44,12 +44,10 @@
   // loopback operator tunnel. A URL path (SG13G2's /sg13g2) is kept.
   "operators": {
     "ngspice": { "address": "127.0.0.1:19094" },
-    "vacask": { "address": "127.0.0.1:19095" },
   },
   "upstreams": {
     "SIMULATION_UPSTREAM_URL": "ngspice",
     "SG13G2_UPSTREAM_URL": "ngspice",
-    "VACASK_UPSTREAM_URL": "vacask",
   },
   // Production configuration the region deliberately does not carry.
   "excluded": {
@@ -76,7 +74,6 @@
   "credentials": {
     "SIMULATION_SMOKE_TOKEN": "simulation-smoke-token",
     "SIMULATION_UPSTREAM_TOKEN": "operator-token",
-    "VACASK_UPSTREAM_TOKEN": "operator-token",
     "RESOURCE_SYNC_TOKEN": "resource-inbound-token",
     "RESOURCE_SYNC_PEER_TOKEN": "resource-outbound-token",
     "RESOURCE_ACTION_PEER": "peer-origin",

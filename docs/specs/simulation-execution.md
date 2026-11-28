@@ -3,7 +3,7 @@
 Status: accepted
 
 Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
-`containers/ngspice`, `containers/vacask`,
+`containers/ngspice`,
 `apps/editor/src/features/simulation`, `apps/editor/dev/local-simulation*`
 
 [Setup and compilation](simulation.md) owns authored inputs;
@@ -64,9 +64,9 @@ Owners: `packages/simulation-service`, `packages/spice-run`, `worker`,
   executor-declared label wins; unreadable releases show the Profile id.
 - Targets (`VACASK_UPSTREAM_URL`/`VACASK_UPSTREAM_TOKEN` operator host, or a
   `VACASK` container binding) are locations, not engines; missing targets never
-  fall back; an ngspice target never registers VACASK.
-  [Deployment](../deployment.md) owns registration; the
-  [qualification roadmap](../roadmap/vacask-migration.md) owns scope evidence.
+  fall back; an ngspice target never registers VACASK. Hosted VACASK preview
+  registration is retired in Production and China; [Deployment](../deployment.md)
+  owns active simulator registration.
 - Worker and harness share `validateNativeExecutionInput` (revision, entry bytes,
   disjoint portable paths, registry digests, bounds). The Worker forwards exact
   files and checks hashes, executed bytes and runtime fingerprint against

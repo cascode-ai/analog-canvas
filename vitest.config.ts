@@ -8,11 +8,8 @@ const standaloneTests = [
   "scripts/analyze-native-simulation-examples.test.mjs",
   "scripts/build-native-simulation-examples.test.mjs",
   "scripts/native-example-runner.test.mjs",
-  "scripts/package-vacask-harness.test.mjs",
-  "scripts/package-vacask-image.test.mjs",
   "scripts/resource-seed-runtime.test.mjs",
   "scripts/simulation-control-runtime.test.mjs",
-  "scripts/vacask-model-symbols.test.mjs",
 ];
 
 const moduleTests = [

@@ -38,9 +38,7 @@ The host account needs:
   secrets).
 
 No lifecycle script is installed by hand. The workflow's ngspice actions invoke
-only the files in this directory and `../verify-host-runtime.sh`. Its
-`vacask-*` actions are separate; see
-[the VACASK host README](../../vacask/host/README.md).
+only the files in this directory and `../verify-host-runtime.sh`.
 
 ## Recover onto a clean host
 

@@ -1,20 +1,20 @@
 import { readFile } from "node:fs/promises";
 import { expect, it } from "vitest";
-import { parseProject } from "../../packages/project-protocol/src/index.js";
-import { compileSourceSimulation } from "../../packages/netlist/src/simulation-source-compile.js";
+import { parseProject } from "../packages/project-protocol/src/index.js";
+import { compileSourceSimulation } from "../packages/netlist/src/simulation-source-compile.js";
 import {
   vacaskMeasurementPythonSource,
   vacaskPlotPythonSource,
-} from "../../packages/netlist/src/vacask-postprocess.js";
+} from "../packages/netlist/src/vacask-postprocess.js";
 import {
   nativeSimulationDevices,
   nativeDeviceOpAcquisitions,
-} from "../../packages/netlist/src/simulation-native-devices.js";
+} from "../packages/netlist/src/simulation-native-devices.js";
 
 const legacyLibraryOta = JSON.parse(
   await readFile(
     new URL(
-      "../../netlists/native-ota-library/legacy-source.icproj.json",
+      "../netlists/native-ota-library/legacy-source.icproj.json",
       import.meta.url,
     ),
     "utf8",
@@ -28,8 +28,8 @@ const projects = await Promise.all(
       await readFile(
         new URL(
           kind === "ota-library"
-            ? "../../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json"
-            : `../../apps/editor/src/examples/simulation-${kind}.icproj.json`,
+            ? "../apps/editor/src/examples/five-transistor-ota-sky130.icproj.json"
+            : `../apps/editor/src/examples/simulation-${kind}.icproj.json`,
           import.meta.url,
         ),
         "utf8",
@@ -42,7 +42,7 @@ const resistanceFor = (id) =>
 const reference = (kind, name) =>
   readFile(
     new URL(
-      `../../netlists/native-${kind === "rc" ? "rc-filters" : "rlc-filter"}/${name}`,
+      `../netlists/native-${kind === "rc" ? "rc-filters" : "rlc-filter"}/${name}`,
       import.meta.url,
     ),
     "utf8",
@@ -51,7 +51,7 @@ const reference = (kind, name) =>
 const sectioned = JSON.parse(
   await readFile(
     new URL(
-      "../../netlists/vacask-sky130/model-symbols-sections.json",
+      "../netlists/vacask-sky130/model-symbols-sections.json",
       import.meta.url,
     ),
     "utf8",
@@ -102,7 +102,7 @@ it("preserves all twelve Library OTA experiments, their circuits and native repo
     ])
       expect(folder.input.files.find((f) => f.path === file).text).toBe(
         (
-          await readFile(new URL(`../../${path}`, import.meta.url), "utf8")
+          await readFile(new URL(`../${path}`, import.meta.url), "utf8")
         ).replaceAll("\r\n", "\n"),
       );
     const corner = legacyLibraryOta.simulationSetups.find(
@@ -136,7 +136,7 @@ it("ships all eight OTA native folders without substituting corners or the code-
     const mode = folder.id.startsWith("ota-ac-") ? "ac" : folder.id.slice(4);
     const template = (
       await readFile(
-        new URL(`../../netlists/native-ota/${mode}.sim`, import.meta.url),
+        new URL(`../netlists/native-ota/${mode}.sim`, import.meta.url),
         "utf8",
       )
     ).replaceAll("\r\n", "\n");
@@ -182,7 +182,7 @@ it("ships all eight OTA native folders without substituting corners or the code-
       ).toBe(
         (
           await readFile(
-            new URL("../../netlists/native-ota/testbench.sim", import.meta.url),
+            new URL("../netlists/native-ota/testbench.sim", import.meta.url),
             "utf8",
           )
         ).replaceAll("\r\n", "\n"),
@@ -192,10 +192,7 @@ it("ships all eight OTA native folders without substituting corners or the code-
       expect(folder.input.files.find((f) => f.path === "report.py").text).toBe(
         (
           await readFile(
-            new URL(
-              "../../scripts/lib/native-starter-report.py",
-              import.meta.url,
-            ),
+            new URL("../scripts/lib/native-starter-report.py", import.meta.url),
             "utf8",
           )
         ).replaceAll("\r\n", "\n"),
@@ -209,7 +206,7 @@ it("ships four native common-source experiments with converter-checked wrapper s
   const before = structuredClone(project);
   const report = (
     await readFile(
-      new URL("../../scripts/lib/native-starter-report.py", import.meta.url),
+      new URL("../scripts/lib/native-starter-report.py", import.meta.url),
       "utf8",
     )
   ).replaceAll("\r\n", "\n");
@@ -223,7 +220,7 @@ it("ships four native common-source experiments with converter-checked wrapper s
     const template = (
       await readFile(
         new URL(
-          `../../netlists/native-common-source/${folder.id.slice(3)}.sim`,
+          `../netlists/native-common-source/${folder.id.slice(3)}.sim`,
           import.meta.url,
         ),
         "utf8",
@@ -303,10 +300,7 @@ it.each(projects.filter((p) => ["rc", "rlc"].includes(p.kind)))(
       expect(source("report.py")).toBe(
         (
           await readFile(
-            new URL(
-              "../../scripts/lib/native-starter-report.py",
-              import.meta.url,
-            ),
+            new URL("../scripts/lib/native-starter-report.py", import.meta.url),
             "utf8",
           )
         ).replaceAll("\r\n", "\n"),

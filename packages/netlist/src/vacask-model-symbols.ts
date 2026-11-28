@@ -26,8 +26,10 @@ export interface ResolvedNativeModelLibrarySymbols {
   masters: NativeMasterSymbol[];
 }
 
-/** Offline/runtime provisioning reads the actual library files. The same
- * scope table handles local shadows, ambiguous models and conditional calls. */
+/**
+ * @internal Test helper for VACASK model-library fixture inspection until the
+ * VACASK engine removal follow-up deletes this module.
+ */
 export function inspectNativeModelLibrarySymbols(
   input: SimulationSourceInput,
   names: readonly string[],

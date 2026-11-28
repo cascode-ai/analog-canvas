@@ -38,7 +38,7 @@ The report uses only Python's standard library and the copied report helpers.
 
 ## Acceptance
 
-`containers/vacask/starter-journey.test.mjs` checks all four bundled
+`scripts/vacask-starter-journey.test.mjs` checks all four bundled
 source folders against these recipes and the native compiler.
 No MOS, foundry corner, hosted isolation or production qualification is claimed.
 

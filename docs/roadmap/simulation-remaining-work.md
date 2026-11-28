@@ -22,7 +22,6 @@ title or order guessing.
 GUI, public MCP and cross-Project acceptance need recorded evidence for each
 affected release (edits, error/repair, Cell import, execution, Specs/raw/CSV,
 Batch, save/reload, access); a deployment's smoke checks do not imply it.
-VACASK follows its [qualification rule](vacask-migration.md).
 
 ## Deferred extensions
 

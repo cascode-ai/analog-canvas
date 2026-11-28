@@ -46,8 +46,6 @@ This Profile is **not a fully qualified hosted environment**; a Worker
 configuration that sets `VACASK_PROFILE_ID` routes it to the separate VACASK
 gateway, never to ngspice.
 
-`containers/vacask/starter-journey.test.mjs` verifies source/helper identity.
 Acceptance is native execution with complete finite results, **not equivalence
-to the old BSIM4 4.5/4.62 baseline** or to another engine
-([migration plan](../../docs/roadmap/vacask-migration.md)). Upgrading to 4.8.3 is
+to the old BSIM4 4.5/4.62 baseline** or to another engine. Upgrading to 4.8.3 is
 user-authorized; coefficients are not retuned.

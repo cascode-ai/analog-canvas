@@ -100,8 +100,7 @@ Environment secrets are reachable only from `main` (and `v*` tags).
 - `cloudflare-preview` (Simulator host and Preview retirement workflows):
   `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SIMULATION_UPSTREAM_TOKEN`,
   `SIM_HOST_SSH_KEY`, and `CLOUDFLARE_TUNNEL_API_TOKEN` (needed before
-  `bootstrap-tunnel` or `vacask-preview`; the deploy token cannot manage
-  tunnels or DNS).
+  `bootstrap-tunnel`; the deploy token cannot manage tunnels or DNS).
 - Worker-only runtime secrets: OAuth client secrets, `RESEND_API_KEY`,
   `AUTH_EMAIL_FROM`, `ADMIN_EMAILS`, `ADMIN_EMAILS_EXTRA`. Routine merges skip
   redundant secret sync and queue/R2 reconciliation; manual `workflow_dispatch`
@@ -172,8 +171,7 @@ checks both ngspice routes.
 The [Simulator host workflow](../.github/workflows/simulator-host.yml) rebuilds
 the host on `main` pushes affecting its declared runtime paths. Changes only
 to that workflow file do not deploy; apply host orchestration changes through
-the explicit `deploy` action. Qualification actions do not enter the host
-deployment job, and the workflow has no PR or merge-queue trigger. Before a
+the explicit `deploy` action. The workflow has no PR or merge-queue trigger. Before a
 manual ngspice Docker build, run
 `node scripts/package-ngspice-harness.mjs` after building workspace
 dependencies. Collector changes need this host deployment as well as a Worker
@@ -184,25 +182,14 @@ against the [hosted Profile](../containers/ngspice/hosted-sky130-profile.json).
 The restart policy must recover a harness that exits because it cannot prove a
 timed-out process is gone.
 
-Record the operator's `analog-canvas-sim/current` target and the live VACASK
-image and runtime config before replacing either stack. The ngspice deploy
-records the Production target after its health check, then starts and checks
-China. If only the China start fails, repair that profile and rerun the host
-deploy. For a Production rollback, run the retained release's `deploy.sh`.
-Before reverting to a release that shared the UIDs, stop the three regional
-ngspice services and keep `secrets/regional.env` aside for the rollback so the
-old deploy cannot start them again. Restore it when the isolated release is
-ready. Use the same image and runtime config for a VACASK config rollback.
-
-VACASK: the Profile named by `VACASK_PROFILE_ID` goes to `VACASK_UPSTREAM_URL`
-with `VACASK_UPSTREAM_TOKEN`. The workflow's `vacask-preview` action builds it
-from [`containers/vacask/host/compose.yaml`](../containers/vacask/host/compose.yaml)
-as a separate stack and rotates the bearer into the Production Worker, leaving
-ngspice untouched. Neither engine falls back to the other.
-Reconcile an existing regional VACASK stack with the new Compose file and its
-retained `regional.env`, image and runtime config. Set `VACASK_RUN_UID=10002`
-and run the regional budget guard before `up`; leave the Production gateway's
-bearer rotation to the `vacask-preview` action.
+Record the operator's `analog-canvas-sim/current` target before replacing the
+ngspice stack. The ngspice deploy records the Production target after its health
+check, then starts and checks China. If only the China start fails, repair that
+profile and rerun the host deploy. For a Production rollback, run the retained
+release's `deploy.sh`. Before reverting to a release that shared the UIDs, stop
+the three regional ngspice services and keep `secrets/regional.env` aside for
+the rollback so the old deploy cannot start them again. Restore it when the
+isolated release is ready.
 
 Production runs go through the managed `/api/simulation/runs`;
 `/api/simulate` is the direct/local transport and never a fallback. The smoke scripts (`scripts/*-smoke.mjs`) are run by hand; against
@@ -248,9 +235,9 @@ Production's release, never a separate build.
 - Secrets and the writes switches are root-owned credential files on the
   host; every host runs identical release bytes.
 - Regional simulation uses the `regional` profile of the
-  [simulator host](../containers/ngspice/host/compose.yaml) and a second
-  VACASK instance, with Production's images, deployed by the Simulator host
-  workflow once that host has `secrets/regional.env`.
+  [simulator host](../containers/ngspice/host/compose.yaml) with Production's
+  images, deployed by the Simulator host workflow once that host has
+  `secrets/regional.env`.
 - Production mails the first `ADMIN_EMAILS` address when the region has not
   pulled Projects for 10 minutes, hourly until it recovers; the region's own
   watchers mail its sync and release failures.

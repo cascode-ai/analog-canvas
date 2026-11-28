@@ -10,7 +10,7 @@ const CI_INFRA_PATH =
   /^(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|vitest\.config\.ts|tsconfig[^/]*\.json|\.github\/workflows\/|config\/validation-gates\.json|scripts\/(?:ci-plan|check-core-results|ci-package-build|test-standalone-setup)\.mjs|scripts\/lib\/(?:ci-validation-plan|ci-package-build|validation-gates|verify-pr-selection)\.mjs)$/u;
 
 const STANDALONE_SCRIPT_PATH =
-  /^scripts\/(?:analyze-native-simulation-examples|build-native-simulation-examples|native-example-runner|run-native-simulation-examples|package-vacask-|resource-seed-runtime|simulation-control-runtime|vacask-model-symbols)/u;
+  /^scripts\/(?:analyze-native-simulation-examples|build-native-simulation-examples|native-example-runner|run-native-simulation-examples|resource-seed-runtime|simulation-control-runtime)/u;
 
 const RELEASE_SCRIPT_PATH =
   /^scripts\/(?:package-|editor-|visual-golden|export-golden|pwa-icons|agent-api-artifacts|mcp-release|check-mcp-distribution|lib\/(?:headless-bundle|mcp-release-integrity))/u;
@@ -58,7 +58,7 @@ function canAffectUnitBuilt(path) {
     path.startsWith("apps/editor/src/examples/") ||
     path === "apps/editor/package.json" ||
     path.startsWith("config/") ||
-    /^containers\/(?:ngspice|vacask|canvas-cn)\//u.test(path) ||
+    /^containers\/(?:ngspice|canvas-cn)\//u.test(path) ||
     STANDALONE_SCRIPT_PATH.test(path) ||
     path.startsWith("scripts/lib/")
   );
@@ -160,7 +160,6 @@ function canAffectReleaseMcp(path) {
 
 const MCP_BROWSER_SPECS = new Set([
   "apps/editor/e2e/agent-connection.spec.ts",
-  "apps/editor/e2e/mcp-native-simulation.spec.ts",
   "apps/editor/e2e/sg13g2-simulation.spec.ts",
 ]);
 

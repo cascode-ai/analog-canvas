@@ -111,16 +111,16 @@ describe("validation gate planning", () => {
 
   it("shows the workflow and prerequisites for manual evidence without making it an executable gate", () => {
     const plan = planValidation(
-      ["apps/editor/e2e/mcp-native-simulation.spec.ts"],
+      ["apps/editor/e2e/sg13g2-simulation.spec.ts"],
       catalog,
     );
     for (const text of [formatGatePlan(plan), formatGatePlanMarkdown(plan)]) {
       expect(text).toContain("Manual evidence");
-      expect(text).toContain(".github/workflows/simulator-host.yml");
-      expect(text).toContain("vacask-compat-build");
-      expect(text).toContain("ICM_E2E_VACASK_REAL=1");
+      expect(text).toContain(".github/workflows/sg13g2-tests.yml");
+      expect(text).toContain("qualify");
+      expect(text).toContain("ICM_SG13G2_URL");
     }
-    expect(plan.gates.map((gate) => gate.id)).not.toContain("mcp-native");
+    expect(plan.gates.map((gate) => gate.id)).not.toContain("mcp-sg13g2");
   });
 
   it("references only declared pnpm scripts", () => {
