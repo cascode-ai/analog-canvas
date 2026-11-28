@@ -64,7 +64,7 @@ function issuesBadge(issues: {
             : issues.checkStatus === "checking"
               ? "Checking…"
               : "Not checked",
-      title: "No check has run — open Issues and choose Check and Save",
+      title: "No check has run — choose File → Check and Save",
     };
   }
   const plural = (count: number, noun: string) =>

@@ -1,5 +1,6 @@
 import {
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
@@ -155,9 +156,33 @@ export function EditorWiringOverlay({
     netLabelPlacement?.target?.rotation ??
     netLabelPlacement?.look?.rotation ??
     0;
+  const netLabelHtml = useMemo(
+    () =>
+      netLabelPlacement?.phase === "placing"
+        ? {
+            __html: renderRichTextDocument(
+              netLabelPlacement.content,
+              styleProfile,
+              {
+                lineOriginX: netLabelPlacement.position.x,
+                fontSize: previewFontSize,
+                defaultBold: true,
+                defaultItalic: true,
+              },
+            ),
+          }
+        : null,
+    [
+      netLabelPlacement?.phase,
+      netLabelPlacement?.content,
+      netLabelPlacement?.position.x,
+      styleProfile,
+      previewFontSize,
+    ],
+  );
   return (
     <>
-      {netLabelPlacement?.phase === "placing" ? (
+      {netLabelPlacement?.phase === "placing" && netLabelHtml ? (
         <g data-testid="net-label-placement-preview" pointerEvents="none">
           <text
             className="net-label-placement-preview"
@@ -174,18 +199,7 @@ export function EditorWiringOverlay({
                 : undefined
             }
             fontSize={previewFontSize}
-            dangerouslySetInnerHTML={{
-              __html: renderRichTextDocument(
-                netLabelPlacement.content,
-                styleProfile,
-                {
-                  lineOriginX: netLabelPlacement.position.x,
-                  fontSize: previewFontSize,
-                  defaultBold: true,
-                  defaultItalic: true,
-                },
-              ),
-            }}
+            dangerouslySetInnerHTML={netLabelHtml}
           />
         </g>
       ) : null}

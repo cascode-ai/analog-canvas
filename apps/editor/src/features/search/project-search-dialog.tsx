@@ -1,5 +1,5 @@
 import type { SearchResult } from "@icm/derived";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { deferFocus } from "../../interaction/deferred-focus";
 
 export interface ProjectSearchDialogProps {
@@ -26,10 +26,16 @@ export function ProjectSearchDialog({
   onClose,
 }: ProjectSearchDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
   useEffect(() => {
     if (open) return deferFocus(() => inputRef.current);
   }, [open]);
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [query, open]);
   if (!open) return null;
+  const boundedIndex =
+    results.length > 0 ? Math.min(activeIndex, results.length - 1) : -1;
   const matchingInCell = [
     ...new Set(
       results.flatMap(({ locator }) =>
@@ -75,6 +81,21 @@ export function ProjectSearchDialog({
             if (event.key === "Escape") {
               event.preventDefault();
               onClose();
+            } else if (event.key === "ArrowDown" && results.length > 0) {
+              event.preventDefault();
+              setActiveIndex((index) => (index + 1) % results.length);
+            } else if (event.key === "ArrowUp" && results.length > 0) {
+              event.preventDefault();
+              setActiveIndex(
+                (index) => (index - 1 + results.length) % results.length,
+              );
+            } else if (
+              event.key === "Enter" &&
+              boundedIndex >= 0 &&
+              results[boundedIndex]
+            ) {
+              event.preventDefault();
+              onSelect(results[boundedIndex]!);
             }
           }}
         />
@@ -100,7 +121,7 @@ export function ProjectSearchDialog({
           ) : results.length === 0 ? (
             <p>No matching project objects.</p>
           ) : (
-            results.map((result) => (
+            results.map((result, index) => (
               <button
                 type="button"
                 key={JSON.stringify([
@@ -109,7 +130,10 @@ export function ProjectSearchDialog({
                   result.locator.objectId,
                   result.locator.hierarchyPath,
                 ])}
+                data-active={index === boundedIndex || undefined}
+                aria-current={index === boundedIndex ? "true" : undefined}
                 data-testid={`project-search-result-${result.locator.objectId}${result.locator.hierarchyPath.length > 0 ? `-${result.locator.hierarchyPath.map((frame) => frame.instanceId).join("-")}` : ""}`}
+                onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => onSelect(result)}
               >
                 <strong>{result.label}</strong>

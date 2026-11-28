@@ -399,9 +399,14 @@ export function interactionReducer<TClipboard>(
         previewPoint: null,
       };
     case "set-component-preview":
-      return state.kind === "placing-component"
-        ? { ...state, previewPoint: action.point }
-        : state;
+      if (state.kind !== "placing-component") return state;
+      if (
+        state.previewPoint?.x === action.point?.x &&
+        state.previewPoint?.y === action.point?.y
+      ) {
+        return state;
+      }
+      return { ...state, previewPoint: action.point };
     case "rotate-component":
       return state.kind === "placing-component"
         ? {
@@ -434,9 +439,14 @@ export function interactionReducer<TClipboard>(
         ? { ...state, start: action.point }
         : state;
     case "set-vdd-rail-preview":
-      return state.kind === "placing-vdd-rail"
-        ? { ...state, previewPoint: action.point }
-        : state;
+      if (state.kind !== "placing-vdd-rail") return state;
+      if (
+        state.previewPoint?.x === action.point?.x &&
+        state.previewPoint?.y === action.point?.y
+      ) {
+        return state;
+      }
+      return { ...state, previewPoint: action.point };
     case "complete-vdd-rail":
       return state.kind === "placing-vdd-rail"
         ? (IDLE_INTERACTION_STATE as InteractionState<TClipboard>)

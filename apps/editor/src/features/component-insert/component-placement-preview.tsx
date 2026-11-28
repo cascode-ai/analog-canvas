@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { razaviTextbookProfile } from "@icm/derived";
 import { mirrorScale, type Mirror, type Rotation } from "@icm/model";
 import {
@@ -28,28 +29,56 @@ export function ComponentPlacementPreview({
   mirror = "none",
 }: ComponentPlacementPreviewProps) {
   const definition = symbol ?? findPaletteSymbol(styleProfileId, symbolId);
-  if (!definition) return null;
-  const variantId = defaultRazaviSymbolVariantId(definition.id);
-  const variant = definition.variants.find(
+  const variantId = definition
+    ? defaultRazaviSymbolVariantId(definition.id)
+    : undefined;
+  const variant = definition?.variants.find(
     (candidate) => candidate.id === variantId,
   );
+  const bodyHtml = useMemo(
+    () =>
+      definition
+        ? {
+            __html: renderSymbolDefinitionBody(
+              definition,
+              variant?.hiddenPrimitiveParts,
+              variant?.additionalPrimitives,
+              razaviTextbookProfile,
+              undefined,
+              undefined,
+              { rotation, mirror },
+            ),
+          }
+        : null,
+    [definition, variant, rotation, mirror],
+  );
+  const pinNamesHtml = useMemo(() => {
+    if (!definition) return null;
+    const markup = renderSymbolPreviewPinNames(
+      definition,
+      variant?.hiddenPinNames ?? [],
+      rotation,
+      mirror,
+    );
+    return markup ? { __html: markup } : null;
+  }, [definition, variant, rotation, mirror]);
+  const formulaHtml = useMemo(() => {
+    if (!definition) return null;
+    const markup = renderUprightSignalFlowFormula(
+      definition.formulaPresentation,
+      undefined,
+      { position, rotation, mirror },
+      { foreground: "currentColor", profile: razaviTextbookProfile },
+    );
+    return markup ? { __html: markup } : null;
+  }, [definition, position.x, position.y, rotation, mirror]);
+
+  if (!definition || !bodyHtml) return null;
 
   const scale = mirrorScale(mirror);
   const mirrorTransform =
     scale.x === 1 && scale.y === 1 ? "" : ` scale(${scale.x} ${scale.y})`;
   const transform = `translate(${position.x} ${position.y})${mirrorTransform} rotate(${rotation})`;
-  const pinNames = renderSymbolPreviewPinNames(
-    definition,
-    variant?.hiddenPinNames ?? [],
-    rotation,
-    mirror,
-  );
-  const formula = renderUprightSignalFlowFormula(
-    definition.formulaPresentation,
-    undefined,
-    { position, rotation, mirror },
-    { foreground: "currentColor", profile: razaviTextbookProfile },
-  );
 
   return (
     // Upright text lives outside the body's transform, but belongs to the
@@ -64,26 +93,16 @@ export function ComponentPlacementPreview({
         strokeWidth="1"
         strokeLinecap="square"
         strokeLinejoin="miter"
-        dangerouslySetInnerHTML={{
-          __html: renderSymbolDefinitionBody(
-            definition,
-            variant?.hiddenPrimitiveParts,
-            variant?.additionalPrimitives,
-            razaviTextbookProfile,
-            undefined,
-            undefined,
-            { rotation, mirror },
-          ),
-        }}
+        dangerouslySetInnerHTML={bodyHtml}
       />
-      {formula ? <g dangerouslySetInnerHTML={{ __html: formula }} /> : null}
-      {pinNames ? (
+      {formulaHtml ? <g dangerouslySetInnerHTML={formulaHtml} /> : null}
+      {pinNamesHtml ? (
         <g
           transform={`translate(${position.x} ${position.y})`}
           fill="currentColor"
           stroke="none"
           style={{ fontFamily: razaviTextbookProfile.typography.fontFamily }}
-          dangerouslySetInnerHTML={{ __html: pinNames }}
+          dangerouslySetInnerHTML={pinNamesHtml}
         />
       ) : null}
     </g>

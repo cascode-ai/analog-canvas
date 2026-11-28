@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   DEFAULT_ARROW_PRESET,
   type ArrowPreset,
@@ -33,6 +34,139 @@ import type { EditorTool } from "../interaction/interaction-state";
 import { marqueeMode } from "../features/selection/marquee-selection";
 import type { BoxPreview } from "./canvas-gesture-model";
 import { normalizedRect } from "./canvas-geometry";
+
+function TextPlacementPreview({
+  draftingText,
+  draftingContent,
+  draftingPolarity,
+  draftingSizeScale,
+  draftingAlignment,
+  styleProfile,
+  previewPoint,
+  rotation,
+}: {
+  draftingText?: string;
+  draftingContent?: RichTextDocument;
+  draftingPolarity?: "both" | "positive" | "negative";
+  draftingSizeScale: number;
+  draftingAlignment: "start" | "middle" | "end";
+  styleProfile: SchematicStyleProfile;
+  previewPoint: Point;
+  rotation: ComponentPlacementPreviewProps["rotation"];
+}) {
+  const barePolarity =
+    draftingPolarity === "positive" || draftingPolarity === "negative";
+  const content = useMemo<RichTextDocument>(
+    () =>
+      draftingPolarity
+        ? barePolarity
+          ? { runs: [{ kind: "line-break" as const }] }
+          : defaultDraftTextDocument("Vx")
+        : (draftingContent ?? {
+            runs: [{ kind: "text" as const, value: draftingText! }],
+          }),
+    [draftingPolarity, barePolarity, draftingContent, draftingText],
+  );
+  const metrics = richTextMetrics(
+    styleProfile,
+    "label",
+    draftingPolarity ? 1 : draftingSizeScale,
+  );
+  const polarityGeometry = draftingPolarity
+    ? resolvePolarityTextGeometry(
+        { x: 0, y: 0 },
+        draftingPolarity,
+        content,
+        metrics,
+        rotation,
+      )
+    : null;
+  const textPosition = polarityGeometry?.textPosition ?? { x: 0, y: 0 };
+  const baselineY = draftingPolarity
+    ? textPosition.y + metrics.fontSize * 0.35
+    : textPosition.y;
+  const formulaHtml = useMemo(() => {
+    const formula = renderFormulaDocument(content, styleProfile, {
+      x: textPosition.x,
+      baselineY,
+      fontSize: metrics.fontSize,
+      alignment: draftingPolarity ? "middle" : draftingAlignment,
+      color: "currentColor",
+      bold: true,
+    });
+    return formula ? { __html: formula } : null;
+  }, [
+    content,
+    styleProfile,
+    textPosition.x,
+    baselineY,
+    metrics.fontSize,
+    draftingPolarity,
+    draftingAlignment,
+  ]);
+  const richTextHtml = useMemo(
+    () =>
+      formulaHtml || barePolarity
+        ? null
+        : {
+            __html: renderRichTextDocument(content, styleProfile, {
+              lineOriginX: textPosition.x,
+              fontSize: metrics.fontSize,
+              defaultBold: true,
+              defaultItalic: false,
+            }),
+          },
+    [
+      formulaHtml,
+      barePolarity,
+      content,
+      styleProfile,
+      textPosition.x,
+      metrics.fontSize,
+    ],
+  );
+  return (
+    <g
+      data-testid="text-placement-preview"
+      className="component-placement-preview"
+      transform={`translate(${previewPoint.x} ${previewPoint.y})${
+        !draftingPolarity && uprightOrUp(rotation) ? " rotate(270)" : ""
+      }`}
+    >
+      {polarityGeometry?.lines.map((line) => (
+        <line
+          key={line.role}
+          data-role={`polarity-${line.role}`}
+          x1={line.from.x}
+          y1={line.from.y}
+          x2={line.to.x}
+          y2={line.to.y}
+          stroke="currentColor"
+          strokeWidth={styleProfile.strokes.annotation}
+          strokeLinecap={styleProfile.lineCap}
+        />
+      ))}
+      {formulaHtml ? (
+        <g
+          fontFamily={styleProfile.typography.fontFamily}
+          dangerouslySetInnerHTML={formulaHtml}
+        />
+      ) : richTextHtml ? (
+        <text
+          x={textPosition.x}
+          y={baselineY}
+          textAnchor={draftingPolarity ? "middle" : draftingAlignment}
+          fontSize={metrics.fontSize}
+          fontFamily={styleProfile.typography.fontFamily}
+          fontWeight="bold"
+          fontStyle="normal"
+          fill="currentColor"
+          dangerouslySetInnerHTML={richTextHtml}
+        />
+      ) : null}
+    </g>
+  );
+}
 
 export function EditorPlacementPreview({
   vddRailMode,
@@ -94,88 +228,17 @@ export function EditorPlacementPreview({
     draftingContent !== undefined ||
     draftingPolarity !== undefined
   ) {
-    const barePolarity =
-      draftingPolarity === "positive" || draftingPolarity === "negative";
-    const content = draftingPolarity
-      ? barePolarity
-        ? { runs: [{ kind: "line-break" as const }] }
-        : defaultDraftTextDocument("Vx")
-      : (draftingContent ?? {
-          runs: [{ kind: "text" as const, value: draftingText! }],
-        });
-    const metrics = richTextMetrics(
-      styleProfile,
-      "label",
-      draftingPolarity ? 1 : draftingSizeScale,
-    );
-    const polarityGeometry = draftingPolarity
-      ? resolvePolarityTextGeometry(
-          { x: 0, y: 0 },
-          draftingPolarity,
-          content,
-          metrics,
-          rotation,
-        )
-      : null;
-    const textPosition = polarityGeometry?.textPosition ?? { x: 0, y: 0 };
-    const baselineY = draftingPolarity
-      ? textPosition.y + metrics.fontSize * 0.35
-      : textPosition.y;
-    const formula = renderFormulaDocument(content, styleProfile, {
-      x: textPosition.x,
-      baselineY,
-      fontSize: metrics.fontSize,
-      alignment: draftingPolarity ? "middle" : draftingAlignment,
-      color: "currentColor",
-      bold: true,
-    });
     return (
-      <g
-        data-testid="text-placement-preview"
-        className="component-placement-preview"
-        transform={`translate(${previewPoint.x} ${previewPoint.y})${
-          !draftingPolarity && uprightOrUp(rotation) ? " rotate(270)" : ""
-        }`}
-      >
-        {polarityGeometry?.lines.map((line) => (
-          <line
-            key={line.role}
-            data-role={`polarity-${line.role}`}
-            x1={line.from.x}
-            y1={line.from.y}
-            x2={line.to.x}
-            y2={line.to.y}
-            stroke="currentColor"
-            strokeWidth={styleProfile.strokes.annotation}
-            strokeLinecap={styleProfile.lineCap}
-          />
-        ))}
-        {formula ? (
-          <g
-            fontFamily={styleProfile.typography.fontFamily}
-            dangerouslySetInnerHTML={{ __html: formula }}
-          />
-        ) : !barePolarity ? (
-          <text
-            x={textPosition.x}
-            y={baselineY}
-            textAnchor={draftingPolarity ? "middle" : draftingAlignment}
-            fontSize={metrics.fontSize}
-            fontFamily={styleProfile.typography.fontFamily}
-            fontWeight="bold"
-            fontStyle="normal"
-            fill="currentColor"
-            dangerouslySetInnerHTML={{
-              __html: renderRichTextDocument(content, styleProfile, {
-                lineOriginX: textPosition.x,
-                fontSize: metrics.fontSize,
-                defaultBold: true,
-                defaultItalic: false,
-              }),
-            }}
-          />
-        ) : null}
-      </g>
+      <TextPlacementPreview
+        {...(draftingText !== undefined ? { draftingText } : {})}
+        {...(draftingContent !== undefined ? { draftingContent } : {})}
+        {...(draftingPolarity !== undefined ? { draftingPolarity } : {})}
+        draftingSizeScale={draftingSizeScale}
+        draftingAlignment={draftingAlignment}
+        styleProfile={styleProfile}
+        previewPoint={previewPoint}
+        rotation={rotation}
+      />
     );
   }
   if (!pendingSymbolId) return null;

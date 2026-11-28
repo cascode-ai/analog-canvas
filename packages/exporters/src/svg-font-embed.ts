@@ -104,32 +104,44 @@ function subsetFontBytes(
   codepoints: Iterable<number>,
 ): Uint8Array {
   const pointer = hb.malloc(font.byteLength);
-  new Uint8Array(hb.memory.buffer).set(font, pointer);
-  // HB_MEMORY_MODE_WRITABLE: HarfBuzz may use the copy as it is.
-  const blob = hb.hb_blob_create(pointer, font.byteLength, 2, 0, 0);
-  const face = hb.hb_face_create(blob, 0);
-  hb.hb_blob_destroy(blob);
-  const input = hb.hb_subset_input_create_or_fail();
-  if (!input) throw new Error("HarfBuzz could not start a subset");
-  const unicodes = hb.hb_subset_input_unicode_set(input);
-  for (const codepoint of codepoints) hb.hb_set_add(unicodes, codepoint);
-  // A browser draws outlines without hints, and the text needs only its
-  // own glyphs, not every alternate a feature could reach.
-  hb.hb_subset_input_set_flags(input, SUBSET_FLAGS);
-  const dropped = hb.hb_subset_input_set(input, HB_SUBSET_SETS_DROP_TABLE_TAG);
-  for (const tag of DROPPED_TABLES) hb.hb_set_add(dropped, tableTag(tag));
-  const subset = hb.hb_subset_or_fail(face, input);
-  hb.hb_subset_input_destroy(input);
-  hb.hb_face_destroy(face);
-  hb.free(pointer);
-  if (!subset) throw new Error("HarfBuzz could not subset the font");
-  const result = hb.hb_face_reference_blob(subset);
-  const data = hb.hb_blob_get_data(result, 0);
-  const length = hb.hb_blob_get_length(result);
-  const bytes = new Uint8Array(hb.memory.buffer, data, length).slice();
-  hb.hb_blob_destroy(result);
-  hb.hb_face_destroy(subset);
-  return withMetropolisLineMetrics(bytes);
+  let face = 0;
+  let input = 0;
+  let subset = 0;
+  try {
+    new Uint8Array(hb.memory.buffer).set(font, pointer);
+    // HB_MEMORY_MODE_WRITABLE: HarfBuzz may use the copy as it is.
+    const blob = hb.hb_blob_create(pointer, font.byteLength, 2, 0, 0);
+    face = hb.hb_face_create(blob, 0);
+    hb.hb_blob_destroy(blob);
+    input = hb.hb_subset_input_create_or_fail();
+    if (!input) throw new Error("HarfBuzz could not start a subset");
+    const unicodes = hb.hb_subset_input_unicode_set(input);
+    for (const codepoint of codepoints) hb.hb_set_add(unicodes, codepoint);
+    // A browser draws outlines without hints, and the text needs only its
+    // own glyphs, not every alternate a feature could reach.
+    hb.hb_subset_input_set_flags(input, SUBSET_FLAGS);
+    const dropped = hb.hb_subset_input_set(
+      input,
+      HB_SUBSET_SETS_DROP_TABLE_TAG,
+    );
+    for (const tag of DROPPED_TABLES) hb.hb_set_add(dropped, tableTag(tag));
+    subset = hb.hb_subset_or_fail(face, input);
+    if (!subset) throw new Error("HarfBuzz could not subset the font");
+    const result = hb.hb_face_reference_blob(subset);
+    try {
+      const data = hb.hb_blob_get_data(result, 0);
+      const length = hb.hb_blob_get_length(result);
+      const bytes = new Uint8Array(hb.memory.buffer, data, length).slice();
+      return withMetropolisLineMetrics(bytes);
+    } finally {
+      hb.hb_blob_destroy(result);
+    }
+  } finally {
+    if (subset) hb.hb_face_destroy(subset);
+    if (input) hb.hb_subset_input_destroy(input);
+    if (face) hb.hb_face_destroy(face);
+    hb.free(pointer);
+  }
 }
 
 /**

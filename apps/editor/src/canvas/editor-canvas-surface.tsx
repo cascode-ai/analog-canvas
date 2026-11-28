@@ -86,6 +86,7 @@ function ownEventHandlers(
 export interface EditorCanvasSurfaceProps {
   drawingQueriesRef?: RefObject<CanvasDrawingQueries | null>;
   shortcutHintsVisible: boolean;
+  onCloseShortcutHints?: () => void;
   className: string;
   /** The Document's chosen font stack, or null for the default Metropolis. */
   textFontFamily: string | null;
@@ -156,6 +157,7 @@ function CanvasShortcutChord({ keys }: { keys: readonly string[] }) {
 export function EditorCanvasSurface({
   drawingQueriesRef,
   shortcutHintsVisible,
+  onCloseShortcutHints,
   className,
   textFontFamily,
   viewBox,
@@ -354,7 +356,18 @@ export function EditorCanvasSurface({
         >
           <div className="canvas-shortcut-menu-heading">
             <p className="canvas-shortcut-menu-title">Keyboard shortcuts</p>
-            <span>Hints</span>
+            {onCloseShortcutHints ? (
+              <button
+                type="button"
+                className="canvas-shortcut-menu-close"
+                aria-label="Close keyboard shortcuts"
+                onClick={onCloseShortcutHints}
+              >
+                ×
+              </button>
+            ) : (
+              <span>Hints</span>
+            )}
           </div>
           <ul className="canvas-shortcut-list">
             {EDITOR_SHORTCUT_REFERENCE.map((shortcut) => (

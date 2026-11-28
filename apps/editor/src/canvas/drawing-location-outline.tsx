@@ -98,7 +98,11 @@ export function DrawingLocationOutline({
       return [];
     });
   }, [document, resolver, selectedDraftingIds]);
-  if (!instanceOutline && !draftingOutlines.length) return null;
+  const instanceOutlineHtml = useMemo(
+    () => (instanceOutline ? { __html: instanceOutline } : null),
+    [instanceOutline],
+  );
+  if (!instanceOutlineHtml && !draftingOutlines.length) return null;
   return (
     <g
       aria-hidden="true"
@@ -106,8 +110,8 @@ export function DrawingLocationOutline({
       data-testid="layer-location-outlines"
       pointerEvents="none"
     >
-      {instanceOutline && (
-        <g dangerouslySetInnerHTML={{ __html: instanceOutline }} />
+      {instanceOutlineHtml && (
+        <g dangerouslySetInnerHTML={instanceOutlineHtml} />
       )}
       {draftingOutlines}
     </g>

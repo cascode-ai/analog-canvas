@@ -84,6 +84,8 @@ interface EditorShortcutDependencies {
   visualSelection: SelectionController["selection"];
   selectionFilterOpen: boolean;
   setSelectionFilterOpen: Dispatch<SetStateAction<boolean>>;
+  shortcutHintsVisible?: boolean;
+  setShortcutHintsVisible?: Dispatch<SetStateAction<boolean>>;
   viewBox: GridRect;
   documentSettingsOpen: boolean;
   setDocumentSettingsOpen: Dispatch<SetStateAction<boolean>>;
@@ -244,6 +246,8 @@ function createEditorShortcutHandler({
   visualSelection,
   selectionFilterOpen,
   setSelectionFilterOpen,
+  shortcutHintsVisible,
+  setShortcutHintsVisible,
   viewBox,
   documentSettingsOpen,
   setDocumentSettingsOpen,
@@ -386,6 +390,11 @@ function createEditorShortcutHandler({
     if (event.key === "Escape" && selectionFilterOpen) {
       event.preventDefault();
       setSelectionFilterOpen(false);
+      return;
+    }
+    if (event.key === "Escape" && shortcutHintsVisible) {
+      event.preventDefault();
+      setShortcutHintsVisible?.(false);
       return;
     }
     if (event.key === "Escape" && insertDialogOpen) {

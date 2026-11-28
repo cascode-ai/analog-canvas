@@ -147,7 +147,7 @@ describe("editor statusbar", () => {
       expect(markup).toContain(`data-check-status="${checkStatus}"`);
       if (checkStatus === "unchecked") {
         expect(markup).toContain(
-          "No check has run — open Issues and choose Check and Save",
+          "No check has run — choose File → Check and Save",
         );
       }
     },

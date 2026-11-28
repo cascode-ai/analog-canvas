@@ -167,125 +167,127 @@ export function EditorPropertiesDock({
           </span>
         </button>
         <div className="selection-panel" hidden={!open}>
-          <>
-            {documentSettings ? (
-              <Suspense fallback={<p role="status">Loading properties…</p>}>
-                <DocumentSettingsSection {...documentSettings} />
-              </Suspense>
-            ) : null}
-            {/* A MOS's body connection leads, above its JSON. */}
-            <MosBulkConnectionSection {...mosBulk} />
-            {!hasInspectableSelection ? (
-              <p className="inspect-empty">Select an object to inspect.</p>
-            ) : null}
-            <GroupPropertiesSection {...groupProperties} />
-            {component ? (
-              <section
-                className="property-section component-properties"
-                aria-label="Component properties"
-              >
+          {open ? (
+            <>
+              {documentSettings ? (
                 <Suspense fallback={<p role="status">Loading properties…</p>}>
-                  <ComponentPropertyCodeEditor
-                    key={component.code.instance.id}
-                    {...component.code}
-                    {...(details ? { details } : {})}
+                  <DocumentSettingsSection {...documentSettings} />
+                </Suspense>
+              ) : null}
+              {/* A MOS's body connection leads, above its JSON. */}
+              <MosBulkConnectionSection {...mosBulk} />
+              {!hasInspectableSelection ? (
+                <p className="inspect-empty">Select an object to inspect.</p>
+              ) : null}
+              <GroupPropertiesSection {...groupProperties} />
+              {component ? (
+                <section
+                  className="property-section component-properties"
+                  aria-label="Component properties"
+                >
+                  <Suspense fallback={<p role="status">Loading properties…</p>}>
+                    <ComponentPropertyCodeEditor
+                      key={component.code.instance.id}
+                      {...component.code}
+                      {...(details ? { details } : {})}
+                    />
+                  </Suspense>
+                </section>
+              ) : null}
+              {/* One row per setting, definitions before the instance's own;
+                multi-row folds close the section. */}
+              <div className="property-section instance-property-tools">
+                {component?.cellDefinition ? (
+                  <CellInstanceDefinition {...component.cellDefinition} />
+                ) : null}
+                {component?.onOpenModel ? (
+                  <PropertyActionRow label="Model">
+                    <button type="button" onClick={component.onOpenModel}>
+                      Open shared model source…
+                    </button>
+                  </PropertyActionRow>
+                ) : null}
+                {component?.cellSymbolLayout ? (
+                  <InstanceSymbolLayoutRow
+                    {...component.cellSymbolLayout}
+                    instanceSymbolId={component.code.instance.symbolId}
+                  />
+                ) : null}
+                {component?.identity.propertyTerminals?.length ? (
+                  <ComponentIdentityProperties
+                    {...component.identity}
+                    fieldsMovedToCode
+                  />
+                ) : null}
+                {bodyFill ? <BodyFillProperties {...bodyFill} /> : null}
+                {instanceGroup || instanceArray ? (
+                  <Suspense fallback={null}>
+                    {instanceGroup ? (
+                      <InstanceGroupProperties
+                        key={instanceGroup.group.id}
+                        {...instanceGroup}
+                      />
+                    ) : null}
+                    {instanceArray ? (
+                      <InstanceArrayCreation
+                        key={instanceArray.seed.id}
+                        {...instanceArray}
+                      />
+                    ) : null}
+                  </Suspense>
+                ) : null}
+              </div>
+              {onConvertSignal ? (
+                <button type="button" onClick={onConvertSignal}>
+                  Convert to bus…
+                </button>
+              ) : null}
+              <KeptDocumentStyleSection {...keptStyle} />
+              <RoutingGuidanceSection {...routingGuidance} />
+              {!groupProperties.active && annotationText ? (
+                <Suspense fallback={<p role="status">Loading properties…</p>}>
+                  <AnnotationColorProperties
+                    key={annotationText.annotation.id}
+                    {...annotationText}
                   />
                 </Suspense>
-              </section>
-            ) : null}
-            {/* One row per setting, definitions before the instance's own;
-                multi-row folds close the section. */}
-            <div className="property-section instance-property-tools">
-              {component?.cellDefinition ? (
-                <CellInstanceDefinition {...component.cellDefinition} />
               ) : null}
-              {component?.onOpenModel ? (
-                <PropertyActionRow label="Model">
-                  <button type="button" onClick={component.onOpenModel}>
-                    Open shared model source…
-                  </button>
-                </PropertyActionRow>
+              {!groupProperties.active && netName ? (
+                <NetNameProperties {...netName} />
               ) : null}
-              {component?.cellSymbolLayout ? (
-                <InstanceSymbolLayoutRow
-                  {...component.cellSymbolLayout}
-                  instanceSymbolId={component.code.instance.symbolId}
-                />
-              ) : null}
-              {component?.identity.propertyTerminals?.length ? (
-                <ComponentIdentityProperties
-                  {...component.identity}
-                  fieldsMovedToCode
-                />
-              ) : null}
-              {bodyFill ? <BodyFillProperties {...bodyFill} /> : null}
-              {instanceGroup || instanceArray ? (
-                <Suspense fallback={null}>
-                  {instanceGroup ? (
-                    <InstanceGroupProperties
-                      key={instanceGroup.group.id}
-                      {...instanceGroup}
-                    />
-                  ) : null}
-                  {instanceArray ? (
-                    <InstanceArrayCreation
-                      key={instanceArray.seed.id}
-                      {...instanceArray}
-                    />
-                  ) : null}
+              {!groupProperties.active && drafting ? (
+                <Suspense fallback={<p role="status">Loading properties…</p>}>
+                  <DraftingPropertiesPanel
+                    key={drafting.object.id}
+                    {...drafting}
+                  />
                 </Suspense>
               ) : null}
-            </div>
-            {onConvertSignal ? (
-              <button type="button" onClick={onConvertSignal}>
-                Convert to bus…
-              </button>
-            ) : null}
-            <KeptDocumentStyleSection {...keptStyle} />
-            <RoutingGuidanceSection {...routingGuidance} />
-            {!groupProperties.active && annotationText ? (
-              <Suspense fallback={<p role="status">Loading properties…</p>}>
-                <AnnotationColorProperties
-                  key={annotationText.annotation.id}
-                  {...annotationText}
-                />
+              {canvasFont ? <CanvasFontSection {...canvasFont} /> : null}
+              {canvasCrossings ? (
+                <CanvasCrossingsSection {...canvasCrossings} />
+              ) : null}
+              <PlacementTrayPanel {...placementTray} />
+              {!groupProperties.active ? (
+                <>
+                  <RouteActionsSection {...routeActions} />
+                  <EndpointActionsSection {...endpointActions} />
+                  <AnnotationActionsSection {...annotationActions} />
+                </>
+              ) : null}
+              <ProjectDiagnosticsSection {...diagnostics} />
+              {netTrace ? <NetTraceSection {...netTrace} /> : null}
+              {importReview ? (
+                <section className="import-review" aria-label="Import Review">
+                  <h2>Import Review</h2>
+                  <SelectionInspectorDetails {...importReview} />
+                </section>
+              ) : null}
+              <Suspense fallback={null}>
+                {agent ? <LazyAgentPropertiesSection {...agent} /> : null}
               </Suspense>
-            ) : null}
-            {!groupProperties.active && netName ? (
-              <NetNameProperties {...netName} />
-            ) : null}
-            {!groupProperties.active && drafting ? (
-              <Suspense fallback={<p role="status">Loading properties…</p>}>
-                <DraftingPropertiesPanel
-                  key={drafting.object.id}
-                  {...drafting}
-                />
-              </Suspense>
-            ) : null}
-            {canvasFont ? <CanvasFontSection {...canvasFont} /> : null}
-            {canvasCrossings ? (
-              <CanvasCrossingsSection {...canvasCrossings} />
-            ) : null}
-            <PlacementTrayPanel {...placementTray} />
-            {!groupProperties.active ? (
-              <>
-                <RouteActionsSection {...routeActions} />
-                <EndpointActionsSection {...endpointActions} />
-                <AnnotationActionsSection {...annotationActions} />
-              </>
-            ) : null}
-            <ProjectDiagnosticsSection {...diagnostics} />
-            {netTrace ? <NetTraceSection {...netTrace} /> : null}
-            {importReview ? (
-              <section className="import-review" aria-label="Import Review">
-                <h2>Import Review</h2>
-                <SelectionInspectorDetails {...importReview} />
-              </section>
-            ) : null}
-            <Suspense fallback={null}>
-              {agent ? <LazyAgentPropertiesSection {...agent} /> : null}
-            </Suspense>
-          </>
+            </>
+          ) : null}
         </div>
       </section>
     </aside>

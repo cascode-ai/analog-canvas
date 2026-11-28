@@ -5401,6 +5401,8 @@ function WorkspaceEditor({
       visualSelection,
       selectionFilterOpen,
       setSelectionFilterOpen,
+      shortcutHintsVisible,
+      setShortcutHintsVisible,
       viewBox,
       documentSettingsOpen,
       setDocumentSettingsOpen,
@@ -8020,6 +8022,7 @@ function WorkspaceEditor({
                   : null
               }
               canvasFont={
+                documentSettingsOpen ||
                 selectedInstance ||
                 selectedAnnotation ||
                 selectedDrafting?.kind === "text" ||
@@ -8240,6 +8243,7 @@ function WorkspaceEditor({
         <EditorCanvasSurface
           drawingQueriesRef={drawingQueriesRef}
           shortcutHintsVisible={shortcutHintsVisible}
+          onCloseShortcutHints={() => setShortcutHintsVisible(false)}
           textFontFamily={
             styleProfile.typography.face &&
             styleProfile.typography.face !== "metropolis"

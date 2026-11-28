@@ -88,6 +88,20 @@
   opacity: 0.78;
 }
 
+.canvas-shortcut-menu-close {
+  border: 0;
+  background: transparent;
+  color: var(--icm-text-muted);
+  font-size: var(--icm-font-sm);
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.canvas-shortcut-menu-close:hover {
+  color: var(--icm-text-primary);
+}
+
 .canvas-shortcut-menu-title {
   margin: 0;
   color: var(--icm-text-muted);

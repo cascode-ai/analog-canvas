@@ -424,16 +424,18 @@ export function InsertComponentDialog({
         aria-modal="true"
         aria-labelledby="insert-component-title"
         onKeyDown={(event) => {
+          const editingSearchInput =
+            event.target === inputRef.current && query.length > 0;
           if (event.key === "Escape") {
             event.preventDefault();
             onCancel();
           } else if (event.key === "Enter") {
             event.preventDefault();
             applyChoice(selected);
-          } else if (event.key === "ArrowRight") {
+          } else if (event.key === "ArrowRight" && !editingSearchInput) {
             event.preventDefault();
             selectOffset(1);
-          } else if (event.key === "ArrowLeft") {
+          } else if (event.key === "ArrowLeft" && !editingSearchInput) {
             event.preventDefault();
             selectOffset(-1);
           } else if (event.key === "ArrowDown") {
@@ -442,10 +444,10 @@ export function InsertComponentDialog({
           } else if (event.key === "ArrowUp") {
             event.preventDefault();
             selectOffset(-gridColumns());
-          } else if (event.key === "Home") {
+          } else if (event.key === "Home" && !editingSearchInput) {
             event.preventDefault();
             setSelectedId(choices[0]?.key ?? null);
-          } else if (event.key === "End") {
+          } else if (event.key === "End" && !editingSearchInput) {
             event.preventDefault();
             setSelectedId(choices.at(-1)?.key ?? null);
           }
