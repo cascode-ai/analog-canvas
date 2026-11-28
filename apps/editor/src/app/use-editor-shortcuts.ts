@@ -392,11 +392,6 @@ function createEditorShortcutHandler({
       setSelectionFilterOpen(false);
       return;
     }
-    if (event.key === "Escape" && shortcutHintsVisible) {
-      event.preventDefault();
-      setShortcutHintsVisible?.(false);
-      return;
-    }
     if (event.key === "Escape" && insertDialogOpen) {
       // The dialog focuses its search field a frame after it opens, so an
       // Escape pressed in that gap never reaches its own handler. Cancel it
@@ -437,6 +432,20 @@ function createEditorShortcutHandler({
       return;
     }
     const currentInteraction = getCurrentInteractionState();
+    if (
+      event.key === "Escape" &&
+      shortcutHintsVisible &&
+      tool === "pointer" &&
+      currentInteraction.kind === "idle" &&
+      !hasInspectableSelection &&
+      highlightedNetOrigin === null
+    ) {
+      // Hints stay up while Escape cancels an active placement/tool or clears
+      // selection; an idle Escape dismisses the overlay.
+      event.preventDefault();
+      setShortcutHintsVisible?.(false);
+      return;
+    }
     const shortcut = resolveEditorShortcut(event, {
       isTyping: isTypingTarget(event.target),
       hasUnsavedWork: hasUnsafeWork(),

@@ -1,5 +1,11 @@
 import { CellInstanceDefinition } from "../features/hierarchy/cell-instance-definition";
-import { Suspense, useMemo, type ComponentProps, type RefObject } from "react";
+import {
+  Suspense,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type RefObject,
+} from "react";
 
 import { CanvasCrossingsSection } from "../features/editor-shell/canvas-crossings-section";
 import { CanvasFontSection } from "../features/editor-shell/canvas-font-section";
@@ -116,6 +122,13 @@ export function EditorPropertiesDock({
   importReview,
   agent,
 }: EditorPropertiesDockProps) {
+  // Defer mounting heavy lazy editors (e.g. CodeMirror) until the Properties
+  // shelf is opened for the first time, then keep them mounted across
+  // subsequent close/reopen toggles so live unsaved drafts are preserved.
+  const [hasOpened, setHasOpened] = useState(open);
+  if (open && !hasOpened) {
+    setHasOpened(true);
+  }
   const parameters = component?.parameters;
   const modelTarget = component?.identity.modelTarget;
   const signalFlow = component?.signalFlow;
@@ -167,7 +180,7 @@ export function EditorPropertiesDock({
           </span>
         </button>
         <div className="selection-panel" hidden={!open}>
-          {open ? (
+          {open || hasOpened ? (
             <>
               {documentSettings ? (
                 <Suspense fallback={<p role="status">Loading properties…</p>}>
