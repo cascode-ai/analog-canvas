@@ -91,9 +91,7 @@ passing Project receipt; other available evidence is still collected. An active
 batch is cancelled on interrupted acceptance before disconnecting its MCP.
 Runner receipts cover this GUI/MCP batch only, not full M6 or model qualification.
 
-The migration does not require numerical equivalence to an ngspice reference;
-see the
-[native acceptance decision](../../docs/roadmap/vacask-migration.md#environment-and-electrical-acceptance).
+The migration does not require numerical equivalence to an ngspice reference.
 
 `scripts/lib/native-example-acceptance.mjs` supplies the acceptance checks to the
 offline `analyze-native-simulation-examples.mjs` command. The CLI additionally

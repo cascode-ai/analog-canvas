@@ -46,7 +46,7 @@ Experiments in the SKY130 ngspice environment run in your browser: ngspice 46
 and the SKY130 models load on the first run (about 8 MB, then cached), nothing
 is sent to a server and no sign-in is needed. The toolbar says **On this
 computer**. Raw output is kept whole up to about 200 MB (the hosted
-simulator cuts it at 64 MB). Other environments (VACASK, SG13G2) run on the
+simulator cuts it at 64 MB). Other environments (SG13G2) run on the
 hosted simulator, which is for the Analog Canvas team's own debugging and
 refuses other accounts' runs.
 
@@ -73,7 +73,7 @@ an OP analysis:
 
 The Environment defaults to the one Profile qualified for every PDK device the
 Cell uses, marked "(automatic)" (SKY130 ngspice);
-**Change** picks another, such as VACASK. When none fits uniquely, choose one
+**Change** picks another advertised Profile. When none fits uniquely, choose one
 before **Create**. Each Environment uses its own native language.
 
 The generated Circuit file (diamond icon) belongs to the canvas: edit mapped
@@ -120,8 +120,8 @@ pin).
 
 `/editor?example=five-transistor-ota-sky130` (or import
 `apps/editor/src/examples/five-transistor-ota-sky130.icproj.json`) opens a
-SKY130 OTA with OP/DC/AC/TRAN/Noise, corner and waveform experiments written
-for the "SKY130 · VACASK (preview)" environment. For ngspice, use
+SKY130 OTA whose legacy starter folders still target the retired VACASK
+preview environment (pending migration to ngspice). For ngspice, use
 `netlists/ngspice-ota-qualification/source.icproj.json`; changing the Profile
 alone does not translate source.
 

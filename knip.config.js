@@ -63,7 +63,6 @@ export default {
         "containers/ngspice/gateway.mjs!",
         "containers/ngspice/sg13g2/verify-image.mjs!",
         "containers/simulation/*.mjs!",
-        "containers/vacask/image-smoke.mjs!",
         "scripts/calibration/**/*.mjs!",
         // The batch runner's scripted Agent, run as a command (#1498).
         "scripts/lib/draw-batch-script-agent.mjs!",
@@ -76,11 +75,6 @@ export default {
         ...testSupport,
       ],
       paths: builtPackageSources,
-      // The image runs this smoke against files mounted at these paths.
-      ignoreUnresolved: [
-        "/opt/harness/vacask-harness.mjs",
-        "/proof/native-example-acceptance.mjs",
-      ],
     },
     "apps/editor": {
       // Its config loads the dev-server plugins, which load built packages.

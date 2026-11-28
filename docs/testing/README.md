@@ -158,9 +158,7 @@ Simulations never run in CI on their own: no PR or merge-queue trigger.
 [SG13G2 qualification](../../.github/workflows/sg13g2-tests.yml) and
 [Simulation container](../../.github/workflows/container.yml) run only by
 hand (workflow_dispatch). [Windows platform tests](../../.github/workflows/platform-tests.yml)
-qualify affected PRs and support manual runs. [Simulator host](../../.github/workflows/simulator-host.yml),
-action/job `vacask-compat-build`, manually qualifies native execution, pinned
-source conversion and the real MCP journey. [Browser performance
+qualify affected PRs and support manual runs. [Browser performance
 evidence](../../.github/workflows/performance.yml), job `measure`, measures a
 fresh production build with synthetic fixtures. These checks do not deploy or
 replace required merge checks or existing performance budgets.

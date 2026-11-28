@@ -2,21 +2,8 @@
 
 This divider is an analytical fixture, not a PDK model. Together with
 [RC](../vacask-rc/rc.sim) and [resistor noise](../vacask-resistor-noise/noise.sim),
-it establishes the native parser and numerical baseline before SKY130 work.
-
-Run from the repository root after building `@icm/spice-run`:
-
-```text
-pnpm --filter @icm/spice-run build
-node scripts/vacask-qualification.mjs --binary <vacask-executable> --modules <vacask-module-directory>
-```
-
-The script runs only these repository-owned circuits, uses fresh directories
-and an explicit TOML startup configuration, and disables embed/postprocess.
-It writes native inputs, output files, logs, hashes and measured errors under
-ignored `output/vacask-qualification/run-*`. It returns failure if an expected
-file/vector is absent, malformed, non-finite or outside its analytical tolerance.
-This local runner is not the hosted executor and makes no sandbox guarantee.
+it supplies captured parser test evidence while VACASK engine removal completes
+in its follow-up PR (hosted VACASK qualification scripts are retired).
 
 Acceptance is defined before measuring:
 
@@ -54,6 +41,3 @@ contains our small circuits and numerical outputs, not redistributed binaries.
 The measured RC transient used 1566 native points, with maximum normalized
 tolerance consumption 0.157; all nine analytical checks passed. Numerical
 agreement on these fixtures is not a performance comparison or migration exit.
-
-The [migration roadmap](../../docs/roadmap/vacask-migration.md) owns remaining
-model, Linux runtime, application, GUI/MCP and cloud acceptance.

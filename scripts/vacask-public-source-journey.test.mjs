@@ -3,10 +3,10 @@ import {
   createEmptyProject,
   createSimulationFolder,
   CircuitProjectSchema,
-} from "../../packages/model/src/index.js";
-import { SimulationService } from "../../packages/simulation-service/src/service.js";
-import { SimulationFiles } from "../../packages/simulation-service/src/files.js";
-import { CapabilitiesSchema } from "../../packages/simulation-service/src/contract.js";
+} from "../packages/model/src/index.js";
+import { SimulationService } from "../packages/simulation-service/src/service.js";
+import { SimulationFiles } from "../packages/simulation-service/src/files.js";
+import { CapabilitiesSchema } from "../packages/simulation-service/src/contract.js";
 
 const caps = CapabilitiesSchema.parse({
   configured: true,

@@ -55,7 +55,7 @@ Noise density takes the square root of native PSD; the native integral is labell
 
 ## Validation boundary
 
-`containers/vacask/starter-journey.test.mjs` checks exact circuit preservation,
+`scripts/vacask-starter-journey.test.mjs` checks exact circuit preservation,
 source/report identity and wrapper-selected device parameters.
 
 This is a BSIM4 **4.8.3 candidate upgrade**, not equality to historical 4.5/4.62

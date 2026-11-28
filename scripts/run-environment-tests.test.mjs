@@ -21,29 +21,31 @@ function verify(lane, report) {
 }
 
 describe("environment test execution evidence", () => {
-  it("requires pinned model sources before source conversion can count as executed", () => {
+  it("requires explicit ICM_PERF=1 before browser performance can count as executed", () => {
     const result = spawnSync(
       process.execPath,
-      ["scripts/run-environment-tests.mjs", "vacask-source"],
+      ["scripts/run-environment-tests.mjs", "browser-performance"],
       {
         encoding: "utf8",
         windowsHide: true,
         env: {
           ...process.env,
-          ICM_PYTHON: "python3",
-          ICM_VACASK_BSIM4_SOURCE: process.execPath,
-          ICM_VACASK_CONVERTER_SOURCE: process.cwd(),
-          ICM_SKY130_MODEL_SOURCE: "",
+          ICM_PERF: "",
         },
       },
     );
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("ICM_SKY130_MODEL_SOURCE is required");
+    expect(result.stderr).toContain("ICM_PERF=1 is required");
     expect(result.stdout).not.toContain("RUN ");
   });
 
   it("accepts a passed browser report and rejects the same journey when skipped", () => {
-    const test = {
+    const passed = {
+      expectedStatus: "passed",
+      status: "expected",
+      results: [{ status: "passed" }],
+    };
+    const second = {
       expectedStatus: "passed",
       status: "expected",
       results: [{ status: "passed" }],
@@ -55,39 +57,41 @@ describe("environment test execution evidence", () => {
         {
           specs: [
             {
-              file: "mcp-native-simulation.spec.ts",
+              file: "sg13g2-simulation.spec.ts",
               title:
-                "public MCP connects to the real local relay and executes native source",
-              tests: [test],
+                "SG13 Properties use qualified targets, model defaults and physical Process presets",
+              tests: [passed],
+            },
+            {
+              file: "sg13g2-simulation.spec.ts",
+              title:
+                "GUI and public MCP run thirteen SG13G2 devices and a gate",
+              tests: [second],
             },
           ],
         },
       ],
     };
-    expect(verify("mcp-native", report).status).toBe(0);
-    test.expectedStatus = "skipped";
-    test.results = [{ status: "skipped" }];
-    const skipped = verify("mcp-native", report);
+    expect(verify("mcp-sg13g2", report).status).toBe(0);
+    second.expectedStatus = "skipped";
+    second.results = [{ status: "skipped" }];
+    const skipped = verify("mcp-sg13g2", report);
     expect(skipped.status).toBe(1);
     expect(skipped.stderr).toContain("Target did not pass");
   });
 
-  it("requires the native module tree even when VACASK_BIN exists", () => {
+  it("rejects unknown or retired environment test lanes before launching a test process", () => {
     const result = spawnSync(
       process.execPath,
       ["scripts/run-environment-tests.mjs", "vacask"],
       {
         encoding: "utf8",
         windowsHide: true,
-        env: {
-          ...process.env,
-          VACASK_BIN: process.execPath,
-          VACASK_MODULES: "",
-        },
       },
     );
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("VACASK_MODULES is required");
+    expect(result.stderr).toContain("Unknown environment test lane: vacask");
+    expect(result.stdout).not.toContain("RUN ");
   });
 
   it("refuses missing ngspice resources before launching a test process", () => {

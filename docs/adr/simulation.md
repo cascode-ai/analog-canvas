@@ -11,7 +11,6 @@ Authoring, compilation, execution and results stay separate
 - Source folders keep the author's experiment; Canvas-bound values stay circuit
   facts; results never write back into the circuit.
 - Shared preparation gives human and Agent runs one meaning.
-- Configured native executors, not a browser solver or tool discovery; Profiles
-  select engine and qualified models
-  ([VACASK qualification](../roadmap/vacask-migration.md)).
+- Configured executors, not a browser solver or tool discovery; Profiles
+  select engine and qualified models.
 - Missing data stays missing in plots and verdicts.

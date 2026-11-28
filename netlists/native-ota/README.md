@@ -50,10 +50,7 @@ that sets `VACASK_PROFILE_ID` routes the Profile to the separate VACASK gateway.
 
 ## Acceptance boundary
 
-`containers/vacask/starter-journey.test.mjs` compiles all eight folders and
-checks their source, corner selection and OP acquisitions. Acceptance is native
-source/result fidelity, as required by the
-[migration plan](../../docs/roadmap/vacask-migration.md), not cross-engine equivalence.
+Acceptance is native source/result fidelity, not cross-engine equivalence.
 
 BSIM4 4.8.3 is a user-approved model-version upgrade. Native noise integration
 is labelled `trapezoidal-psd`, not passed off as ngspice's per-source integral.

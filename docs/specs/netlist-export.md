@@ -324,8 +324,7 @@ TD={td}`, Spectre `T1 (p1 n1 p2 n2) tline z0=z0 td=td`; defaults `z0` =
 
 - Every switch is an ngspice `S` card through `ideal_switch` (`SW`: RON 1 Ω,
   ROFF 1e12 Ω, VT 0.5 V, VH 0) printed once per using Cell; Spectre uses a hard
-  `bsource`, VACASK the qualified `icm_switch` (patched runtime,
-  [patch](../../containers/vacask/patches/README.md)). No clock is invented.
+  `bsource`, VACASK `icm_switch`. No clock is invented.
 - A chopper or SPDT (`spdt-switch`, `simple-spdt-switch`) calls one generated
   body of ideal switches on the clock its label names, passed last:
   `ideal_chopper` (`INP INN OUTP OUTN CK`; straight while high, crossed while

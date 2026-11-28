@@ -1,47 +1,8 @@
-# Native SKY130 model candidate
+# Native SKY130 model candidate (retired)
 
-This is **not a qualified replacement Profile**. It is an offline conversion
-recipe and a seven-device OP/AC probe, using original model files without
-editing foundry parameter values. The product executor is not switched.
-
-## Reproduce
-
-Use Python 3.10+, Git, the built `@icm/spice-run` package, and clean checkouts:
-
-- [VACASK](https://codeberg.org/arpadbuermen/VACASK) at
-  `c1a1c84f1b2b9aa71c0cddf06e555441434db7b7`.
-- [SKY130 models](https://github.com/fossi-foundation/skywater-pdk-libs-sky130_fd_pr)
-  at `403964dc7f9cca5ec1a8cc7b4f2a6f532b781676`.
-
-The converter refuses other revisions or modified source files. It uses the
-upstream parser plus owned lowering corrections; it does not require a patched
-upstream checkout. Run from the repository root:
-
-```text
-python scripts/vacask-sky130-convert.py --upstream <VACASK-checkout> --models <SKY130-checkout> --output output/vacask-models
-```
-
-Every attempt creates a fresh `candidate-*` directory. `conversion.json`
-records the recipe digest, exact input file digests, native file digests and
-required OSDI module paths for all five corners. Native files use LF on every
-platform. Original model copyright/license headers remain in those files.
-Generated models are not checked into this repository.
-
-Run the existing qualification harness with the printed candidate directory:
-
-```text
-pnpm --filter @icm/spice-run build
-node scripts/vacask-qualification.mjs --binary <vacask> --modules <matching-module-directory> --sky130-models <candidate-directory>
-```
-
-Use matching simulator/module binaries for the target platform. The harness
-uses controlled startup, bounded processes, fresh per-case directories and
-copies each model beside the [device probe](devices.sim) that includes it.
-It retains stdout/stderr, raw files, hashes, actual probe values and every
-comparison. It validates the native file against the conversion digest before
-execution. A failed comparison exits nonzero, without weakening thresholds.
-The AC probe uses `values=[1e9]`: native linear `points=1` means one interval,
-not one sample.
+Hosted VACASK preview and its offline conversion/qualification scripts are
+retired; the checked-in `model-symbols-*.json` summaries remain only until the
+follow-up VACASK engine removal PR.
 
 ## What was repaired and what remains
 
@@ -103,32 +64,8 @@ old results are unchanged. The native module must also include the proven
 
 Geometry/bias/multiplicity sweeps and OTA OP/AC/TRAN/Noise require an independent
 same-version reference. The older ngspice 46/BSIM4 4.5 baseline is preserved for
-historical differences, not relabelled as 4.8.3. Neither conversion success nor
-the seven-device OP/AC point probes qualifies deployment.
-
-Acquire independent five-corner OTA OP/DC/AC/TRAN/Noise reference files with:
-
-```text
-node scripts/vacask-sky130-reference.mjs --binary <frozen-ngspice-46> --models <original-opt-sky130-directory>
-```
-
-This offline tool verifies the original binary and complete `/opt/sky130` tree
-against the historical Profile before copying its `continuous` directory. It
-changes only BSIM equation-version declarations in that copy, records per-file
-source/upgraded hashes and counts, then runs the existing OTA circuit and source
-values at all five corners. The reference uses explicit reltol=1e-8,
-abstol=1e-12, vntol=1e-10 and a 2 ns transient maximum step. Each fresh evidence
-directory retains decks, raw files, stdout/stderr and `reference.json`; neither
-the original models nor the old reference JSON is changed. Successful reference
-acquisition does not itself mean VACASK has passed a comparison. It is not a
-product runner, a runtime fallback, or a cloud model installation tool.
-
-For sampling convergence, add `--noise-points 200` (points per decade; default
-20), or `--noise-details` to capture each source contribution as well as the
-total spectrum and integrals. The selected settings are recorded in
-`reference.json`. Other analyses, source values, models and solver settings do
-not change. Runs retain the existing timeout; a very dense capture may fail
-rather than silently returning fewer points.
+historical differences, not relabelled as 4.8.3. The offline reference runner
+script has been retired.
 
 ### Noise integration is a separate numerical contract
 

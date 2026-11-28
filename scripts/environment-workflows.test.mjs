@@ -12,114 +12,17 @@ function permits(job, event, action) {
   });
 }
 
-function permitsStep(step, steps, successful = true, cancelled = false) {
-  return permitsCondition(step.if, { steps }, { successful, cancelled });
-}
-
 describe("environment workflow execution boundaries", () => {
-  it("qualifies native assertions, pinned source conversion and real MCP only on explicit compat dispatch", async () => {
+  it("does not expose retired hosted VACASK preview or compat jobs in the simulator host workflow", async () => {
     const config = await workflow(".github/workflows/simulator-host.yml");
-    const job = config.jobs["vacask-compat-build"];
-    expect(permits(job, "workflow_dispatch", "vacask-compat-build")).toBe(true);
-    for (const event of ["push", "pull_request", "merge_group"])
-      expect(permits(job, event, "vacask-compat-build"), event).toBe(false);
-    expect(permits(job, "workflow_dispatch", "deploy")).toBe(false);
-    expect(job.environment).toBeUndefined();
-    const commands = job.steps.map((step) => step.run ?? "").join("\n");
-    for (const lane of ["vacask", "vacask-source", "mcp-native"])
-      expect(commands).toContain(
-        `node scripts/run-environment-tests.mjs ${lane}`,
-      );
-    expect(job.env.ICM_E2E_VACASK_REAL).toBe("1");
-    expect(job.env.VACASK_MODULES).toContain("compat-build/context/modules");
-    expect(job.env.ICM_VACASK_BSIM4_SOURCE).toContain(
-      "vacask/src/vacask/devices/spice/bsim4v8.va",
-    );
-    expect(
-      job.steps.some(
-        (step) =>
-          step.if === "always()" &&
-          step.with?.path?.includes("output/environment-tests"),
-      ),
-    ).toBe(true);
-  });
-
-  it("collects independent native qualification failures after preparation but stages only an entirely successful candidate", async () => {
-    const config = await workflow(".github/workflows/simulator-host.yml");
-    const job = config.jobs["vacask-compat-build"];
-    const preparation = job.steps.find((step) =>
-      step.run?.includes("pnpm install --frozen-lockfile"),
-    );
-    const qualifications = ["vacask", "vacask-source", "mcp-native"].map(
-      (lane) =>
-        job.steps.find(
-          (step) =>
-            step.run === `node scripts/run-environment-tests.mjs ${lane}`,
-        ),
-    );
-    const stage = job.steps.find((step) =>
-      step.run?.includes("node scripts/package-vacask-image.mjs"),
-    );
-    expect(job["continue-on-error"]).toBeUndefined();
-    expect(permitsStep(preparation, {}, false)).toBe(false);
-    const ready = { [preparation.id]: { outcome: "success" } };
-    for (const step of qualifications) {
-      expect(step["continue-on-error"]).toBeUndefined();
-      expect(permitsStep(step, ready)).toBe(true);
-      expect(permitsStep(step, ready, false), step.name).toBe(true);
-      expect(permitsStep(step, ready, true, true), step.name).toBe(false);
-      for (const outcome of ["failure", "skipped", "cancelled"])
-        expect(
-          permitsStep(step, { [preparation.id]: { outcome } }),
-          `${step.name}: preparation ${outcome}`,
-        ).toBe(false);
-    }
-    const allPassed = {
-      ...ready,
-      ...Object.fromEntries(
-        qualifications.map((step) => [step.id, { outcome: "success" }]),
-      ),
-    };
-    expect(permitsStep(stage, allPassed)).toBe(true);
-    expect(permitsStep(stage, allPassed, false)).toBe(false);
-    expect(permitsStep(stage, allPassed, true, true)).toBe(false);
-    for (const step of qualifications)
-      for (const outcome of ["failure", "skipped", "cancelled"])
-        expect(
-          permitsStep(stage, { ...allPassed, [step.id]: { outcome } }),
-          `stage after ${step.name}: ${outcome}`,
-        ).toBe(false);
-  });
-
-  it("retains only unqualified build diagnostics after failed qualification", async () => {
-    const config = await workflow(".github/workflows/simulator-host.yml");
-    const job = config.jobs["vacask-compat-build"];
-    const build = job.steps.find((step) =>
-      step.uses?.startsWith("docker/build-push-action@"),
-    );
-    const diagnostics = job.steps.find((step) =>
-      step.with?.name?.startsWith("vacask-unqualified-build-"),
-    );
-    expect(diagnostics.uses).toBe("actions/upload-artifact@v4");
-    const built = { [build.id]: { outcome: "success" } };
-    expect(permitsStep(diagnostics, built, false)).toBe(true);
-    expect(permitsStep(diagnostics, built, true, true)).toBe(false);
-    for (const outcome of ["failure", "skipped", "cancelled"])
-      expect(permitsStep(diagnostics, { [build.id]: { outcome } })).toBe(false);
-    // An explicit file allowlist cannot include staged Production inputs.
-    expect(diagnostics.with.path.trim().split("\n")).toEqual([
-      "compat-artifact/vacask",
-      "compat-artifact/SHA256SUMS",
-      "compat-artifact/hard-switch.patch",
-      "compat-artifact/upstream-revision.txt",
-      "compat-artifact/upstream-source.tar.gz",
-      "compat-artifact/os-packages.txt",
-      "compat-artifact/ldd.txt",
+    expect(Object.keys(config.jobs).sort()).toEqual(["host", "ssh-key"]);
+    expect(config.on.workflow_dispatch.inputs.action.options).toEqual([
+      "probe",
+      "bootstrap-tunnel",
+      "deploy",
+      "authorize-ssh-key",
+      "retire-ssh-key",
     ]);
-    const qualified = job.steps.find((step) =>
-      step.with?.name?.startsWith("vacask-compat-"),
-    );
-    expect(permitsStep(qualified, built, false)).toBe(false);
   });
 
   it("measures browser latency only by explicit dispatch against a production build", async () => {

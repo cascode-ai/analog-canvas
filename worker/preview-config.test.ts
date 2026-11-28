@@ -93,16 +93,10 @@ describe("the retired Preview storage authority", () => {
     ]);
   });
 
-  it("keeps simulator credential rotation away from the dormant Worker", () => {
-    const deploy = readFileSync(
-      resolve(process.cwd(), "containers/vacask/host/deploy-preview.sh"),
-      "utf8",
-    );
-    expect(deploy).toContain(
-      "workers/scripts/interactive-circuit-maker/secrets",
-    );
-    expect(deploy).not.toContain(
-      "workers/scripts/interactive-circuit-maker-preview/secrets",
-    );
+  it("registers no retired hosted VACASK preview upstream in Production or dormant Preview", () => {
+    for (const config of [production, preview]) {
+      expect(config.vars?.VACASK_UPSTREAM_URL).toBeUndefined();
+      expect(config.vars?.VACASK_PROFILE_ID).toBeUndefined();
+    }
   });
 });
