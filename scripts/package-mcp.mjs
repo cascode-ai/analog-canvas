@@ -16,6 +16,7 @@ import {
   assertDeclaredReleaseSha,
   VERIFY_DECLARED_RELEASE_SHA_FLAG,
 } from "./lib/mcp-release-integrity.mjs";
+import { interfacesText } from "./mcp-release-interfaces.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const distribution = JSON.parse(
@@ -124,6 +125,10 @@ const digest = createHash("sha256")
 const headlessDigest = createHash("sha256")
   .update(await readFile(headless))
   .digest("hex");
+// Plugins pin a release by its sums and read what it supports from this.
+const interfaces = interfacesText();
+await writeFile(resolve(outputRoot, "interfaces.json"), interfaces);
+const interfacesDigest = createHash("sha256").update(interfaces).digest("hex");
 assertDeclaredReleaseSha({
   verify: process.argv.includes(VERIFY_DECLARED_RELEASE_SHA_FLAG),
   platform: process.platform,
@@ -133,7 +138,7 @@ assertDeclaredReleaseSha({
 });
 await writeFile(
   resolve(outputRoot, "SHA256SUMS.txt"),
-  `${digest}  ${distribution.release.asset}\n${headlessDigest}  ${headlessAsset}\n`,
+  `${digest}  ${distribution.release.asset}\n${headlessDigest}  ${headlessAsset}\n${interfacesDigest}  interfaces.json\n`,
 );
 await writeFile(
   resolve(outputRoot, "mcp-bootstrap-release.json"),

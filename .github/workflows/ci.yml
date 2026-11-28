@@ -280,6 +280,10 @@ jobs:
         if: needs.changes.outputs.release_agent_artifacts == 'true'
         timeout-minutes: 5
         run: node scripts/agent-api-artifacts.mjs --check
+      - name: mcp-release-interfaces
+        if: needs.changes.outputs.release_mcp == 'true'
+        timeout-minutes: 5
+        run: node scripts/mcp-release-interfaces.mjs --check
       - name: editor-production-smoke
         if: needs.changes.outputs.release_editor == 'true'
         timeout-minutes: 5

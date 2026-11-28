@@ -5,7 +5,10 @@
 //
 // It talks to no editor: what the tools do is tested on source, and a
 // release candidate is paired with Production before it is published. One
-// placement and RNL export in --local mode check the drawing engine.
+// placement and RNL export in --local mode check the drawing engine, and
+// that the versions they write are the ones `interfaces.json` publishes.
+// SHA256SUMS.txt, in the headless asset's folder, must list interfaces.json,
+// and every file it lists must match its entry.
 //
 //   node scripts/mcp-release-smoke.mjs [packaged-executable] [headless-asset]
 //
@@ -23,6 +26,7 @@ import {
   rm,
   stat,
 } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -146,7 +150,36 @@ async function command(args, input) {
   return JSON.parse(JSON.parse(output).content[0].text);
 }
 
+/** Each asset SHA256SUMS.txt lists in `directory`, checked against it. */
+async function publishedAssets(directory) {
+  const sums = (await readFile(join(directory, "SHA256SUMS.txt"), "utf8"))
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => {
+      const entry = /^([a-f0-9]{64}) {2}(\S+)$/u.exec(line);
+      assert.ok(entry, `Unreadable SHA256SUMS.txt line: ${line}`);
+      return entry.slice(1);
+    });
+  const assets = new Map();
+  for (const [digest, name] of sums) {
+    const bytes = await readFile(join(directory, name));
+    assert.equal(
+      createHash("sha256").update(bytes).digest("hex"),
+      digest,
+      `${name} must match its SHA256SUMS.txt entry`,
+    );
+    assets.set(name, bytes);
+  }
+  return assets;
+}
+
 try {
+  const assets = await publishedAssets(dirname(headless));
+  assert.ok(
+    assets.has("interfaces.json"),
+    "SHA256SUMS.txt must list the plugin interfaces",
+  );
+  const { interfaces } = JSON.parse(assets.get("interfaces.json"));
   await assert.rejects(
     stat(join(dirname(packagedExecutable), "analog-canvas-headless.mjs")),
     { code: "ENOENT" },
@@ -212,6 +245,11 @@ try {
     ["R1"],
     "Local mode must save the drawing to the workspace's Project file",
   );
+  assert.equal(
+    drawn.schemaVersion,
+    interfaces["project-file"].writes,
+    "Local mode must write the Project file version interfaces.json names",
+  );
   const rnlWorkspace = join(temporary, "rnl");
   await mkdir(rnlWorkspace);
   await copyFile(
@@ -229,7 +267,10 @@ try {
     assert.equal(netlist.format, format);
     assert.equal(netlist.rnl, true);
     assert.deepEqual(result.cells, []);
-    assert.match(netlist.text, /@VERSION\("0\.4"\)/u);
+    assert.ok(
+      netlist.text.includes(`@VERSION("${interfaces.rnl.writes}")`),
+      "RNL export must write the language interfaces.json names",
+    );
     assert.match(netlist.text, /@WIRE\b/u);
     assert.ok(
       netlist.diagnostics.every(({ severity }) => severity !== "error"),

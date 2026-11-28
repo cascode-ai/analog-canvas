@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "interfaces": {
+    "project-file": {
+      "writes": 87,
+      "oldestRead": 24
+    },
+    "rnl": {
+      "writes": "0.4",
+      "oldestRead": "0.4"
+    },
+    "agent-api": {
+      "writes": "3.0",
+      "oldestRead": "3.0"
+    }
+  }
+}

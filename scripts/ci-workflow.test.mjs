@@ -137,6 +137,12 @@ describe("CI workflow", () => {
       ).if,
     ).toContain("release_agent_artifacts");
     expect(
+      stepRunning(
+        jobs.core_release,
+        "node scripts/mcp-release-interfaces.mjs --check",
+      ).if,
+    ).toContain("release_mcp");
+    expect(
       stepRunning(jobs.core_release, "node scripts/mcp-release-smoke.mjs").if,
     ).toContain("release_mcp");
   });
