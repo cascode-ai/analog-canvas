@@ -49,7 +49,7 @@ const FolderArgs = z.discriminatedUnion("action", [
     name: Name,
     rootDocumentId: Id.optional(),
     profileId: Id.optional().describe(
-      "Omit to take the one Profile whose listed qualified devices include every reviewed PDK device the root Cell uses; a Profile listing none (VACASK) is never the default. When none or several qualify, the folder is the author's Testbench with no Profile, and folder.profileCandidates lists them.",
+      "Omit to take the one Profile whose listed qualified devices include every reviewed PDK device the root Cell uses. When none or several qualify, the folder is the author's Testbench with no Profile, and folder.profileCandidates lists them.",
     ),
     template: z
       .enum(["op", "ac", "tran", "testbench"])
@@ -144,7 +144,7 @@ interface Entry {
   handle(args: unknown, session: ToolSessionState): Promise<unknown>;
 }
 type AdvertisedProfile = AdvertisedSimulationProfile & {
-  readonly engine?: "ngspice" | "vacask" | undefined;
+  readonly engine?: "ngspice" | undefined;
 };
 const failure = (code: string, message: string) => ({
   ok: false,
@@ -220,7 +220,7 @@ async function read(
       ok: false as const,
       result: failure(
         "SIMULATION_NATIVE_CODE_REQUIRED",
-        "This experiment is native VACASK Code-authoritative. Use simulation_files for native save v/dv/i/di/p selectors and analysis commands; derived quantities use authored postprocess Python. Read simulation authoring-help for shared source helpers. Legacy JSON helpers cannot downgrade it or add another electrical authority.",
+        "This experiment is Code-authoritative (config version 2). Use simulation_files to edit ngspice save, meas, write and analysis commands directly. Legacy JSON helpers cannot downgrade it or add another electrical authority.",
       ),
     };
   return {
@@ -333,8 +333,7 @@ export const simulationAuthoringTools: readonly Entry[] = [
         );
       let next: ProjectSimulationFolder;
       let dut: { name: string; ports: string[]; subckt: string } | undefined;
-      let chosen:
-        { profileId: string; engine: "ngspice" | "vacask" } | undefined;
+      let chosen: { profileId: string; engine: "ngspice" } | undefined;
       let profileCandidates: string[] | undefined;
       if (parsed.action === "create") {
         if (parsed.dut && !parsed.rootDocumentId)

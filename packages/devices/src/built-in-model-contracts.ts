@@ -28,7 +28,7 @@ import {
 } from "./ideal-opamp.js";
 import { builtInSubcircuitDescriptors } from "./registry.js";
 
-export type ModelBackend = "spice" | "spectre" | "vacask";
+export type ModelBackend = "spice" | "spectre";
 /** Implementation selectors contain no equations or backend syntax. */
 export type BuiltInModelRecipe =
   | {
@@ -884,7 +884,7 @@ function contract(target: string): BuiltInModelContract | undefined {
     // A generic block is only ever a call: the reader's libraries define it.
     backends:
       family === "generic"
-        ? { spice: "external", spectre: "external", vacask: "external" }
+        ? { spice: "external", spectre: "external" }
         : {
             spice: "included",
             spectre:
@@ -898,11 +898,6 @@ function contract(target: string): BuiltInModelContract | undefined {
               (family === "logic" && implementation !== "flip-flop")
                 ? "included"
                 : "external",
-            // VACASK has no transmission line device.
-            vacask:
-              implementation === "transmission-line"
-                ? "unsupported"
-                : "included",
           },
   };
 }

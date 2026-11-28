@@ -260,9 +260,7 @@ export interface DesignNetlistAnalysisOptions {
   /**
    * Whether a run's deck carries the MOS stand-ins (`.model NMOS nmos
    * level=54`) a netlist handed out carries: an ngspice run reads them as
-   * that netlist does (#2555). VACASK has no mapping for a Cell's own MOS
-   * card, so its deck carries none and says it needs one (#1420). A netlist
-   * handed out always carries them.
+   * that netlist does (#2555). A netlist handed out always carries them.
    */
   mosStandIns?: boolean;
   /**

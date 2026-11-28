@@ -1,5 +1,3 @@
-import { readFileSync } from "node:fs";
-import { nativeSky130OtaFixture } from "../test-support/sky130-ota.js";
 import { describe, it, expect, vi } from "vitest";
 import {
   createEmptyProject,
@@ -14,7 +12,6 @@ import {
   createSimulationEnvironmentMetadata,
   createSimulationInputMetadata,
 } from "@icm/spice-run";
-import { assembleNativeExecutionOutput } from "./native-execution-output.js";
 import { SimulationFiles, sha256 } from "./files.js";
 import { SimulationService } from "./service.js";
 import {
@@ -26,7 +23,7 @@ import type { ArtifactRef, Capabilities, SimulationReply } from "./contract.js";
 
 const caps: Capabilities = {
   configured: true,
-  rawfileCollection: "native-multi-ascii",
+  rawfileCollection: "declared-single-ascii",
   maxInputFiles: 24,
   inputs: ["source"],
   analyses: ["op", "ac"],
@@ -34,6 +31,7 @@ const caps: Capabilities = {
   profiles: [
     {
       id: "test",
+      engine: "ngspice",
       corners: ["tt"],
       dependencies: [{ id: "models", sha256: "a".repeat(64) }],
     },
@@ -304,14 +302,8 @@ it("retries failed evidence storage through export without executing or duplicat
     ).error,
   ).toBeUndefined();
 });
-const deck = readFileSync(
-  new URL("../../../netlists/vacask-divider/divider.sim", import.meta.url),
-  "utf8",
-).replace(/  sweep supply[\s\S]*?endc/u, "endc");
-const rawfile = readFileSync(
-  new URL("../../../netlists/vacask-divider/divider_op.raw", import.meta.url),
-  "utf8",
-);
+const deck =
+  "Divider\nV1 in 0 1\nR1 in out 1k\nR2 out 0 1k\n.control\nset filetype=ascii\nop\nwrite out.raw\n.endc\n.end\n";
 function sourceFolder(
   id: string,
   name: string,
@@ -335,7 +327,7 @@ function saveSource(
 ) {
   project.simulationFolders = [sourceFolder(SETUP_ID, "Setup 1", input)];
 }
-function nativeOtaFolder(
+function ngspiceOtaFolder(
   project: CircuitProject,
   analysis: string,
   section = "tt",
@@ -351,10 +343,10 @@ function nativeOtaFolder(
   )!;
   entry.text = entry.text
     .replace(
-      'include "circuit.spice"',
-      `include "models/library.inc" section=${section}\ninclude "circuit.spice"`,
+      '.include "circuit.spice"',
+      `.lib "models/library.inc" ${section}\n.include "circuit.spice"`,
     )
-    .replace("analysis op op", analysis);
+    .replace("\nop\n", `\n${analysis}\n`);
   folder.input.dependencies = [
     { id: "models", sha256: "a".repeat(64), mountPath: "models/library.inc" },
   ];
@@ -362,49 +354,21 @@ function nativeOtaFolder(
   return folder;
 }
 const SETUP_ID = "folder-1";
-// Lifecycle tests mock process scheduling, but use recorded native plot bytes
-// and the real result assembler. Real execution is covered by the public journey.
 async function result(input: ExecutionInput) {
-  const hasOp = input.files.some((f) =>
-    f.text.includes("analysis divider_op op"),
-  );
-  return assembleNativeExecutionOutput(
-    input,
-    {
-      execution: {
-        stdout: hasOp
-          ? "Running analysis 'divider_op'.\n  Elapsed time: 0.001\n"
-          : "",
-        stderr: "",
-        exitCode: 0,
-        signal: null,
-        spawnError: null,
-        timedOut: false,
-        cancelled: false,
-        durationMs: 1,
-      },
-      timeoutMs: 1000,
-      rawfiles: hasOp ? [{ path: "divider_op.raw", text: rawfile }] : [],
-      executedFiles: input.files,
-      diagnostics: [],
-      truncated: false,
-    },
-    await createSimulationEnvironmentMetadata({
-      executor: "local-host",
-      reproducibility: "observed",
-      profileId: "test",
-      platform: "test/x64",
-      simulator: { name: "vacask", version: "0.3.4", binarySha256: null },
-      models: null,
-      startupSha256: null,
-    }),
-  );
+  return {
+    result: await ngspiceResult(input),
+    rawfile: "Title: Divider\n",
+    executedDeck: input.preparedDeck!,
+  };
 }
 // Synthetic ngspice reply for transport/Spec contracts, not engine acceptance.
 async function ngspiceResult(input: ExecutionInput) {
   return {
-    outcome: { status: "completed" as const },
-    diagnostics: [],
+    outcome: { status: "completed" } as { status: "completed" | "failed" },
+    diagnostics: [] as Array<{
+      severity: "error" | "warning" | "info";
+      text: string;
+    }>,
     log: "fixture",
     durationMs: 1,
     metadata: {
@@ -446,7 +410,7 @@ function unwrap<T extends "prepared" | "run">(reply: SimulationReply, key: T) {
   return (reply as Extract<SimulationReply, Record<T, unknown>>)[key];
 }
 function fixture(
-  engine: "ngspice" | "vacask" = "vacask",
+  _engine: "ngspice" = "ngspice",
   now = Date.now,
   store?: import("./files.js").SimulationArtifactStore,
 ) {
@@ -454,10 +418,7 @@ function fixture(
   let release: () => void = () => {};
   const wait = new Promise<void>((r) => (release = r));
   const executor: Executor = {
-    capabilities: async () =>
-      engine === "vacask"
-        ? caps
-        : { ...caps, rawfileCollection: "declared-single-ascii" },
+    capabilities: async () => caps,
     execute: vi.fn(async (input) => {
       await wait;
       return result(input);
@@ -511,233 +472,6 @@ async function prepareRaw(
   return { prepared, workspaceId: created.workspace.id };
 }
 describe("shared simulation lifecycle", () => {
-  it.each(["completed", "completed-with-dropped-input", "failed"] as const)(
-    "never certifies unavailable or incomplete VACASK measurements (%s)",
-    async (status) => {
-      const f = fixture();
-      vi.mocked(f.executor.execute).mockImplementation(async (input) => {
-        const output = await result(input);
-        output.result.outcome = { status };
-        output.result.log = [
-          'ICM_MEASUREMENT_V1 {"name":"value","status":"available","value":2,"unit":"V"}',
-          'ICM_MEASUREMENT_V1 {"name":"missing","status":"unavailable","detail":"No crossing","unit":"s"}',
-          'ICM_MEASUREMENT_V1 {"name":"bad","status":"available","value":null}',
-        ].join("\n");
-        return output;
-      });
-      const { prepared } = await prepareRaw(
-        f,
-        deck + "\n// @spec value >= 1 unit=V\n// @spec bad >= 0\n",
-      );
-      const started = unwrap(
-        await f.service.handle(
-          {
-            operation: "start",
-            preparedId: prepared.id,
-            digest: prepared.digest,
-          },
-          "incomplete-start",
-        ),
-        "run",
-      );
-      await vi.waitFor(async () => {
-        const finished = unwrap(
-          await f.service.handle(
-            { operation: "read", runId: started.id },
-            "incomplete-read",
-          ),
-          "run",
-        );
-        expect(finished.state).toBe("finished");
-        const saved = await f.files.readArtifact(
-          finished.artifacts.find((a) => a.name === "specs.json")!.id,
-        );
-        if (!saved.ok) throw Error("Missing partial report");
-        const rows = JSON.parse(saved.text).results;
-        expect(rows).toMatchObject([
-          {
-            name: "value",
-            value: status === "completed-with-dropped-input" ? null : 2,
-            judgment: status === "completed" ? "pass" : "not-evaluated",
-            reason: status === "completed" ? "satisfied" : "run-incomplete",
-          },
-          {
-            name: "bad",
-            value: null,
-            judgment: "not-evaluated",
-            reason:
-              status === "completed" ? "measurement-missing" : "run-incomplete",
-          },
-          {
-            name: "missing",
-            value: null,
-            judgment: "not-evaluated",
-            reason:
-              status === "completed" ? "measurement-missing" : "run-incomplete",
-            source: {
-              kind: "log",
-              line: 2,
-              text: 'ICM_MEASUREMENT_V1 {"name":"missing","status":"unavailable","detail":"No crossing","unit":"s"}',
-            },
-          },
-        ]);
-        const diagnostics = await f.files.readArtifact(
-          finished.artifacts.find((a) => a.name === "outputs.json")!.id,
-        );
-        if (!diagnostics.ok) throw Error("Missing report diagnostics");
-        expect(JSON.parse(diagnostics.text).diagnostics).toContainEqual(
-          expect.objectContaining({ code: "VACASK_MEASUREMENT_INVALID" }),
-        );
-      });
-    },
-  );
-  it("uses VACASK include sections and exact names, not embedded or unreachable Spec text", async () => {
-    const f = fixture();
-    vi.mocked(f.executor.execute).mockImplementation(async (input) => {
-      const output = await result(input);
-      output.result.log = [
-        'ICM_MEASUREMENT_V1 {"name":"Gain","status":"available","value":4}',
-        'ICM_MEASUREMENT_V1 {"name":"gain","status":"available","value":2}',
-        'ICM_MEASUREMENT_V1 {"name":"Gain","status":"available","value":5}',
-      ].join("\n");
-      return output;
-    });
-    const source =
-      deck.replace("\n", '\ninclude "rules.inc" section=TT\n') +
-      '\nembed "fake.py" <<<PYTHON\n* @spec Gain < 0\n// @spec Gain < 0\n>>>PYTHON\n';
-    const { prepared, workspaceId } = await prepareRaw(f, source, [
-      {
-        path: "rules.inc",
-        text: 'section tt\n// @spec Gain < 0\nendsection\nsection TT\n// @spec Gain >= 4\n// @spec gain <= 2\ninclude "nested.inc"\nendsection\n',
-      },
-      { path: "nested.inc", text: "// @spec Missing > 0\n" },
-      { path: "unreachable.inc", text: "// @spec Gain < 0\n" },
-    ]);
-    // The evaluator must use the prepared snapshot, not this later author edit.
-    await f.files.handle({
-      action: "update",
-      owner: { kind: "session-workspace", workspaceId },
-      expectedRevision: 1,
-      writes: [{ path: "rules.inc", text: "// @spec Gain < 0\n" }],
-    });
-    const started = unwrap(
-      await f.service.handle(
-        {
-          operation: "start",
-          preparedId: prepared.id,
-          digest: prepared.digest,
-        },
-        "sections-start",
-      ),
-      "run",
-    );
-    await vi.waitFor(async () => {
-      const finished = unwrap(
-        await f.service.handle(
-          { operation: "read", runId: started.id },
-          "sections-read",
-        ),
-        "run",
-      );
-      expect(finished.state).toBe("finished");
-      const saved = await f.files.readArtifact(
-        finished.artifacts.find((a) => a.name === "specs.json")!.id,
-      );
-      if (!saved.ok) throw Error("Missing captured report");
-      expect(JSON.parse(saved.text).results).toMatchObject([
-        {
-          name: "Gain",
-          value: 4,
-          judgment: "pass",
-          occurrence: 1,
-          source: { path: "rules.inc", line: 5 },
-        },
-        { name: "Gain", value: 5, judgment: "pass", occurrence: 2, logLine: 3 },
-        {
-          name: "gain",
-          value: 2,
-          judgment: "pass",
-          source: { path: "rules.inc", line: 6 },
-        },
-        {
-          name: "Missing",
-          value: null,
-          judgment: "not-evaluated",
-          reason: "measurement-missing",
-          source: { path: "nested.inc", line: 1 },
-        },
-      ]);
-    });
-  });
-  it("publishes VACASK measurements without Specs with actual Console provenance", async () => {
-    const f = fixture();
-    vi.mocked(f.executor.execute).mockImplementation(async (input) => {
-      const output = await result(input);
-      output.result.log =
-        'Running analysis\nICM_MEASUREMENT_V1 {"name":"Gain","status":"available","value":4,"unit":"V"}\nICM_MEASUREMENT_V1 {"name":"gain","status":"available","value":2,"unit":"V"}\nICM_MEASUREMENT_V1 {"name":"=1+1","status":"available","value":7,"unit":"@unit"}';
-      return output;
-    });
-    const { prepared } = await prepareRaw(f);
-    const started = unwrap(
-      await f.service.handle(
-        {
-          operation: "start",
-          preparedId: prepared.id,
-          digest: prepared.digest,
-        },
-        "native-values-start",
-      ),
-      "run",
-    );
-    await vi.waitFor(async () => {
-      const finished = unwrap(
-        await f.service.handle(
-          { operation: "read", runId: started.id },
-          "native-values-read",
-        ),
-        "run",
-      );
-      expect(finished.state).toBe("finished");
-      const saved = await f.files.readArtifact(
-        finished.artifacts.find((a) => a.name === "specs.json")!.id,
-      );
-      if (!saved.ok) throw Error("Missing measurement report");
-      expect(JSON.parse(saved.text).results).toMatchObject([
-        {
-          name: "Gain",
-          value: 4,
-          unit: "V",
-          judgment: "unconstrained",
-          source: { kind: "log", path: "log.txt", line: 2 },
-          logLine: 2,
-        },
-        {
-          name: "gain",
-          value: 2,
-          unit: "V",
-          judgment: "unconstrained",
-          source: { kind: "log", path: "log.txt", line: 3 },
-          logLine: 3,
-        },
-        {
-          name: "=1+1",
-          value: 7,
-          unit: "@unit",
-          judgment: "unconstrained",
-          source: { kind: "log", line: 4 },
-          logLine: 4,
-        },
-      ]);
-      const csv = await f.files.readArtifact(
-        finished.artifacts.find((a) => a.name === "specs.csv")!.id,
-      );
-      if (!csv.ok) throw Error("Missing measurement CSV");
-      expect(csv.text).toContain(
-        '"Gain","4","—","unconstrained","V","1","no-spec","log.txt","2"',
-      );
-      expect(csv.text).toContain('"\'=1+1","7","—","unconstrained","\'@unit"');
-    });
-  });
   it("retains failed direct-run input and retries only evidence publication", async () => {
     const f = fixture();
     saveSource(f.project, {
@@ -1312,7 +1046,7 @@ describe("shared simulation lifecycle", () => {
       project.simulationFolders = ["A", "B"].map((name) =>
         sourceFolder(`folder-${name.toLowerCase()}`, name, {
           entry: "tb.cir",
-          files: [{ path: "tb.cir", text: `${deck}\n// Batch ${name}\n` }],
+          files: [{ path: "tb.cir", text: `${deck}\n* Batch ${name}\n` }],
           dependencies: [],
         }),
       );
@@ -1436,7 +1170,7 @@ describe("shared simulation lifecycle", () => {
         {
           operation: "read-batch",
           batchId: preparedReply.batch.id,
-          signals: ["output"],
+          signals: ["v(out)"],
         },
         "read-batch-signals",
       );
@@ -1444,8 +1178,8 @@ describe("shared simulation lifecycle", () => {
         ok: true,
         batch: {
           items: [
-            { signals: [{ signal: "output", status: "available" }] },
-            { signals: [{ signal: "output", status: "available" }] },
+            { signals: [{ signal: "v(out)", status: "available" }] },
+            { signals: [{ signal: "v(out)", status: "available" }] },
           ],
         },
       });
@@ -1483,11 +1217,11 @@ describe("shared simulation lifecycle", () => {
     },
   );
 
-  it("prepares native parameter/corner/temperature sweep members with separate identities through the shared service", async () => {
+  it("prepares parameter/corner/temperature sweep members with separate identities through the shared service", async () => {
     const project = CircuitProjectSchema.parse(
       currentFiveTransistorOtaCircuitSource(),
     );
-    const folder = nativeOtaFolder(project, "analysis bias op");
+    const folder = ngspiceOtaFolder(project, "op");
     const document = project.documents.find((d) =>
       d.instances.some((i) => i.netlist?.parameters.w),
     )!;
@@ -1500,7 +1234,6 @@ describe("shared simulation lifecycle", () => {
         {
           ...caps.profiles[0]!,
           corners: ["tt", "ff"],
-          modelLibrary: { dependencyId: "models", defaultSection: "tt" },
         },
       ],
     });
@@ -1647,7 +1380,7 @@ describe("shared simulation lifecycle", () => {
     const project = CircuitProjectSchema.parse(
       currentFiveTransistorOtaCircuitSource(),
     );
-    const folder = nativeOtaFolder(project, "analysis bias op");
+    const folder = ngspiceOtaFolder(project, "op");
     const root = project.documents.find(
       (document) => document.id === project.topDocumentId,
     )!;
@@ -1658,15 +1391,15 @@ describe("shared simulation lifecycle", () => {
         "low" in instance.netlist.parameters,
     );
     if (!source) throw new Error("source");
-    // The native declaration owns the nominal value. Canvas owns its explicit
+    // The source declaration owns the nominal value. Canvas owns its explicit
     // expression reference, not a second JSON binding/value table.
     source.netlist!.parameters.low = "{VIN}";
     const entry = folder.input.files.find(
       (file) => file.path === folder.input.entry,
     )!;
     entry.text = entry.text.replace(
-      'include "models/library.inc"',
-      'parameters VIN=0.9\ninclude "models/library.inc"',
+      '.lib "models/library.inc"',
+      '.param VIN=0.9\n.lib "models/library.inc"',
     );
     const before = structuredClone(project);
     const f = fixture();
@@ -1675,9 +1408,9 @@ describe("shared simulation lifecycle", () => {
       profiles: [
         {
           id: "test",
+          engine: "ngspice",
           corners: ["tt", "ff"],
           dependencies: [{ id: "models", sha256: "a".repeat(64) }],
-          modelLibrary: { dependencyId: "models", defaultSection: "tt" },
         },
       ],
     });
@@ -1789,11 +1522,11 @@ describe("shared simulation lifecycle", () => {
     expect(f.executor.execute).toHaveBeenCalledTimes(1);
   });
 
-  it("prepares the corner selected by a Canvas-bound native folder", async () => {
+  it("prepares the corner selected by a Canvas-bound folder", async () => {
     const project = CircuitProjectSchema.parse(
       currentFiveTransistorOtaCircuitSource(),
     );
-    const folder = nativeOtaFolder(project, "analysis bias op", "ff");
+    const folder = ngspiceOtaFolder(project, "op", "ff");
     const f = fixture();
     f.executor.capabilities = async () => ({
       ...caps,
@@ -1801,9 +1534,9 @@ describe("shared simulation lifecycle", () => {
       profiles: [
         {
           id: "test",
+          engine: "ngspice",
           corners: ["tt", "ff"],
           dependencies: [{ id: "models", sha256: "a".repeat(64) }],
-          modelLibrary: { dependencyId: "models", defaultSection: "tt" },
         },
       ],
     });
@@ -1832,7 +1565,7 @@ describe("shared simulation lifecycle", () => {
       await f.files.handle({ action: "artifact", artifactId: artifact!.id }),
     ).toMatchObject({
       ok: true,
-      text: expect.stringContaining('include "models/library.inc" section=ff'),
+      text: expect.stringContaining('.lib "models/library.inc" ff'),
     });
   });
 
@@ -1841,7 +1574,9 @@ describe("shared simulation lifecycle", () => {
     f.project.simulationFolders = ["A", "B"].map((name) =>
       sourceFolder(`folder-${name.toLowerCase()}`, name, {
         entry: "tb.cir",
-        files: [{ path: "tb.cir", text: `${name} deck\ncontrol\nendc\n` }],
+        files: [
+          { path: "tb.cir", text: `${name} deck\n.control\nop\n.endc\n.end\n` },
+        ],
         dependencies: [],
       }),
     );
@@ -1872,7 +1607,9 @@ describe("shared simulation lifecycle", () => {
     );
     await vi.waitFor(() =>
       expect(f.executor.execute).toHaveBeenCalledWith(
-        expect.objectContaining({ testbench: "B deck\ncontrol\nendc\n" }),
+        expect.objectContaining({
+          testbench: "B deck\n.control\nop\n.endc\n.end\n",
+        }),
         expect.any(String),
         undefined,
         { preparedId: prepared.id, preparedDigest: prepared.digest },
@@ -1940,7 +1677,7 @@ describe("shared simulation lifecycle", () => {
       files: [
         {
           path: "tb.cir",
-          text: 'Native dependency\ninclude "models/device.lib"\ncontrol\nendc\n',
+          text: 'SPICE dependency\n.include "models/device.lib"\n.control\nop\n.endc\n.end\n',
         },
       ],
       dependencies: [
@@ -1994,7 +1731,7 @@ describe("shared simulation lifecycle", () => {
       files: [
         {
           path: "tb.cir",
-          text: 'Native dependency\ninclude "models/device.lib" section=tt\ncontrol\nendc\n',
+          text: 'SPICE dependency\n.lib "models/device.lib" tt\n.control\nop\n.endc\n.end\n',
         },
       ],
       dependencies: [
@@ -2166,7 +1903,7 @@ describe("shared simulation lifecycle", () => {
       run: { id: finished.id, preparedId: prepared.id },
       prepared: { digest: prepared.digest },
       artifacts: expect.arrayContaining([
-        expect.objectContaining({ name: "raw/divider_op.raw" }),
+        expect.objectContaining({ name: "out.raw" }),
         expect.objectContaining({ name: "result.json" }),
       ]),
     });
@@ -2293,72 +2030,5 @@ describe("shared simulation lifecycle", () => {
         ).state,
       ).toBe("finished"),
     );
-  });
-  it("prepares the shipped hierarchical OTA with native voltage and evidence-backed model OP acquisitions", async () => {
-    const { project, profile } = nativeSky130OtaFixture();
-    const f = fixture();
-    f.executor.capabilities = async () => ({
-      ...caps,
-      profiles: [profile],
-      maxOutputBytes: 100,
-    });
-    const service = new SimulationService(f.files, f.executor, () => project);
-    const prepared = unwrap(
-      await service.handle(
-        {
-          operation: "prepare",
-          source: {
-            kind: "project-folder",
-            folderId: SETUP_ID,
-            expectedStructureRevision: project.structureRevision,
-          },
-        },
-        "ota",
-      ),
-      "prepared",
-    );
-    expect(prepared.deviceOperatingPoints).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          documentId: "document-ota-5t",
-          instanceId: "M1",
-          occurrence: ["XDUT"],
-          reference: "XDUT:XM1:msky130_fd_pr__nfet_01v8",
-          polarity: "nmos",
-        }),
-      ]),
-    );
-    expect(prepared.mode).toBe("source");
-    expect(prepared.warnings).toEqual([
-      expect.stringContaining('dc is used only with type="dc"'),
-      expect.stringContaining("run remains allowed"),
-    ]);
-    expect(f.executor.execute).not.toHaveBeenCalled();
-
-    f.executor.capabilities = async () => ({
-      ...caps,
-      analyses: ["op"],
-      profiles: [profile],
-    });
-    expect(
-      await service.handle(
-        {
-          operation: "prepare",
-          source: {
-            kind: "project-folder",
-            folderId: SETUP_ID,
-            expectedStructureRevision: project.structureRevision,
-          },
-        },
-        "ota-unqualified",
-      ),
-    ).toMatchObject({
-      ok: true,
-      prepared: {
-        warnings: expect.arrayContaining([
-          expect.stringContaining("outside this Profile's qualified scope"),
-        ]),
-      },
-    });
   });
 });

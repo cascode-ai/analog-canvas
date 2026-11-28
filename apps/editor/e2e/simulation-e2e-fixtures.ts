@@ -183,27 +183,41 @@ export async function abortRunsOffering(
 /** The RC simulation example Project as the editor ships it. */
 export const rcExample = () => exampleProject("simulation-rc.icproj.json");
 
-/** The RC example with one native folder that runs the Agent's VACASK source. */
-export async function nativeRcProject(id: string, name: string) {
-  const { agentNativeProfile, agentNativeSource } =
-    await import("./native-simulation-executor.mjs");
+/** The RC example with one ngspice divider folder for scripted simulation E2E. */
+export async function ngspiceDividerProject(id: string, name: string) {
   const project = rcExample();
   const folder = createSimulationFolder({
     id,
     name,
-    profileId: agentNativeProfile,
+    profileId: profile.id,
+    engine: "ngspice",
   });
-  folder.input.entry = "run.sim";
+  folder.input.entry = "run.cir";
   folder.input.circuitBindings = [];
   folder.input.files = [
     {
       path: "experiment.json",
       text: JSON.stringify({
         version: 2,
-        environment: { profileId: agentNativeProfile },
+        environment: { profileId: profile.id },
       }),
     },
-    { path: "run.sim", text: agentNativeSource },
+    {
+      path: "run.cir",
+      text: [
+        "Divider OP",
+        "V1 in 0 DC 1",
+        "R1 in mid 1k",
+        "R2 mid 0 1k",
+        ".control",
+        "set filetype=ascii",
+        "op",
+        "write divider.raw v(in) v(mid) i(v1)",
+        ".endc",
+        ".end",
+        "",
+      ].join("\n"),
+    },
   ];
   project.simulationFolders = [folder];
   return project;

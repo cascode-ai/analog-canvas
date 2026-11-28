@@ -9,8 +9,6 @@ import {
 import { importSpiceSources } from "@icm/spice";
 
 import { createDesignNetlistExport } from "./export.js";
-import { analyzeDesignNetlist } from "./extract.js";
-import { printVacaskWithLocations } from "./vacask-printer.js";
 
 type Coupling = Omit<InductorCoupling, "id"> & { id?: string };
 
@@ -202,21 +200,6 @@ describe("inductor couplings", () => {
     const refused = createDesignNetlistExport(resistor);
     expect(refused.diagnostics.map((item) => item.code)).toContain(
       "INDUCTOR_COUPLING_MEMBER_INVALID",
-    );
-  });
-
-  it("writes native VACASK couplings as |k| with an inductor turned for a negative one", () => {
-    const project = pair();
-    project.documents[0]!.inductorCouplings![0]!.k = "-0.4";
-    const analysis = analyzeDesignNetlist(project);
-    const printed = printVacaskWithLocations(analysis.ir!);
-    expect(printed.ok).toBe(true);
-    if (!printed.ok) return;
-    expect(printed.text).toContain("model __icm_mutual mutual");
-    expect(printed.text).toMatch(/L1 \(l1a l1b\) /u);
-    expect(printed.text).toMatch(/L2 \(l2b l2a\) /u);
-    expect(printed.text).toContain(
-      'KTF1 () __icm_mutual k=0.4 ind1="L1" ind2="L2"',
     );
   });
 

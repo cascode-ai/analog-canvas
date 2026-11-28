@@ -9,15 +9,14 @@ import {
   type SimulationSourceDiagnostic,
 } from "./source-file-graph.js";
 import {
-  inspectVacaskSource,
-  type VacaskSourceToken,
-} from "./vacask-source.js";
+  inspectSpectreSource,
+  type SpectreSourceToken,
+} from "./spectre-source-lexer.js";
 type ModelSourceStatement = SpiceStatement & {
   sourceLanguage?: ProjectModelSource["language"];
 };
 
-/** Spectre declaration inspection shares a lexical reader, not a VACASK executor.
- * Native bodies remain opaque and retain their original text and locations. */
+/** Spectre declaration inspection keeps native bodies opaque with original locations. */
 export function inspectModelSourceFile(
   language: ProjectModelSource["language"],
   path: string,
@@ -31,7 +30,7 @@ export function inspectModelSourceFile(
       { path, id: path, text, hash: "", encoding: "utf-8" },
       false,
     );
-  const original = inspectVacaskSource(path, text, false);
+  const original = inspectSpectreSource(path, text);
   const boundaries = [
     ...text.matchAll(
       /^[ \t]*simulator[ \t]+lang[ \t]*=[ \t]*([A-Za-z]+)[ \t]*(?:\/\/[^\n]*)?\r?$/gm,
@@ -67,10 +66,9 @@ export function inspectModelSourceFile(
       })
       .join("");
   };
-  const parsed = inspectVacaskSource(
+  const parsed = inspectSpectreSource(
     path,
     spiceRanges.length ? mask(false) : text,
-    false,
   );
   const diagnostics: SimulationSourceDiagnostic[] = parsed.diagnostics.map(
     (d) => ({ ...d, code: "MODEL_SOURCE_SYNTAX" }),
@@ -232,7 +230,7 @@ export function inspectModelSourceFile(
 
 function nativeParameters(
   text: string,
-  tokens: VacaskSourceToken[],
+  tokens: SpectreSourceToken[],
   sourceRef: SourceSpan,
   fail: (message: string) => void,
 ): RawSpiceParameter[] {

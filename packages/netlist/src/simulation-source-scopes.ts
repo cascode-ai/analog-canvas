@@ -61,7 +61,7 @@ export function ngspiceCircuitScopes(
   };
 }
 
-/** Existing source adapter; traversal is shared with native VACASK. */
+/** SPICE source adapter for listing authored circuit scopes. */
 export function listAuthoredCircuitScopes(
   graph: SimulationSourceGraph,
   binding: SimulationCircuitBinding,

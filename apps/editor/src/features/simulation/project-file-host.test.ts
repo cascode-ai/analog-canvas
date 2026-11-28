@@ -202,7 +202,7 @@ describe("shared human/Agent generated Circuit File Resource", () => {
       });
     const added =
       f.source.text.slice(0, source.endOffset) +
-      " mag=1 phase=-90" +
+      " AC 1 -90" +
       f.source.text.slice(source.endOffset);
     expect(await write(added, f.source.text)).toMatchObject({ ok: true });
     const parameters = () =>
@@ -217,7 +217,7 @@ describe("shared human/Agent generated Circuit File Resource", () => {
     if (!generated.ok) throw Error("Expected Circuit");
     expect(
       await write(
-        generated.source.text.replace(" mag=1 phase=-90", ""),
+        generated.source.text.replace(" AC 1 -90", ""),
         generated.source.text,
       ),
     ).toMatchObject({ ok: true });

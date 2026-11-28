@@ -36,12 +36,11 @@ function collectDefinedParameterNames(
     defined.add(formal.name.toLowerCase());
   }
   const scanText = (text: string) => {
-    // SPICE `.param a=1 b=2` / `.params ...` and VACASK `parameters a=1 b=2`.
+    // SPICE `.param a=1 b=2` / `.params ...`.
     for (const line of text.split(/\r?\n/u)) {
       const trimmed = line.trim();
       const spice = /^\.params?\b(.*)$/iu.exec(trimmed);
-      const vacask = /^parameters\b(.*)$/iu.exec(trimmed);
-      const body = spice?.[1] ?? vacask?.[1];
+      const body = spice?.[1];
       if (!body) continue;
       for (const match of body.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\s*=/gu)) {
         defined.add(match[1]!.toLowerCase());

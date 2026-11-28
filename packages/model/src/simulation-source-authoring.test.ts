@@ -20,11 +20,10 @@ describe("experiment starter instructions", () => {
       const text = folder.input.files.find(
         (file) => file.path === "run.cir",
       )!.text;
-      expect(text).toContain("// 2. Click Run.");
-      expect(text).toContain("// 3. Open Operating Point");
-      expect(text).toContain('options rawfile="ascii" strictsave=2');
-      expect(text).toContain("analysis op op");
-      expect(text).not.toMatch(/\.control|\.endc|write out\.raw|appendwrite/u);
+      expect(text).toContain("* 2. Click Run.");
+      expect(text).toContain("* 3. Open Operating Point");
+      expect(text).toContain(".control\nset filetype=ascii");
+      expect(text).toContain("\nop\nwrite out.raw\n.endc");
       expect(text).toContain(
         kind === "canvas"
           ? "Check Canvas sources"
@@ -35,7 +34,7 @@ describe("experiment starter instructions", () => {
       if (kind === "text") expect(text).not.toContain(".include");
       if (kind === "mixed")
         expect(folder.input.files[0]!.text).toContain(
-          "// DUT port order: 'in' 'out' 'vss'",
+          "* DUT port order: in out vss",
         );
     },
   );
@@ -86,7 +85,7 @@ describe("experiment starter instructions", () => {
     ).toContain(".control");
   });
 
-  it("quotes DUT interface names without changing pin order, case or punctuation", () => {
+  it("preserves DUT interface pin order, case, and punctuation without invalid line breaks", () => {
     const folder = createSimulationFolder({
       id: "quoted",
       name: "One\nTitle",
@@ -95,7 +94,7 @@ describe("experiment starter instructions", () => {
       dut: { name: "AMP.block", ports: ["In+", "In-", "O'ut", "0"] },
     });
     expect(folder.input.files[0]!.text).toContain(
-      "XDUT ('In+' 'In-' 'O''ut' '0') 'AMP.block'",
+      "XDUT In+ In- O'ut 0 AMP.block",
     );
     expect(
       folder.input.files

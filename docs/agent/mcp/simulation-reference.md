@@ -100,9 +100,8 @@ and `timing.remoteWaitMs` (preparation and GET headers, not body).
 
 `prepare-batch` freezes 1–16 saved-setup items at one structure revision.
 `prepare-sweep` takes a legacy Run Plan or explicit corner, temperature,
-variable or exact-parameter axes for native ngspice/VACASK folders; `variableId`
-names one unconditional top-level `.param` (ngspice) or `parameters`
-declaration (VACASK). Corners target the Profile's model library; ambiguous
+variable or exact-parameter axes for ngspice folders; `variableId`
+names one unconditional top-level `.param` declaration. Corners target the Profile's model library; ambiguous
 declarations are rejected first; points never mutate the Project. Both run
 through `start-batch`, `read-batch`, `cancel-batch` and per-run `read`/`export`.
 `read-batch` gives each item's outcome, dataset and diagnostic counts and

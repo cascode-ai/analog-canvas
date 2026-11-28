@@ -87,9 +87,7 @@ describe("Circuit parameter source projection", () => {
           suffix +
           source.text.slice(body.endOffset),
       );
-    const plan = edit(
-      ' dc=(BIAS) mag=1 phase=-90 type="sine" sinedc=0 ampl=1 freq=1k',
-    );
+    const plan = edit(" DC {BIAS} AC 1 -90 SIN(0 1 1k)");
     expect(plan.ok).toBe(true);
     if (!plan.ok) return;
     expect(plan.changes).toEqual(
@@ -108,16 +106,14 @@ describe("Circuit parameter source projection", () => {
     const regenerated = generateCircuitSource(project, source.binding);
     expect(regenerated.ok).toBe(true);
     if (!regenerated.ok) return;
-    expect(regenerated.source.text).toContain(
-      'type="sine" dc=(BIAS) mag=1 phase=-90 sinedc=0 ampl=1 freq=1000 delay=0 theta=0 tdphase=0',
-    );
+    expect(regenerated.source.text).toContain("DC {BIAS} AC 1 -90 SIN(0 1 1k");
     const nextBody = regenerated.source.sourceBodies!.find(
       (b) => b.instanceId === "VDD",
     )!;
     const removed = planCircuitSourceEdit(
       regenerated.source,
       regenerated.source.text.slice(0, nextBody.startOffset) +
-        ' type="dc" dc=1.8' +
+        " DC 1.8" +
         regenerated.source.text.slice(nextBody.endOffset),
     );
     expect(removed).toMatchObject({
@@ -131,10 +127,10 @@ describe("Circuit parameter source projection", () => {
     expect(
       planCircuitSourceEdit(
         source,
-        source.text.replace("VDD (vdd 0)", "VDD (changed 0)"),
+        source.text.replace("VDD vdd 0", "VDD changed 0"),
       ),
     ).toMatchObject({ ok: false, code: "SIMULATION_CIRCUIT_STRUCTURE_LOCKED" });
-    expect(edit(" dc=1.8 mag=")).toMatchObject({
+    expect(edit(" DC 1.8 AC")).toMatchObject({
       ok: false,
       code: "SIMULATION_PARAMETER_INVALID",
     });
@@ -298,10 +294,10 @@ describe("Circuit parameter source projection", () => {
     const plan = planCircuitSourceEdit(source, replace(source, widths));
     expect(plan.ok && plan.changes.length).toBe(2);
   });
-  it("round-trips native parameter references through Canvas and reviewed PDK units", () => {
+  it("round-trips SPICE parameter references through Canvas and reviewed PDK units", () => {
     const { project, source } = fixture();
     const index = source.parameters.findIndex((p) => p.parameter === "w");
-    const edited = replace(source, [{ index, text: "(WIDTH * 2)" }]);
+    const edited = replace(source, [{ index, text: "{WIDTH * 2}" }]);
     const plan = planCircuitSourceEdit(source, edited);
     expect(plan.ok).toBe(true);
     if (!plan.ok) return;
@@ -316,7 +312,9 @@ describe("Circuit parameter source projection", () => {
     expect(regenerated.ok).toBe(true);
     if (!regenerated.ok) return;
     expect(regenerated.source.text).toBe(edited);
-    expect(planCircuitSourceEdit(regenerated.source, edited)).toEqual({
+    expect(
+      planCircuitSourceEdit(regenerated.source, regenerated.source.text),
+    ).toEqual({
       ok: true,
       changes: [],
     });
@@ -435,14 +433,9 @@ describe("a Cell whose source senses a pin's current", () => {
     return project;
   }
 
-  it.each([
-    ["ngspice", "amp"],
-    ["vacask", "amp"],
-    ["ngspice", "top"],
-    ["vacask", "top"],
-  ] as const)(
-    "previews the %s source of %s, with only the drawn source editable",
-    (engine, documentId) => {
+  it.each(["amp", "top"] as const)(
+    "previews the ngspice source of %s, with only the drawn source editable",
+    (documentId) => {
       const result = generateCircuitSource(
         sensedProject(),
         {
@@ -452,7 +445,7 @@ describe("a Cell whose source senses a pin's current", () => {
           emission: "top-level",
         },
         undefined,
-        engine,
+        "ngspice",
       );
 
       expect(result.ok).toBe(true);

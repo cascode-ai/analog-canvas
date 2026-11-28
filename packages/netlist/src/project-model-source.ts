@@ -15,8 +15,6 @@ import {
 } from "./model-source-syntax.js";
 import type { SimulationSourceDiagnostic } from "./source-file-graph.js";
 import { resolveReviewedLibraryInterface } from "@icm/devices";
-import { projectVacaskModel } from "./vacask-project-model.js";
-import { inspectVacaskSource } from "./vacask-source.js";
 
 /** Native inspection retains opaque bodies; acceptance is not simulator qualification. */
 export function inspectProjectModelSource(source: ProjectModelSource) {
@@ -271,9 +269,7 @@ export function collectProjectModelSources(
       !inspected.diagnostics.some((d) => d.severity === "error")
     ) {
       const failure =
-        options.format === "spice" ||
-        options.format === "spectre" ||
-        options.format === "vacask"
+        options.format === "spice" || options.format === "spectre"
           ? projectModelConversionDiagnostic(source, options.format)
           : {
               code: "MODEL_SOURCE_DIALECT",
@@ -390,24 +386,8 @@ export function modelSourceLibraryDialectDiagnostic(
 
 export function projectModelConversionDiagnostic(
   source: ProjectModelSource,
-  target: "spice" | "spectre" | "vacask",
+  target: "spice" | "spectre",
 ): SimulationSourceDiagnostic | undefined {
-  if (target === "vacask") {
-    if (source.language !== "spice") {
-      const failure = projectModelConversionDiagnostic(source, "spice");
-      if (failure) return failure;
-    }
-    const projected = projectVacaskModel(
-      source,
-      renderProjectModelSource(source, {
-        format: "spice",
-        conversionLocations: true,
-      }),
-      [],
-      inspectProjectModelSource(source).entries,
-    );
-    return projected.ok ? undefined : projected.diagnostics[0];
-  }
   const libraryFailure = modelSourceLibraryDialectDiagnostic(source, target);
   if (libraryFailure) return libraryFailure;
   const native = renderProjectModelSource(source);
@@ -475,25 +455,11 @@ export function renderProjectModelSource(
   source: ProjectModelSource,
   options: {
     outputPath?: string;
-    format?: "spice" | "spectre" | "vacask";
+    format?: "spice" | "spectre";
     reservedNames?: Iterable<string>;
     conversionLocations?: boolean;
   } = {},
 ): PrintedProjectModelSource {
-  if (options.format === "vacask") {
-    const projected = projectVacaskModel(
-      source,
-      renderProjectModelSource(source, {
-        ...options,
-        format: "spice",
-        conversionLocations: true,
-      }),
-      options.reservedNames,
-      inspectProjectModelSource(source).entries,
-    );
-    if (!projected.ok) throw Error(projected.diagnostics[0]!.message);
-    return projected.rendered;
-  }
   const inspected = inspectProjectModelSource(source);
   const result: PrintedProjectModelSource = { text: "", segments: [] };
   // Graph records are expanded visits. Rendering needs each lexical include
@@ -707,24 +673,12 @@ export function projectModelText(source: ProjectModelSource): string {
 export function appendProjectModelSources(
   text: string,
   sources: readonly ProjectModelSource[],
-  format: "spice" | "spectre" | "vacask" = "spice",
+  format: "spice" | "spectre" = "spice",
   reservedNames: Iterable<string> = [],
 ): PrintedProjectModelSource {
   const segments: ProjectModelSourceLocation[] = [];
   const reserved = new Set(reservedNames);
-  if (format === "vacask") {
-    for (const source of sources)
-      for (const entry of inspectProjectModelSource(source).entries)
-        reserved.add(entry.name);
-  }
   for (const source of sources) {
-    if (format === "vacask")
-      for (const s of inspectVacaskSource("generated", text, false).statements)
-        if (
-          ["model", "subckt"].includes(s.tokens[0]?.value ?? "") &&
-          s.tokens[1]
-        )
-          reserved.add(s.tokens[1].value);
     const model = renderProjectModelSource(source, {
       format,
       reservedNames: reserved,

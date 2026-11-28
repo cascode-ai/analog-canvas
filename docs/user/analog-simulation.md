@@ -74,7 +74,7 @@ an OP analysis:
 The Environment defaults to the one Profile qualified for every PDK device the
 Cell uses, marked "(automatic)" (SKY130 ngspice);
 **Change** picks another advertised Profile. When none fits uniquely, choose one
-before **Create**. Each Environment uses its own native language.
+before **Create**.
 
 The generated Circuit file (diamond icon) belongs to the canvas: edit mapped
 numeric parameters there, but change nodes or devices on the schematic.
@@ -120,10 +120,9 @@ pin).
 
 `/editor?example=five-transistor-ota-sky130` (or import
 `apps/editor/src/examples/five-transistor-ota-sky130.icproj.json`) opens a
-SKY130 OTA whose legacy starter folders still target the retired VACASK
-preview environment (pending migration to ngspice). For ngspice, use
-`netlists/ngspice-ota-qualification/source.icproj.json`; changing the Profile
-alone does not translate source.
+SKY130 OTA with twelve ngspice starter folders (OP, DC, five-corner AC, pulse
+and sine transient, and noise) ready to run in the browser SKY130 ngspice
+environment.
 
 ### Run
 

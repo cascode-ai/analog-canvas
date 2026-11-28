@@ -10,8 +10,6 @@ import {
 
 import { findBuiltInBodies } from "./built-in-bodies.js";
 import { createDesignNetlistExport } from "./export.js";
-import { analyzeDesignNetlist } from "./extract.js";
-import { printVacaskWithLocations } from "./vacask-printer.js";
 
 /**
  * One magnetic device inside Cell `dut`, each pin on a Cell Pin named after
@@ -291,13 +289,4 @@ describe("drawn magnetic devices", () => {
       }
     },
   );
-
-  it("projects coupled windings through the native mutual primitive", () => {
-    const analysis = analyzeDesignNetlist(transformer());
-    const printed = printVacaskWithLocations(analysis.ir!);
-    expect(printed.ok).toBe(true);
-    if (!printed.ok) return;
-    expect(printed.text).toContain("model __coupling mutual");
-    expect(printed.text).toMatch(/ind1="[^"]+" ind2="[^"]+"/u);
-  });
 });

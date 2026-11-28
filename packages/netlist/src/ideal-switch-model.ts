@@ -100,7 +100,7 @@ function idealSwitchValue(name: string): string {
 }
 
 /**
- * A clocked switch body for Spectre and VACASK: each path the ideal switch's
+ * A clocked switch body for Spectre: each path the ideal switch's
  * hard conductance, the high side closed while V(CK) is above the switch
  * threshold and the low side while it is not, so one side conducts at a
  * time. The low side's complement is the part's own, not a signal the

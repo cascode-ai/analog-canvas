@@ -4,9 +4,7 @@ import { createEmptyProject } from "@icm/model";
 import { IDEAL_COMPARATOR_TARGET } from "@icm/devices";
 
 import { createDesignNetlistExport } from "./export.js";
-import { analyzeDesignNetlist } from "./extract.js";
 import { generateCircuitSource } from "./simulation-circuit-source.js";
-import { printVacaskWithLocations } from "./vacask-printer.js";
 
 function comparatorProject(parameters: Record<string, string> = {}) {
   const project = createEmptyProject("comparator", "Comparator", "dut");
@@ -43,30 +41,27 @@ function comparatorProject(parameters: Record<string, string> = {}) {
 }
 
 describe("ideal comparator", () => {
-  it.each(["ngspice", "vacask"] as const)(
-    "shows a VDD comparator's %s call in the Circuit source as the deck has it",
-    (engine) => {
-      // vhigh=VDD chooses the supply body; it is not a call parameter, so
-      // the editing projection must not print it back onto the call.
-      const generated = generateCircuitSource(
-        comparatorProject({ vhigh: "VDD", vlow: "0", vtransition: "1m" }),
-        {
-          id: "b",
-          path: "circuit.spice",
-          documentId: "dut",
-          emission: "top-level",
-        },
-        undefined,
-        engine,
-      );
-      if (!generated.ok) throw Error(JSON.stringify(generated.diagnostics));
-      const call = generated.source.text
-        .split("\n")
-        .find((line) => /^X1\b/u.test(line.trim()));
-      expect(call).toContain("icm_ideal_comparator_vdd");
-      expect(call).not.toMatch(/vhigh/iu);
-    },
-  );
+  it("shows a VDD comparator's ngspice call in the Circuit source as the deck has it", () => {
+    // vhigh=VDD chooses the supply body; it is not a call parameter, so
+    // the editing projection must not print it back onto the call.
+    const generated = generateCircuitSource(
+      comparatorProject({ vhigh: "VDD", vlow: "0", vtransition: "1m" }),
+      {
+        id: "b",
+        path: "circuit.spice",
+        documentId: "dut",
+        emission: "top-level",
+      },
+      undefined,
+      "ngspice",
+    );
+    if (!generated.ok) throw Error(JSON.stringify(generated.diagnostics));
+    const call = generated.source.text
+      .split("\n")
+      .find((line) => /^X1\b/u.test(line.trim()));
+    expect(call).toContain("icm_ideal_comparator_vdd");
+    expect(call).not.toMatch(/vhigh/iu);
+  });
 
   it("emits one signal-only ngspice body without inventing VDD/VSS", () => {
     const project = comparatorProject({
@@ -130,26 +125,6 @@ describe("ideal comparator", () => {
     expect(spectre.file.text).not.toContain("global VDD");
   });
 
-  it("prints the numeric body in native VACASK, naming its parameters", () => {
-    // A call's parameter takes the master's spelling: VHIGH prints vhigh.
-    const { ir } = analyzeDesignNetlist(
-      comparatorProject({ VHIGH: "2", vtransition: "10m" }),
-      { groundPin: "pin" },
-    );
-    const vacask = printVacaskWithLocations(ir!);
-    expect(vacask.ok).toBe(true);
-    if (!vacask.ok) return;
-    for (const line of [
-      `subckt ${IDEAL_COMPARATOR_TARGET} (VIP VIN VOUT)`,
-      "parameters vhigh=1",
-      "parameters vlow=0",
-      "parameters vtransition=0.001",
-      "bcmp (VOUT 0) v=(vlow+(vhigh-vlow)*0.5*(1+tanh((v(VIP)-v(VIN))/vtransition)))",
-      `X1 (plus minus output) ${IDEAL_COMPARATOR_TARGET} vhigh=2 vtransition=0.01`,
-    ])
-      expect(vacask.text.split("\n"), vacask.text).toContain(line);
-  });
-
   it("refuses a user Cell named after the comparator body it writes, which has no other name (#1928)", () => {
     for (const [name, vhigh, clashes] of [
       [IDEAL_COMPARATOR_TARGET, "1", true],
@@ -199,7 +174,7 @@ describe("an ideal comparator whose high level is VDD (#1306)", () => {
     );
   });
 
-  it("prints the same equation in Spectre and native VACASK", () => {
+  it("prints the same equation in Spectre", () => {
     const project = comparatorProject(placed);
     const spectre = createDesignNetlistExport(project, { format: "spectre" });
     expect(spectre.status).toBe("ready");
@@ -212,20 +187,6 @@ describe("an ideal comparator whose high level is VDD (#1306)", () => {
     ])
       expect(spectre.file.text.split("\n")).toContain(line);
     expect(spectre.file.text).not.toContain(`${IDEAL_COMPARATOR_TARGET} (`);
-
-    const { ir } = analyzeDesignNetlist(project, { groundPin: "pin" });
-    const vacask = printVacaskWithLocations(ir!);
-    expect(vacask.ok).toBe(true);
-    if (!vacask.ok) return;
-    for (const line of [
-      "subckt icm_ideal_comparator_vdd (VDD VIP VIN VOUT)",
-      "parameters vlow=0",
-      "parameters vtransition=0.001",
-      "bcmp (VOUT 0) v=(vlow+(v(VDD)-vlow)*0.5*(1+tanh((v(VIP)-v(VIN))/vtransition)))",
-      "X1 (VDD plus minus output) icm_ideal_comparator_vdd vlow=0 vtransition=0.001",
-    ])
-      expect(vacask.text.split("\n"), vacask.text).toContain(line);
-    expect(vacask.text).not.toMatch(/vhigh/u);
   });
 
   it("reads VDD in any case, and takes it as the default when vhigh is absent", () => {

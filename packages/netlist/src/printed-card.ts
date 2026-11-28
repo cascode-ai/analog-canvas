@@ -265,8 +265,8 @@ export function printInstanceCard(
   const sourceValues = () => {
     // A source the SPICE import kept as written has its AC and waveform in
     // its dc text (`0.9 AC 1 0 PULSE(...)`). Spectre has no such tail, so it
-    // is read into fields as the VACASK projection reads it, and printed as
-    // plain text: no authored parameter owns those fields.
+    // is read into normalized fields and printed as plain text: no authored
+    // parameter owns those fields.
     const read =
       format === "spectre" ? sourceFieldsFromText(instance.parameters) : null;
     const sourceList = read ?? instance.parameters;

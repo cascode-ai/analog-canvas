@@ -315,7 +315,7 @@ describe("source Spec v1", () => {
   });
   it("lists every Spec a file declares, valid or not, on its line (#2110)", () => {
     const text =
-      "* tb\n* @spec gain >= 60 unit=dB\nXDUT a b ota\n// @spec pm > 1M\n";
+      "* tb\n* @spec gain >= 60 unit=dB\nXDUT a b ota\n* @spec pm > 1M\n";
     const specs = simulationSpecAnnotations("testbench.spice", text);
     expect(specs.map((spec) => [spec.name, spec.sourceRef.start.line])).toEqual(
       [

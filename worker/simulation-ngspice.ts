@@ -665,6 +665,7 @@ export async function routeNgspiceSimulationRequest(
         error: "prepared-environment-changed",
         message:
           "The deployment no longer composes this exact prepared deck. Prepare again.",
+        recovery: "reprepare",
       },
       { status: 409 },
     );

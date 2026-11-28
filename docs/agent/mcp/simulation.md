@@ -6,7 +6,7 @@ unfamiliar field. Engine and capture rules: [shared workflow](../shared/simulati
 ## Normal task
 
 1. Discover `simulation_run` capabilities once when you need a non-default
-   Profile (VACASK, say) or engine facts; `profileId` gives detailed model
+   Profile or engine facts; `profileId` gives detailed model
    facts. For a drawn DUT read `netlist_code` or the Cell interface, not the
    whole drawing. Switch clock phases the DUT does not drive are its last pins
    (`EN EN_bar`, `PHI1 PHI2`): give each a clock source, a complementary pair
@@ -19,7 +19,7 @@ unfamiliar field. Engine and capture rules: [shared workflow](../shared/simulati
    root Cell gives a graphless experiment. Without `profileId`, create takes the
    one Profile whose listed qualified devices include every reviewed PDK device
    the root Cell and its sub-Cells use (SKY130 16 V/20 V DMOS count for SKY130
-   ngspice; a Profile listing none, as VACASK, is never the default). The
+   ngspice). The
    receipt's `folder` names the Profile and engine; with several or none, the
    folder is the author's Testbench with no Profile, and
    `folder.profileCandidates` names them. `template:"testbench"` asks for that

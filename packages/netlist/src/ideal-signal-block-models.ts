@@ -11,8 +11,7 @@ import {
 
 /**
  * Ideal ngspice bodies for the multiplier and the two converters. They are
- * nonlinear, so unlike the adder their canonical bodies use B-sources. The
- * native VACASK generator consumes these same reviewed equations.
+ * nonlinear, so unlike the adder their canonical bodies use B-sources.
  *
  * - The multiplier is a signal-flow mixing node: V(Y) = gain·V(A)·V(B) from
  *   ground, gain in 1/V. VDD/VSS stay in the interface, unused, as for the

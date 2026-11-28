@@ -5,7 +5,6 @@ import { convertNetlist, importSpiceSources } from "@icm/spice";
 
 import { createDesignNetlistExport, designExtractsNetlist } from "./export.js";
 import { analyzeDesignNetlist } from "./extract.js";
-import { printVacaskWithLocations } from "./vacask-printer.js";
 
 const NJF_CARD = ".model NJF NJF(VTO=-2 BETA=1e-3 LAMBDA=0.01)";
 const PJF_CARD = ".model PJF PJF(VTO=-2 BETA=1e-3 LAMBDA=0.01)";
@@ -156,21 +155,6 @@ describe("the generic junction FET models", () => {
       deckSources: [],
     });
     expect(run.ir!.cells.flatMap((cell) => cell.models ?? [])).toEqual([]);
-  });
-
-  it("reports the JFET stand-in as VACASK reports any model it has no mapping for", () => {
-    const printed = printVacaskWithLocations(analyzeDesignNetlist(pair()).ir!);
-    expect(printed.ok).toBe(false);
-    if (printed.ok) return;
-    expect(printed.diagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "VACASK_UNSUPPORTED_MODEL",
-          message:
-            "Cell-owned model NJF (NJF) needs a qualified native mapping.",
-        }),
-      ]),
-    );
   });
 
   it.each(["spice", "spectre"] as const)(

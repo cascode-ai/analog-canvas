@@ -9,13 +9,12 @@ import {
   newFolderCellRole,
   newFolderProfile,
 } from "./simulation-starter.js";
-import { compileSourceSimulation } from "./simulation-source-compile.js";
 import { compileNgspiceSourceSimulation } from "./simulation-source-ngspice.js";
-import { inspectVacaskSourceGraph } from "./vacask-source.js";
 import { analyzeDesignNetlist } from "./extract.js";
 import { generateCircuitSource } from "./simulation-circuit-source.js";
 import { createDesignNetlistExport } from "./export.js";
-import { vacaskCircuitScopes } from "./vacask-source-scopes.js";
+import { inspectSimulationSourceGraph } from "./simulation-source-graph.js";
+import { listAuthoredCircuitScopes } from "./simulation-source-scopes.js";
 
 const project = parseProject(JSON.stringify(ota));
 const options = {
@@ -71,7 +70,7 @@ describe("simulation starting points", () => {
     expect(JSON.stringify(p)).toBe(before);
   });
   it.each(["circuit", "dut", "text"] as const)(
-    "creates a genuine ngspice %s starter without VACASK syntax",
+    "creates a genuine ngspice %s starter with the selected analysis template",
     (mode) => {
       const result = createSimulationStarter(project, {
         ...options,
@@ -87,22 +86,6 @@ describe("simulation starting points", () => {
       expect(source).toContain("ac dec 20 1 1G");
       expect(source).not.toContain("ground 0");
       const compiled = compileNgspiceSourceSimulation(project, result.folder);
-      expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
-    },
-  );
-  it.each(["circuit", "dut", "text"] as const)(
-    "preserves the selected analysis template for a %s folder",
-    (mode) => {
-      const result = createSimulationStarter(project, {
-        ...options,
-        mode,
-        template: "ac",
-      });
-      if (!result.ok) throw new Error(result.message);
-      expect(
-        result.folder.input.files.find((f) => f.path === "run.cir")!.text,
-      ).toContain('analysis ac ac from=1 to=1G mode="dec" points=20');
-      const compiled = compileSourceSimulation(project, result.folder);
       expect(compiled.ok, JSON.stringify(compiled)).toBe(true);
     },
   );
@@ -135,7 +118,9 @@ describe("simulation starting points", () => {
     if (!result.ok) return;
     const binding = result.folder.input.circuitBindings[0]!;
     expect(binding.emission).toBe("subcircuit");
-    expect(compileSourceSimulation(project, result.folder).ok).toBe(true);
+    expect(compileNgspiceSourceSimulation(project, result.folder).ok).toBe(
+      true,
+    );
     const ir = analyzeDesignNetlist(project, {
       format: "spice",
       groundPin: "pin",
@@ -146,13 +131,13 @@ describe("simulation starting points", () => {
       result.folder.input.files.find((file) => file.path === "testbench.spice")!
         .text,
     ).toContain(
-      `XDUT (${root.ports.map((port) => `'${port.netName}'`).join(" ")}) '${root.name}'`,
+      `XDUT ${root.ports.map((port) => port.netName).join(" ")} ${root.name}`,
     );
-    const scopes = vacaskCircuitScopes(
-      inspectVacaskSourceGraph(result.folder.input),
+    const scopes = listAuthoredCircuitScopes(
+      inspectSimulationSourceGraph(result.folder.input),
       binding,
       ir,
-    ).list();
+    );
     expect(scopes).toEqual([{ bindingId: "circuit", callPath: ["XDUT"] }]);
     expect(JSON.stringify(project)).toBe(before);
   });
@@ -283,13 +268,12 @@ describe("the Profile a new folder starts from (#1349)", () => {
       profileId: hostedSky130.id,
     });
   });
-  // As Production advertises them: ngspice names its qualified SKY130
-  // devices, VACASK names none.
+  // A qualified SKY130 Profile alongside an unqualified Profile without device scope.
   const ngspice = {
     id: hostedSky130.id,
     devices: hostedSky130.qualifiedScope.devices,
   };
-  const vacask = { id: "vacask-sky130-candidate" };
+  const unqualified = { id: "unqualified-profile" };
   // The testbench reaches the OTA's SKY130 transistors through its Cell.
   const testbench = { project, documentId: "document-ota-5t-testbench" };
   /** The testbench with one more part, bound to `name`. */
@@ -311,17 +295,19 @@ describe("the Profile a new folder starts from (#1349)", () => {
   };
 
   it("takes the one Profile that qualifies every PDK device the Cell uses", () => {
-    expect(newFolderProfile([vacask, ngspice], testbench)).toEqual({
+    expect(newFolderProfile([unqualified, ngspice], testbench)).toEqual({
       ok: true,
       profileId: ngspice.id,
     });
     // A model name outside the reviewed PDK devices does not count.
-    expect(newFolderProfile([vacask, ngspice], withPart("nch_mac"))).toEqual({
+    expect(
+      newFolderProfile([unqualified, ngspice], withPart("nch_mac")),
+    ).toEqual({
       ok: true,
       profileId: ngspice.id,
     });
     // A folder without a Cell uses no PDK device.
-    expect(newFolderProfile([vacask, ngspice])).toEqual({
+    expect(newFolderProfile([unqualified, ngspice])).toEqual({
       ok: true,
       profileId: ngspice.id,
     });
@@ -336,7 +322,7 @@ describe("the Profile a new folder starts from (#1349)", () => {
       "sky130_fd_pr__nfet_20v0",
       "sky130_fd_pr__pfet_20v0",
     ])
-      expect(newFolderProfile([vacask, ngspice], withPart(name))).toEqual({
+      expect(newFolderProfile([unqualified, ngspice], withPart(name))).toEqual({
         ok: true,
         profileId: ngspice.id,
       });
@@ -346,24 +332,24 @@ describe("the Profile a new folder starts from (#1349)", () => {
     // Its library has no varactor: the hosted run says "unknown subckt".
     expect(
       newFolderProfile(
-        [ngspice, vacask],
+        [ngspice, unqualified],
         withPart("sky130_fd_pr__cap_var_lvt"),
       ),
     ).toEqual({
       ok: false,
-      candidates: [ngspice.id, vacask.id],
+      candidates: [ngspice.id, unqualified.id],
       message: "No Profile qualifies sky130_fd_pr__cap_var_lvt.",
     });
     const copy = { ...ngspice, id: "sky130-copy" };
-    expect(newFolderProfile([ngspice, copy, vacask], testbench)).toEqual({
+    expect(newFolderProfile([ngspice, copy, unqualified], testbench)).toEqual({
       ok: false,
       candidates: [ngspice.id, copy.id],
       message: "Several Profiles qualify every PDK device this folder uses.",
     });
     // A Profile that lists no qualified devices is never the default.
-    expect(newFolderProfile([vacask], testbench)).toMatchObject({
+    expect(newFolderProfile([unqualified], testbench)).toMatchObject({
       ok: false,
-      candidates: [vacask.id],
+      candidates: [unqualified.id],
     });
   });
 });

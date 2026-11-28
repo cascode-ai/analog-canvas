@@ -2,10 +2,10 @@ import { expect, it } from "vitest";
 import { createSimulationFolder } from "@icm/model";
 import { resolveSimulationEngine } from "./profile-engine.js";
 
-it("uses the selected Profile rather than profile order, filename or default collection", () => {
+it("uses the selected Profile rather than profile order or filename", () => {
   const profiles = [
-    { id: "ng", corners: [], engine: "ngspice" as const },
-    { id: "va", corners: [], engine: "vacask" as const },
+    { id: "sky130", corners: [], engine: "ngspice" as const },
+    { id: "sg13g2", corners: [], engine: "ngspice" as const },
   ];
   for (const profile of profiles) {
     const folder = createSimulationFolder({
@@ -20,7 +20,7 @@ it("uses the selected Profile rather than profile order, filename or default col
           profiles: ordered,
           rawfileCollection: "declared-single-ascii",
         }),
-      ).toMatchObject({ ok: true, engine: profile.engine });
+      ).toMatchObject({ ok: true, engine: "ngspice", profile });
   }
 });
 

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { createEmptyProject } from "@icm/model";
 import { createDesignNetlistExport } from "./export.js";
 import { analyzeDesignNetlist } from "./extract.js";
-import { printVacaskWithLocations } from "./vacask-printer.js";
 
 function comparatorProject(parameters: Record<string, string> = {}) {
   const project = createEmptyProject("fd-comparator", "FD Comparator", "dut");
@@ -59,7 +58,7 @@ describe("fully differential ideal comparator", () => {
     expect(project).toEqual(before);
   });
 
-  it.each(["spice", "spectre", "vacask"] as const)(
+  it.each(["spice", "spectre"] as const)(
     "exports numeric levels and two output equations in %s without unused supplies",
     (format) => {
       const project = comparatorProject({
@@ -67,23 +66,11 @@ describe("fully differential ideal comparator", () => {
         vlow: "-1",
         vtransition: "10m",
       });
-      const analysis = analyzeDesignNetlist(project, {
-        format: format === "vacask" ? "spice" : format,
-      });
+      const analysis = analyzeDesignNetlist(project, { format });
       expect(analysis.ir, JSON.stringify(analysis.diagnostics)).not.toBeNull();
       if (!analysis.ir) return;
-      const result =
-        format === "vacask"
-          ? printVacaskWithLocations(analysis.ir)
-          : createDesignNetlistExport(project, { format });
-      const text =
-        "ok" in result
-          ? result.ok
-            ? result.text
-            : ""
-          : result.status === "ready"
-            ? result.file.text
-            : "";
+      const result = createDesignNetlistExport(project, { format });
+      const text = result.status === "ready" ? result.file.text : "";
       expect(text).toContain("icm_ideal_comparator_differential");
       expect(text).toMatch(/(?:Bcmp|bcmp)\b.*VOP/u);
       expect(text).toMatch(/(?:Bcmpn|bcmpn)\b.*VON/u);
@@ -93,29 +80,16 @@ describe("fully differential ideal comparator", () => {
     },
   );
 
-  it.each(["spectre", "vacask"] as const)(
-    "uses its VDD body and consumes the keyword before %s printing",
-    (format) => {
-      const project = comparatorProject({ vhigh: "VDD" });
-      const analysis = analyzeDesignNetlist(project);
-      if (!analysis.ir) throw Error(JSON.stringify(analysis.diagnostics));
-      const result =
-        format === "vacask"
-          ? printVacaskWithLocations(analysis.ir)
-          : createDesignNetlistExport(project, { format });
-      const text =
-        "ok" in result
-          ? result.ok
-            ? result.text
-            : ""
-          : result.status === "ready"
-            ? result.file.text
-            : "";
-      expect(text).toContain("icm_ideal_comparator_differential_vdd");
-      expect(text).toMatch(/1-tanh/u);
-      expect(text).not.toMatch(/vhigh=VDD/u);
-    },
-  );
+  it("uses its VDD body and consumes the keyword before spectre printing", () => {
+    const project = comparatorProject({ vhigh: "VDD" });
+    const analysis = analyzeDesignNetlist(project);
+    if (!analysis.ir) throw Error(JSON.stringify(analysis.diagnostics));
+    const result = createDesignNetlistExport(project, { format: "spectre" });
+    const text = result.status === "ready" ? result.file.text : "";
+    expect(text).toContain("icm_ideal_comparator_differential_vdd");
+    expect(text).toMatch(/1-tanh/u);
+    expect(text).not.toMatch(/vhigh=VDD/u);
+  });
 
   it("rejects invalid parameters with the same comparator diagnostics", () => {
     const result = createDesignNetlistExport(

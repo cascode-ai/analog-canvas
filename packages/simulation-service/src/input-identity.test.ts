@@ -76,7 +76,6 @@ describe("Project input identity", () => {
     if (!prepared.ok) throw new Error(JSON.stringify(prepared));
     const cache = new ProjectInputIdentity();
     const capturedRevision = await sourceInputRevision(folder, prepared);
-    await cache.read(project, folder.id, undefined, "vacask");
     expect(await cache.read(project, folder.id, undefined, "ngspice")).toBe(
       capturedRevision,
     );
@@ -101,7 +100,10 @@ describe("Project input identity", () => {
         configPath: "experiment.json",
         circuitBindings: [],
         files: [
-          { path: "tb.cir", text: "title\nparameters BIAS=1\ncontrol\nendc\n" },
+          {
+            path: "tb.cir",
+            text: "title\n.param BIAS=1\n.control\nop\n.endc\n.end\n",
+          },
           {
             path: "experiment.json",
             text: JSON.stringify({
@@ -128,7 +130,7 @@ describe("Project input identity", () => {
     project.structureRevision++;
     expect(await cache.read(project, "s")).toBe(hash);
     const input = project.simulationFolders[0]!.input;
-    input.files[0]!.text += "\n// changed";
+    input.files[0]!.text += "\n* changed";
     project.structureRevision++;
     expect(await cache.read(project, "s")).not.toBe(hash);
     project.simulationFolders = [];

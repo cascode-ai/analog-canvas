@@ -25716,7 +25716,6 @@
                   "rawfileCollection": {
                     "type": "string",
                     "enum": [
-                      "native-multi-ascii",
                       "declared-single-ascii"
                     ]
                   },
@@ -25771,28 +25770,80 @@
                           "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
                         },
                         "label": {
-                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema12"
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 128
                         },
                         "engine": {
-                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema13"
+                          "type": "string",
+                          "const": "ngspice"
                         },
                         "corners": {
-                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
                         },
                         "devices": {
-                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema15"
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 256
+                          }
                         },
                         "dependencies": {
-                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema16"
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
+                              },
+                              "sha256": {
+                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema11"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "sha256"
+                            ],
+                            "additionalProperties": false
+                          }
                         },
                         "cellLibraries": {
-                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema17"
-                        },
-                        "modelSymbols": {
-                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema18"
-                        },
-                        "modelLibrary": {
-                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema22"
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
+                              },
+                              "sha256": {
+                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema11"
+                              },
+                              "cells": {
+                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
+                              },
+                              "masters": {
+                                "type": "array",
+                                "items": {
+                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
+                                }
+                              },
+                              "directive": {
+                                "type": "string",
+                                "const": "include"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "sha256",
+                              "cells",
+                              "directive"
+                            ],
+                            "additionalProperties": false
+                          }
                         }
                       },
                       "required": [
@@ -25918,7 +25969,7 @@
                 "const": true
               },
               "prepared": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema23"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema12"
               },
               "apiVersion": {
                 "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema3"
@@ -25990,10 +26041,10 @@
                         "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
                       },
                       "execution": {
-                        "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema30"
+                        "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema19"
                       },
                       "collection": {
-                        "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema31"
+                        "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema20"
                       },
                       "datasetCount": {
                         "type": "integer",
@@ -26006,19 +26057,19 @@
                           "type": "object",
                           "properties": {
                             "analysisIndex": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema32"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema21"
                             },
                             "analysis": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema33"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema22"
                             },
                             "plotName": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema34"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema23"
                             },
                             "pointCount": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema35"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema24"
                             },
                             "axis": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema36"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
                             }
                           },
                           "required": [
@@ -26115,13 +26166,13 @@
                     "additionalProperties": false
                   },
                   "catalog": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema37"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema26"
                   },
                   "result": {
                     "type": "object",
                     "properties": {
                       "outcome": {
-                        "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema42"
+                        "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema31"
                       },
                       "diagnostics": {
                         "type": "array",
@@ -26200,13 +26251,13 @@
                                 ]
                               },
                               "netlistSha256": {
-                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema43"
+                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema32"
                               },
                               "testbenchSha256": {
-                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema43"
+                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema32"
                               },
                               "deckSha256": {
-                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema43"
+                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema32"
                               }
                             },
                             "required": [
@@ -26307,10 +26358,7 @@
                                 "properties": {
                                   "name": {
                                     "type": "string",
-                                    "enum": [
-                                      "vacask",
-                                      "ngspice"
-                                    ]
+                                    "const": "ngspice"
                                   },
                                   "version": {
                                     "type": "string"
@@ -26406,17 +26454,17 @@
                                   "type": "object",
                                   "properties": {
                                     "rawPlotOrdinals": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema44"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema33"
                                     },
                                     "analysis": {
                                       "type": "string",
                                       "const": "op"
                                     },
                                     "postprocessor": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema46"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema35"
                                     },
                                     "scalars": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema47"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema36"
                                     },
                                     "plotName": {
                                       "type": "string"
@@ -26427,13 +26475,13 @@
                                         "type": "object",
                                         "properties": {
                                           "name": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema48"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema37"
                                           },
                                           "quantity": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema49"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema38"
                                           },
                                           "unit": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema50"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema39"
                                           },
                                           "value": {
                                             "type": "number"
@@ -26464,13 +26512,13 @@
                                       "const": "ac"
                                     },
                                     "postprocessor": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema46"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema35"
                                     },
                                     "scalars": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema47"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema36"
                                     },
                                     "rawPlotOrdinals": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema44"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema33"
                                     },
                                     "plotName": {
                                       "type": "string"
@@ -26487,13 +26535,13 @@
                                         "type": "object",
                                         "properties": {
                                           "name": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema48"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema37"
                                           },
                                           "quantity": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema49"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema38"
                                           },
                                           "unit": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema50"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema39"
                                           },
                                           "real": {
                                             "type": "array",
@@ -26535,13 +26583,13 @@
                                       "const": "dc"
                                     },
                                     "postprocessor": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema46"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema35"
                                     },
                                     "scalars": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema47"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema36"
                                     },
                                     "rawPlotOrdinals": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema44"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema33"
                                     },
                                     "plotName": {
                                       "type": "string"
@@ -26550,13 +26598,13 @@
                                       "type": "object",
                                       "properties": {
                                         "name": {
-                                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema48"
+                                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema37"
                                         },
                                         "quantity": {
-                                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema49"
+                                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema38"
                                         },
                                         "unit": {
-                                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema50"
+                                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema39"
                                         },
                                         "values": {
                                           "type": "array",
@@ -26579,13 +26627,13 @@
                                         "type": "object",
                                         "properties": {
                                           "name": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema48"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema37"
                                           },
                                           "quantity": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema49"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema38"
                                           },
                                           "unit": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema50"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema39"
                                           },
                                           "value": {
                                             "type": "array",
@@ -26620,13 +26668,13 @@
                                       "const": "tran"
                                     },
                                     "postprocessor": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema46"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema35"
                                     },
                                     "scalars": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema47"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema36"
                                     },
                                     "rawPlotOrdinals": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema44"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema33"
                                     },
                                     "plotName": {
                                       "type": "string"
@@ -26643,13 +26691,13 @@
                                         "type": "object",
                                         "properties": {
                                           "name": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema48"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema37"
                                           },
                                           "quantity": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema49"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema38"
                                           },
                                           "unit": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema50"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema39"
                                           },
                                           "value": {
                                             "type": "array",
@@ -26684,13 +26732,13 @@
                                       "const": "noise"
                                     },
                                     "postprocessor": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema46"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema35"
                                     },
                                     "scalars": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema47"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema36"
                                     },
                                     "rawPlotOrdinals": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema44"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema33"
                                     },
                                     "plotName": {
                                       "type": "string",
@@ -26737,13 +26785,13 @@
                                         "type": "object",
                                         "properties": {
                                           "name": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema48"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema37"
                                           },
                                           "quantity": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema49"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema38"
                                           },
                                           "unit": {
-                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema50"
+                                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema39"
                                           },
                                           "value": {
                                             "type": "array",
@@ -26815,25 +26863,25 @@
                               "type": "object",
                               "properties": {
                                 "ordinal": {
-                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema51"
+                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema40"
                                 },
                                 "artifactPath": {
-                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema52"
+                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema41"
                                 },
                                 "artifactPlotOrdinal": {
-                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema53"
+                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema42"
                                 },
                                 "plotName": {
-                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema54"
+                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema43"
                                 },
                                 "pointCount": {
-                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema55"
+                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema44"
                                 },
                                 "variables": {
-                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema56"
+                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema45"
                                 },
                                 "analysisIndex": {
-                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema57"
+                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema46"
                                 }
                               },
                               "required": [
@@ -26916,7 +26964,7 @@
                                   "type": "object",
                                   "properties": {
                                     "runs": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema58"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema47"
                                     }
                                   },
                                   "required": [
@@ -27214,10 +27262,10 @@
                           "type": "object",
                           "properties": {
                             "postprocessor": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema46"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema35"
                             },
                             "rawPlotOrdinals": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema44"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema33"
                             },
                             "analysis": {
                               "type": "string",
@@ -27272,17 +27320,17 @@
                                   "values": {
                                     "type": "array",
                                     "items": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema61"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema50"
                                     }
                                   },
                                   "imaginary": {
                                     "type": "array",
                                     "items": {
-                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema61"
+                                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema50"
                                     }
                                   },
                                   "semantics": {
-                                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema62"
+                                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema51"
                                   }
                                 },
                                 "required": [
@@ -27297,13 +27345,13 @@
                             "scalars": {
                               "type": "array",
                               "items": {
-                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema63"
+                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema52"
                               }
                             },
                             "integrated": {
                               "type": "array",
                               "items": {
-                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema63"
+                                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema52"
                               }
                             }
                           },
@@ -27323,7 +27371,7 @@
                               "type": "object",
                               "properties": {
                                 "rawPlotOrdinals": {
-                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema44"
+                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema33"
                                 },
                                 "id": {
                                   "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
@@ -27449,7 +27497,7 @@
                               "type": "object",
                               "properties": {
                                 "rawPlotOrdinals": {
-                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema44"
+                                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema33"
                                 },
                                 "id": {
                                   "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
@@ -27585,7 +27633,7 @@
                               "maximum": 9007199254740991
                             },
                             "rawPlotOrdinals": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema44"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema33"
                             },
                             "id": {
                               "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
@@ -27710,7 +27758,7 @@
                               "maximum": 9007199254740991
                             },
                             "rawPlotOrdinals": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema44"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema33"
                             }
                           },
                           "required": [
@@ -27735,7 +27783,7 @@
                   "artifacts": {
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema29"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema18"
                     }
                   }
                 },
@@ -27775,7 +27823,7 @@
                 "const": true
               },
               "catalog": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema37"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema26"
               },
               "page": {
                 "type": "object",
@@ -27850,16 +27898,16 @@
                       "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
                     },
                     "inputRevision": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema38"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema27"
                     },
                     "source": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema39"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema28"
                     },
                     "execution": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema30"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema19"
                     },
                     "collection": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema31"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema20"
                     },
                     "storedAt": {
                       "type": "number"
@@ -27882,7 +27930,7 @@
                       "maximum": 9007199254740991
                     },
                     "retention": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema64"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema53"
                     },
                     "archiveCount": {
                       "type": "integer",
@@ -28036,7 +28084,7 @@
                     "type": "boolean"
                   },
                   "retention": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema64"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema53"
                   },
                   "archiveCount": {
                     "type": "integer",
@@ -28130,7 +28178,7 @@
                   "expiresAt": {
                     "anyOf": [
                       {
-                        "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema65"
+                        "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema54"
                       },
                       {
                         "type": "null"
@@ -28143,7 +28191,7 @@
                     "maxItems": 16,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema66"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema55"
                     }
                   }
                 },
@@ -28185,7 +28233,7 @@
               "artifacts": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema29"
+                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema18"
                 }
               },
               "apiVersion": {
@@ -28719,181 +28767,6 @@
             "pattern": "^[a-f0-9]{64}$"
           },
           "__schema12": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 128
-          },
-          "__schema13": {
-            "type": "string",
-            "enum": [
-              "ngspice",
-              "vacask"
-            ]
-          },
-          "__schema14": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "__schema15": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 256
-            }
-          },
-          "__schema16": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
-                },
-                "sha256": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema11"
-                }
-              },
-              "required": [
-                "id",
-                "sha256"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "__schema17": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
-                },
-                "sha256": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema11"
-                },
-                "cells": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
-                },
-                "masters": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
-                  }
-                },
-                "directive": {
-                  "type": "string",
-                  "const": "include"
-                }
-              },
-              "required": [
-                "id",
-                "sha256",
-                "cells",
-                "directive"
-              ],
-              "additionalProperties": false
-            }
-          },
-          "__schema18": {
-            "maxItems": 32,
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema19"
-            }
-          },
-          "__schema19": {
-            "type": "object",
-            "properties": {
-              "dependencyId": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
-              },
-              "sha256": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema11"
-              },
-              "section": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128
-              },
-              "masters": {
-                "maxItems": 256,
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema20"
-                }
-              }
-            },
-            "required": [
-              "dependencyId",
-              "sha256",
-              "masters"
-            ],
-            "additionalProperties": false
-          },
-          "__schema20": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
-              },
-              "primitives": {
-                "maxItems": 256,
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema21"
-                }
-              }
-            },
-            "required": [
-              "name",
-              "primitives"
-            ],
-            "additionalProperties": false
-          },
-          "__schema21": {
-            "type": "object",
-            "properties": {
-              "path": {
-                "maxItems": 64,
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
-                }
-              },
-              "module": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
-              }
-            },
-            "required": [
-              "path",
-              "module"
-            ],
-            "additionalProperties": false
-          },
-          "__schema22": {
-            "type": "object",
-            "properties": {
-              "dependencyId": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
-              },
-              "defaultSection": {
-                "type": "string",
-                "minLength": 1
-              },
-              "defaultScale": {
-                "type": "number",
-                "exclusiveMinimum": 0
-              }
-            },
-            "required": [
-              "dependencyId"
-            ],
-            "additionalProperties": false
-          },
-          "__schema23": {
             "type": "object",
             "properties": {
               "id": {
@@ -28976,7 +28849,7 @@
                 }
               },
               "signalTargets": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema24"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema13"
               },
               "outputs": {
                 "type": "array",
@@ -28992,7 +28865,7 @@
                       "maxLength": 128
                     },
                     "expression": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                     }
                   },
                   "required": [
@@ -29065,7 +28938,7 @@
                             ]
                           },
                           "expression": {
-                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                            "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                           }
                         },
                         "required": [
@@ -29156,7 +29029,7 @@
                               "const": "minimum"
                             },
                             "window": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema26"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema15"
                             }
                           },
                           "required": [
@@ -29172,7 +29045,7 @@
                               "const": "maximum"
                             },
                             "window": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema26"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema15"
                             }
                           },
                           "required": [
@@ -29188,7 +29061,7 @@
                               "const": "peak-to-peak"
                             },
                             "window": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema26"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema15"
                             }
                           },
                           "required": [
@@ -29204,7 +29077,7 @@
                               "const": "mean"
                             },
                             "window": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema26"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema15"
                             }
                           },
                           "required": [
@@ -29221,7 +29094,7 @@
                               "const": "rms"
                             },
                             "window": {
-                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema26"
+                              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema15"
                             }
                           },
                           "required": [
@@ -29246,7 +29119,7 @@
               "artifacts": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema29"
+                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema18"
                 }
               },
               "warnings": {
@@ -29271,7 +29144,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema24": {
+          "__schema13": {
             "type": "object",
             "propertyNames": {
               "type": "string"
@@ -29325,7 +29198,7 @@
               }
             }
           },
-          "__schema25": {
+          "__schema14": {
             "oneOf": [
               {
                 "type": "object",
@@ -29382,7 +29255,7 @@
                     "const": "negate"
                   },
                   "operand": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   }
                 },
                 "required": [
@@ -29399,7 +29272,7 @@
                     "const": "magnitude"
                   },
                   "operand": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   }
                 },
                 "required": [
@@ -29416,7 +29289,7 @@
                     "const": "db20"
                   },
                   "operand": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   }
                 },
                 "required": [
@@ -29433,7 +29306,7 @@
                     "const": "phase"
                   },
                   "operand": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   }
                 },
                 "required": [
@@ -29450,7 +29323,7 @@
                     "const": "real"
                   },
                   "operand": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   }
                 },
                 "required": [
@@ -29467,7 +29340,7 @@
                     "const": "imaginary"
                   },
                   "operand": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   }
                 },
                 "required": [
@@ -29484,7 +29357,7 @@
                     "const": "absolute"
                   },
                   "operand": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   }
                 },
                 "required": [
@@ -29501,10 +29374,10 @@
                     "const": "add"
                   },
                   "left": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   },
                   "right": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   }
                 },
                 "required": [
@@ -29522,10 +29395,10 @@
                     "const": "subtract"
                   },
                   "left": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   },
                   "right": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   }
                 },
                 "required": [
@@ -29543,10 +29416,10 @@
                     "const": "multiply"
                   },
                   "left": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   },
                   "right": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   }
                 },
                 "required": [
@@ -29564,10 +29437,10 @@
                     "const": "divide"
                   },
                   "left": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   },
                   "right": {
-                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
+                    "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema14"
                   }
                 },
                 "required": [
@@ -29579,14 +29452,14 @@
               }
             ]
           },
-          "__schema26": {
+          "__schema15": {
             "type": "object",
             "properties": {
               "start": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema27"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema16"
               },
               "stop": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema28"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema17"
               }
             },
             "required": [
@@ -29595,13 +29468,13 @@
             ],
             "additionalProperties": false
           },
-          "__schema27": {
+          "__schema16": {
             "type": "number"
           },
-          "__schema28": {
+          "__schema17": {
             "type": "number"
           },
-          "__schema29": {
+          "__schema18": {
             "type": "object",
             "properties": {
               "id": {
@@ -29659,7 +29532,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema30": {
+          "__schema19": {
             "type": "string",
             "enum": [
               "pending",
@@ -29671,7 +29544,7 @@
               "lost"
             ]
           },
-          "__schema31": {
+          "__schema20": {
             "type": "string",
             "enum": [
               "pending",
@@ -29679,12 +29552,12 @@
               "partial"
             ]
           },
-          "__schema32": {
+          "__schema21": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "__schema33": {
+          "__schema22": {
             "type": "string",
             "enum": [
               "op",
@@ -29694,15 +29567,15 @@
               "noise"
             ]
           },
-          "__schema34": {
+          "__schema23": {
             "type": "string"
           },
-          "__schema35": {
+          "__schema24": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "__schema36": {
+          "__schema25": {
             "type": "object",
             "properties": {
               "name": {
@@ -29725,7 +29598,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema37": {
+          "__schema26": {
             "type": "object",
             "properties": {
               "schemaVersion": {
@@ -29739,23 +29612,23 @@
                 "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
               },
               "inputRevision": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema38"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema27"
               },
               "source": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema39"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema28"
               },
               "retentionPolicy": {
                 "type": "string",
                 "const": "cache"
               },
               "signalTargets": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema24"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema13"
               },
               "execution": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema30"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema19"
               },
               "collection": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema31"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema20"
               },
               "error": {
                 "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema5"
@@ -29763,7 +29636,7 @@
               "files": {
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema29"
+                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema18"
                 }
               },
               "datasets": {
@@ -29775,19 +29648,19 @@
                       "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema6"
                     },
                     "analysisIndex": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema32"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema21"
                     },
                     "analysis": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema33"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema22"
                     },
                     "plotName": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema34"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema23"
                     },
                     "pointCount": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema35"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema24"
                     },
                     "axis": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema36"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema25"
                     },
                     "signals": {
                       "type": "array",
@@ -29922,10 +29795,10 @@
             ],
             "additionalProperties": false
           },
-          "__schema38": {
+          "__schema27": {
             "type": "string"
           },
-          "__schema39": {
+          "__schema28": {
             "oneOf": [
               {
                 "type": "object",
@@ -29963,14 +29836,14 @@
                         "maxItems": 16,
                         "type": "array",
                         "items": {
-                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema40"
+                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema29"
                         }
                       },
                       "variables": {
                         "maxItems": 16,
                         "type": "array",
                         "items": {
-                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema41"
+                          "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema30"
                         }
                       }
                     },
@@ -30009,7 +29882,7 @@
               }
             ]
           },
-          "__schema40": {
+          "__schema29": {
             "type": "object",
             "properties": {
               "documentId": {
@@ -30036,7 +29909,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema41": {
+          "__schema30": {
             "type": "object",
             "properties": {
               "variableId": {
@@ -30054,7 +29927,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema42": {
+          "__schema31": {
             "oneOf": [
               {
                 "type": "object",
@@ -30114,23 +29987,23 @@
               }
             ]
           },
-          "__schema43": {
+          "__schema32": {
             "type": "string",
             "pattern": "^[a-f0-9]{64}$"
           },
-          "__schema44": {
+          "__schema33": {
             "minItems": 1,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema45"
+              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema34"
             }
           },
-          "__schema45": {
+          "__schema34": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "__schema46": {
+          "__schema35": {
             "type": "object",
             "properties": {
               "logLine": {
@@ -30144,19 +30017,19 @@
             ],
             "additionalProperties": false
           },
-          "__schema47": {
+          "__schema36": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
                 "name": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema48"
+                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema37"
                 },
                 "quantity": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema49"
+                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema38"
                 },
                 "unit": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema50"
+                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema39"
                 },
                 "value": {
                   "type": "number"
@@ -30174,13 +30047,13 @@
               "additionalProperties": false
             }
           },
-          "__schema48": {
+          "__schema37": {
             "type": "string"
           },
-          "__schema49": {
+          "__schema38": {
             "type": "string"
           },
-          "__schema50": {
+          "__schema39": {
             "anyOf": [
               {
                 "type": "string"
@@ -30190,51 +30063,51 @@
               }
             ]
           },
-          "__schema51": {
+          "__schema40": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "__schema52": {
+          "__schema41": {
             "type": "string",
             "minLength": 1
           },
-          "__schema53": {
+          "__schema42": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "__schema54": {
+          "__schema43": {
             "type": "string"
           },
-          "__schema55": {
+          "__schema44": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "__schema56": {
+          "__schema45": {
             "type": "array",
             "items": {
               "type": "string"
             }
           },
-          "__schema57": {
+          "__schema46": {
             "type": "integer",
             "minimum": 0,
             "maximum": 9007199254740991
           },
-          "__schema58": {
+          "__schema47": {
             "minItems": 1,
             "maxItems": 16,
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema59"
+              "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema48"
             }
           },
-          "__schema59": {
+          "__schema48": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema60"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema49"
               },
               {
                 "type": "object",
@@ -30258,7 +30131,7 @@
                     "maxItems": 16,
                     "type": "array",
                     "items": {
-                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema60"
+                      "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema49"
                     }
                   }
                 },
@@ -30295,7 +30168,7 @@
               }
             ]
           },
-          "__schema60": {
+          "__schema49": {
             "type": "object",
             "properties": {
               "kind": {
@@ -30314,7 +30187,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema61": {
+          "__schema50": {
             "anyOf": [
               {
                 "type": "number"
@@ -30324,7 +30197,7 @@
               }
             ]
           },
-          "__schema62": {
+          "__schema51": {
             "type": "object",
             "properties": {
               "valueKind": {
@@ -30356,7 +30229,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema63": {
+          "__schema52": {
             "type": "object",
             "properties": {
               "id": {
@@ -30375,7 +30248,7 @@
                 "type": "number"
               },
               "semantics": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema62"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema51"
               }
             },
             "required": [
@@ -30386,7 +30259,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema64": {
+          "__schema53": {
             "type": "string",
             "enum": [
               "saved",
@@ -30396,10 +30269,10 @@
               "unverified"
             ]
           },
-          "__schema65": {
+          "__schema54": {
             "type": "number"
           },
-          "__schema66": {
+          "__schema55": {
             "type": "object",
             "properties": {
               "id": {
@@ -30414,7 +30287,7 @@
                 "maxLength": 256
               },
               "prepared": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema23"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema12"
               },
               "state": {
                 "type": "string",
@@ -30438,17 +30311,17 @@
                 "maxItems": 4,
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema67"
+                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema56"
                 }
               },
               "outcome": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema42"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema31"
               },
               "execution": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema30"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema19"
               },
               "collection": {
-                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema31"
+                "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema20"
               },
               "datasetCount": {
                 "type": "integer",
@@ -30490,7 +30363,7 @@
                 "maxItems": 64,
                 "type": "array",
                 "items": {
-                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema68"
+                  "$ref": "#/components/schemas/agentSimulationResourceResponse/$defs/__schema57"
                 }
               }
             },
@@ -30502,7 +30375,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema67": {
+          "__schema56": {
             "type": "object",
             "properties": {
               "axis": {
@@ -30556,7 +30429,7 @@
             ],
             "additionalProperties": false
           },
-          "__schema68": {
+          "__schema57": {
             "oneOf": [
               {
                 "type": "object",

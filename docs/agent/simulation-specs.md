@@ -3,21 +3,17 @@
 ## Engines
 
 Scalar generation and acceptance are separate. ngspice computes measurements
-with native `meas`/`.meas`; VACASK with authored Python `report_measurement`
-(helper `embed` from `simulation` / `authoring-help`, run through native
-`postprocess`). Never translate either literally into the other. Annotate with
-standalone `* @spec` comments for ngspice and `// @spec` for VACASK; the
-execution engine picks the adapter (no extension guessing or SPICE fallback).
-VACASK's literal includes and selected sections are traversed; strings,
-embedded Python, block comments and unreachable files are not annotation
-sources. VACASK measurement names are case-sensitive; ngspice's are not. Both
-feed one evaluation path, from the captured execution input, never live edits.
-A scalar report alone is not an evaluated rule: inspect `specs.json`.
+with native `meas`/`.meas`. Annotate with standalone `* @spec` comments; the
+execution engine collects them from reachable source files (strings, block
+comments and unreachable files are not annotation sources). ngspice measurement
+names are case-insensitive. All evaluations read the captured execution input,
+never live edits. A scalar report alone is not an evaluated rule: inspect
+`specs.json`.
 
 ## Grammar
 
-`* @spec NAME [CONDITION] [unit=UNIT] [group=NAME] [label=JSON]` (`//` for
-VACASK), beside a uniquely named measurement in a reachable source file:
+`* @spec NAME [CONDITION] [unit=UNIT] [group=NAME] [label=JSON]`, beside a
+uniquely named measurement in a reachable source file:
 
 ```spice
 * @spec peak <= 1.8 unit=V
@@ -32,8 +28,8 @@ VACASK), beside a uniquely named measurement in a reachable source file:
 - Conditions: `< N`, `<= N`, `> N`, `>= N`, `range MIN MAX` (inclusive),
   `target VALUE tol ABSOLUTE_TOLERANCE`. Numbers are decimal/scientific or
   take one SPICE scale suffix, case-insensitive: `f p n u m k meg g t`
-  (`16.5u` judges as `16.5e-6`, `2.5MEG` as `2.5e6`). A bare `M` is refused,
-  since SPICE reads it as milli and VACASK as mega: write `m` or `meg`.
+  (`16.5u` judges as `16.5e-6`, `2.5MEG` as `2.5e6`). A bare `M` is refused
+  as ambiguous between milli and mega: write `m` or `meg`.
   Atto, `mil`, trailing unit text (`10kOhm`) and expressions are unsupported.
 - `unit` declares the measurement's numeric unit; it is not inferred or
   dimension-checked (a result in seconds is `1e-6 unit=s`, not `1 unit=us`).
@@ -60,10 +56,6 @@ reports no value ("out of interval"): its Spec is `measurement-missing`, with
 that hint in its detail, or, when the run then fails, every Spec is
 `run-incomplete`. Sweep across the point instead (`dc vin 0.8 1.0 0.01`).
 
-Without a rule, each valid VACASK `report_measurement` value still appears as
-`unconstrained` with the postprocessor's declared unit. Unavailable reports
-keep their failure and Console line.
-
 ## Verdicts
 
 Judgments: `pass`, `failed`, `not-evaluated`, `unconstrained`. Reasons:
@@ -80,9 +72,8 @@ passing.
 
 `specs.json` (GUI `outputData.specs`) holds runId, preparedId, inputDigest and
 per result: source path/line/text, measurement name, occurrence, value, unit,
-structured condition, judgment, reason and logLine. Report-only VACASK results
-use `source.kind: "log"`, `path: "log.txt"` and the Console line (no `kind`
-means authored input). `specs.csv` keeps result and provenance plus appended
+structured condition, judgment, reason and logLine. `specs.csv` keeps result
+and provenance plus appended
 label text, group, `source kind` and detail columns; earlier columns never
 move; spreadsheet-formula-leading text is escaped. Clients with strict report
 schemas must accept the optional `label` and `group`. Run receipts give counts

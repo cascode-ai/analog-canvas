@@ -4,7 +4,6 @@ import { createEmptyProject } from "@icm/model";
 
 import { createDesignNetlistExport, designExtractsNetlist } from "./export.js";
 import { analyzeDesignNetlist } from "./extract.js";
-import { printVacaskWithLocations } from "./vacask-printer.js";
 
 const CARD = ".model DIODE D(IS=1e-14 N=1)";
 
@@ -151,13 +150,6 @@ describe("the generic diode model (#1310)", () => {
       expect(spectre.file.text).toContain(
         "model DSCH diode is=1e-8 n=1.05 rs=1",
       );
-    const printed = printVacaskWithLocations(
-      analyzeDesignNetlist(project).ir!,
-      false,
-    );
-    expect(printed.ok && printed.text).toContain(
-      "model DSCH sp_diode is=1e-8 n=1.05 rs=1",
-    );
   });
 
   it("leaves a diode bound to any other model as it was", () => {
@@ -238,17 +230,5 @@ describe("the generic diode model (#1310)", () => {
       { format: "spectre", deckSources: [] },
     );
     expect(run.ir!.cells.flatMap((cell) => cell.models ?? [])).toEqual([]);
-  });
-
-  it("writes the same diode for VACASK", () => {
-    const ir = analyzeDesignNetlist(
-      diodeProject([{ id: "d1", reference: "D1" }]),
-    ).ir!;
-    const printed = printVacaskWithLocations(ir, false);
-    expect(printed.ok).toBe(true);
-    if (!printed.ok) return;
-    expect(printed.text).toContain('load "spice/diode.osdi"');
-    expect(printed.text).toContain("model DIODE sp_diode is=1e-14 n=1");
-    expect(printed.text).toContain("D1 (anode cathode) DIODE");
   });
 });

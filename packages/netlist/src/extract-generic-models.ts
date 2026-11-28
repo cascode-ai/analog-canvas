@@ -125,7 +125,7 @@ function importedModelTexts(project: CircuitProject): string[] {
 
 /**
  * Whether the author's own text defines a generic model's name, `.model
- * DIODE …` in SPICE or `model DIODE …` in VACASK and Spectre: a source file
+ * DIODE …` in SPICE or `model DIODE …` in Spectre: a source file
  * of the run this netlist is for, or the SPICE the Project was imported
  * from. That model is the author's. The card inside a Cell would shadow it
  * there, so no Cell carries one. Another simulation folder's files do not
@@ -277,9 +277,7 @@ export function reportGenericSchottkys(
  * are BSIM4 with its defaults, which take the nf every MOS carries where a
  * level-1 card refuses it: level 54 in SPICE, Spectre's own `bsim4`, so the
  * netlist reads in ngspice and Spectre alike (no other simulator is
- * promised). They are carried and replaced as the generic diode is. A
- * simulation run's deck carries none (#1420): VACASK has no mapping for a
- * Cell's own MOS card, and the run says it needs one.
+ * promised). They are carried and replaced as the generic diode is.
  */
 export const GENERIC_NMOS_MODEL: DesignNetlistModel = {
   name: GENERIC_MODEL_TARGETS.nmos,

@@ -105,7 +105,7 @@ function formatDiagnosticExamples(
     .map((diagnostic) => `${diagnostic.code}: ${diagnostic.primary.objectId}`);
 }
 
-const SIMULATION_SPEC_LINE = /^\s*(?:\*|\/\/)\s*@spec\b/imu;
+const SIMULATION_SPEC_LINE = /^\s*\*\s*@spec\b/imu;
 
 function folderHasSpecDeclaration(
   folder: NonNullable<CircuitProject["simulationFolders"]>[number],

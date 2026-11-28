@@ -18,6 +18,7 @@ import {
   newFolderProfile,
 } from "@icm/netlist";
 import { profileEngine } from "@icm/simulation-service";
+import hostedSky130Profile from "../../../../../containers/ngspice/hosted-sky130-profile.json" with { type: "json" };
 import type { ReleaseEvidence } from "@icm/simulation-service/files";
 import type { SimulationCodeWorkspaceProps } from "./code-workspace";
 import type {
@@ -1029,8 +1030,8 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
     }
     // Folder management must preserve unfinished code, not require a runnable deck.
     if (codeRef.current && !(await codeRef.current.save())) return;
-    // A folder set up before the environments arrived took the offline
-    // candidate, VACASK, unasked (#1349). Wait for them; offline it still does.
+    // Wait for environments before creating a folder so the Cell's qualified
+    // Profile is chosen; offline authoring falls back to the SKY130 ngspice id.
     let environments = capabilities;
     if (action === "new" && !environments) {
       const reply = await session.handle({ operation: "capabilities" });
@@ -1153,7 +1154,7 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
         environments?.profiles[0];
       const engine = profile
         ? profileEngine(profile, environments?.rawfileCollection)
-        : "vacask";
+        : "ngspice";
       if (!engine) {
         setProblem(
           uiProblem(
@@ -1170,9 +1171,9 @@ function SimulationSurface(props: SpiceSimulationSurfaceProps) {
             ? "dut"
             : "circuit",
         documentId: selection.documentId,
-        // Offline authoring uses the same candidate as the native starters.
+        // Offline authoring uses the default SKY130 ngspice Profile identity.
         // Prepare still requires that the connected service advertises it.
-        profileId: profile?.id ?? "vacask-sky130-candidate",
+        profileId: profile?.id ?? hostedSky130Profile.id,
         engine,
         template: "op",
       });

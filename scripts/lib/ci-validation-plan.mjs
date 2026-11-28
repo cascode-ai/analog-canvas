@@ -10,7 +10,7 @@ const CI_INFRA_PATH =
   /^(?:package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|vitest\.config\.ts|tsconfig[^/]*\.json|\.github\/workflows\/|config\/validation-gates\.json|scripts\/(?:ci-plan|check-core-results|ci-package-build|test-standalone-setup)\.mjs|scripts\/lib\/(?:ci-validation-plan|ci-package-build|validation-gates|verify-pr-selection)\.mjs)$/u;
 
 const STANDALONE_SCRIPT_PATH =
-  /^scripts\/(?:analyze-native-simulation-examples|build-native-simulation-examples|native-example-runner|run-native-simulation-examples|resource-seed-runtime|simulation-control-runtime)/u;
+  /^scripts\/(?:resource-seed-runtime|simulation-control-runtime)/u;
 
 const RELEASE_SCRIPT_PATH =
   /^scripts\/(?:package-|editor-|visual-golden|export-golden|pwa-icons|agent-api-artifacts|mcp-release|check-mcp-distribution|lib\/(?:headless-bundle|mcp-release-integrity))/u;

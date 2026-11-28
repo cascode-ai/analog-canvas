@@ -22,11 +22,11 @@ export function authoringEngine(
     folder.input.files.find((file) => file.path === folder.input.entry)?.text ??
     "";
   const lines = entry.split(/\r?\n/).slice(1);
-  const native = lines.some((line) =>
+  const legacy = lines.some((line) =>
     /^\s*(?:control|ground|include|parameters)\b/.test(line),
   );
   const spice = lines.some((line) =>
     /^\s*\.(?:control|include|lib|param|model|subckt|end)\b/i.test(line),
   );
-  return native === spice ? undefined : native ? "vacask" : "ngspice";
+  return spice && !legacy ? "ngspice" : undefined;
 }

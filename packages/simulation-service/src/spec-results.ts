@@ -1,13 +1,9 @@
-import {
-  inspectSimulationSourceGraph,
-  inspectVacaskSourceGraph,
-} from "@icm/netlist";
+import { inspectSimulationSourceGraph } from "@icm/netlist";
 import { parseSpiceSource } from "@icm/spice";
 import { flattenRichText } from "@icm/model";
 import type { SimulationOutputData } from "./contract.js";
 import type { ExecutionOutput } from "./executor.js";
 import { ngspiceMeasurementResults } from "./ngspice-measurements.js";
-import { vacaskMeasurementResults } from "./vacask-measurements.js";
 import {
   formatSimulationSpec,
   type SimulationSpecCondition,
@@ -55,12 +51,7 @@ export function simulationSpecReport(
   measurements: NonNullable<SimulationOutputData["nativeMeasurements"]>,
   identity: Pick<SimulationSpecReport, "runId" | "preparedId" | "inputDigest">,
   completed: boolean,
-  context: { engine: "ngspice" | "vacask"; log: string } = {
-    engine: "ngspice",
-    log: "",
-  },
 ): SimulationSpecReport {
-  const { engine } = context;
   const input = {
     kind: "source",
     entry,
@@ -69,68 +60,48 @@ export function simulationSpecReport(
     circuitBindings: [],
     dependencies: [],
   } satisfies import("@icm/model").SimulationSourceInput;
-  const graph =
-    engine === "ngspice" ? inspectSimulationSourceGraph(input) : null;
+  const graph = inspectSimulationSourceGraph(input);
   const definitions: Declaration[] = [];
-  if (engine === "vacask") {
-    const native = inspectVacaskSourceGraph(input, { includeComments: true });
-    const lines = new Map(files.map((f) => [f.path, f.text.split(/\r?\n/)]));
-    const seen = new Set<string>();
-    for (const { path, statement } of native.statements) {
+  for (const path of new Set(graph.paths)) {
+    const file = files.find((f) => f.path === path);
+    if (!file) continue;
+    const visits = graph.includes.filter((edge) => edge.target === path);
+    const plain =
+      path === entry || visits.some((edge) => edge.section === undefined);
+    const selected = new Set(
+      visits.flatMap((edge) =>
+        edge.section ? [edge.section.toLowerCase()] : [],
+      ),
+    );
+    const parsed = parseSpiceSource(
+      { ...file, id: path, hash: "", encoding: "utf-8" },
+      { titleLine: path === entry },
+    );
+    const boundaries = new Map(
+      parsed.statements
+        .filter((s) => s.kind === "library" && s.mode !== "include")
+        .map((s) => [s.sourceRef.start.line, s]),
+    );
+    const sections: string[] = [];
+    file.text.split(/\r?\n/).forEach((text, index) => {
+      const line = index + 1;
+      const boundary = boundaries.get(line);
+      if (boundary?.kind === "library" && boundary.mode === "section-start")
+        sections.push(boundary.section.toLowerCase());
+      if (boundary?.kind === "library" && boundary.mode === "section-end")
+        sections.pop();
       if (
-        statement.tokens.length ||
-        !/^\/\/\s*@spec\b/i.test(statement.rawText)
+        (sections.length
+          ? !sections.some((section) => selected.has(section))
+          : !plain) ||
+        !/^\s*\*\s*@spec\b/i.test(text)
       )
-        continue;
-      const line = statement.sourceRef.start.line;
-      const text = lines.get(path)![line - 1]!;
-      if (!/^\s*\/\/\s*@spec\b/i.test(text)) continue;
-      const key = JSON.stringify([path, line]);
-      if (seen.has(key)) continue;
-      seen.add(key);
+        return;
       definitions.push(declaration({ path, line, text }));
-    }
-  } else
-    for (const path of new Set(graph!.paths)) {
-      const file = files.find((f) => f.path === path);
-      if (!file) continue;
-      const visits = graph!.includes.filter((edge) => edge.target === path);
-      const plain =
-        path === entry || visits.some((edge) => edge.section === undefined);
-      const selected = new Set(
-        visits.flatMap((edge) =>
-          edge.section ? [edge.section.toLowerCase()] : [],
-        ),
-      );
-      const parsed = parseSpiceSource(
-        { ...file, id: path, hash: "", encoding: "utf-8" },
-        { titleLine: path === entry },
-      );
-      const boundaries = new Map(
-        parsed.statements
-          .filter((s) => s.kind === "library" && s.mode !== "include")
-          .map((s) => [s.sourceRef.start.line, s]),
-      );
-      const sections: string[] = [];
-      file.text.split(/\r?\n/).forEach((text, index) => {
-        const line = index + 1;
-        const boundary = boundaries.get(line);
-        if (boundary?.kind === "library" && boundary.mode === "section-start")
-          sections.push(boundary.section.toLowerCase());
-        if (boundary?.kind === "library" && boundary.mode === "section-end")
-          sections.pop();
-        if (
-          (sections.length
-            ? !sections.some((section) => selected.has(section))
-            : !plain) ||
-          !/^\s*\*\s*@spec\b/i.test(text)
-        )
-          return;
-        definitions.push(declaration({ path, line, text }));
-      });
-    }
+    });
+  }
   const measurementSources = new Map<string, Source[]>();
-  for (const { path, statement } of graph?.statements ?? []) {
+  for (const { path, statement } of graph.statements) {
     const command =
       statement.kind === "control_command"
         ? statement.command
@@ -154,8 +125,7 @@ export function simulationSpecReport(
       sources.push(source);
     measurementSources.set(name.toLowerCase(), sources);
   }
-  const nameKey = (name: string) =>
-    engine === "vacask" ? name : name.toLowerCase();
+  const nameKey = (name: string) => name.toLowerCase();
   const defined = new Set(definitions.map((d) => nameKey(d.name)));
   for (const [name, sources] of measurementSources)
     if (!defined.has(name))
@@ -166,43 +136,19 @@ export function simulationSpecReport(
         expected: null,
         problems: [],
       });
-  const logLines = context.log.split(/\r?\n/);
-  const logSource = (m: (typeof measurements)[number]): Source => ({
-    kind: "log",
-    path: "log.txt",
-    line: m.logLine!,
-    text: logLines[m.logLine! - 1] ?? m.detail,
-  });
-  if (engine === "vacask") {
-    for (const m of measurements) {
-      const key = nameKey(m.name);
-      if (defined.has(key) || m.logLine === undefined) continue;
-      defined.add(key);
-      definitions.push({
-        name: m.name,
-        source: logSource(m),
-        unit: m.unit ?? "",
-        expected: null,
-        problems: [],
-      });
-    }
-  }
   const results = definitions.flatMap((d): SimulationSpecResult[] => {
     const key = nameKey(d.name);
     const found = measurements.filter((m) => nameKey(m.name) === key);
     return (found.length ? found : [null]).map((m) => {
       const value = m?.status === "available" ? m.value : null;
-      const source =
-        d.source.kind === "log" && m?.logLine !== undefined
-          ? logSource(m)
-          : d.source;
+      const source = d.source;
       const base = {
-        id: `${source.kind === "log" ? "log:" : ""}${source.path}:${source.line}:${m?.occurrence ?? 0}`,
+        id: `${source.path}:${source.line}:${m?.occurrence ?? 0}`,
         name: d.name || "Invalid spec",
         ...(d.label ? { label: d.label } : {}),
         ...(d.group ? { group: d.group } : {}),
         source,
-        unit: d.source.kind === "log" ? (m?.unit ?? "") : d.unit,
+        unit: d.unit,
         expected: d.expected,
         value,
         occurrence: m?.occurrence ?? 0,
@@ -237,7 +183,7 @@ export function simulationSpecReport(
       if (value === null)
         return unavailable(
           "measurement-missing",
-          m?.detail ?? "No matching native measurement was reported.",
+          m?.detail ?? "No matching measurement was reported.",
         );
       if (!d.expected)
         return {
@@ -278,35 +224,21 @@ export function executionSpecReport(
   diagnostics: SimulationOutputData["diagnostics"];
 } {
   const { result } = output;
-  const engine =
-    result.metadata.environment.simulator.name === "vacask"
-      ? "vacask"
-      : "ngspice";
   const entry = input.entryPath ?? "run.cir";
-  const native =
-    engine === "vacask"
-      ? vacaskMeasurementResults(
-          result.log,
-          result.outcome.status !== "completed-with-dropped-input",
-        )
-      : {
-          measurements: ngspiceMeasurementResults(
-            input.files,
-            entry,
-            result.log,
-          ),
-          diagnostics: [],
-        };
+  const measurements = ngspiceMeasurementResults(
+    input.files,
+    entry,
+    result.log,
+  );
   return {
     specs: simulationSpecReport(
       input.files,
       entry,
-      native.measurements,
+      measurements,
       identity,
       result.outcome.status === "completed" && !output.cancelled,
-      { engine, log: result.log },
     ),
-    diagnostics: native.diagnostics,
+    diagnostics: [],
   };
 }
 

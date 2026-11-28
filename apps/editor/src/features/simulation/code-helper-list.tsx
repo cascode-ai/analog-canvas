@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { nativeLanguageHelp, type NativeLanguageHelp } from "@icm/netlist";
-import { simulationLanguageHelp } from "@icm/spice";
+import {
+  simulationLanguageHelp,
+  type SimulationLanguageHelp,
+} from "@icm/spice";
 
 export interface CodeHelperAction {
   id: string;
@@ -10,15 +12,15 @@ export interface CodeHelperAction {
 }
 export function CodeHelperList({
   control,
-  language = "native",
+  language = "ngspice",
   actions = [],
   onChoose,
   onClose,
 }: {
   control: boolean;
-  language?: "native" | "ngspice" | "json";
+  language?: "ngspice" | "json";
   actions?: readonly CodeHelperAction[] | undefined;
-  onChoose(rule: NativeLanguageHelp): void;
+  onChoose(rule: SimulationLanguageHelp): void;
   onClose(restoreFocus?: boolean): void;
 }) {
   const [query, setQuery] = useState("");
@@ -27,24 +29,9 @@ export function CodeHelperList({
   const terms = query.trim().toLowerCase().split(/\s+/u);
   const matches = (text: string) =>
     terms.every((term) => text.toLowerCase().includes(term));
-  const catalogue: readonly NativeLanguageHelp[] =
-    language === "ngspice"
-      ? simulationLanguageHelp
-          .filter(
-            (rule) => rule.context === "deck" || rule.context === "control",
-          )
-          .map((rule) => ({
-            ...rule,
-            context:
-              rule.context === "deck"
-                ? ("circuit" as const)
-                : ("control" as const),
-            group: rule.group ?? "ngspice",
-          }))
-      : nativeLanguageHelp;
-  const rules = catalogue
+  const rules = simulationLanguageHelp
     .filter(() => language !== "json")
-    .filter((rule) => rule.context === (control ? "control" : "circuit"))
+    .filter((rule) => rule.context === (control ? "control" : "deck"))
     .filter((rule) => matches(`${rule.name} ${rule.summary} ${rule.keywords}`));
   const entries = [
     ...actions
@@ -60,7 +47,7 @@ export function CodeHelperList({
       key: `${rule.context}:${rule.name}`,
       label: rule.name,
       detail: rule.signature,
-      group: rule.group!,
+      group: rule.group ?? "ngspice",
       run: () => onChoose(rule),
     })),
   ];
@@ -145,7 +132,7 @@ export function CodeHelperList({
           </div>
         ))}
         {!entries.length && (
-          <p>No matching helper. You can keep writing native VACASK.</p>
+          <p>No matching helper. You can keep writing ngspice SPICE.</p>
         )}
       </div>
     </div>

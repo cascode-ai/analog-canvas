@@ -228,7 +228,7 @@ their IDs, never resolved to the first.
 - Transmission line (`transmission-line`, drawn T1): lossless, port 1 `P1`/`N1`,
   port 2 `P2`/`N2` (tie `N1`/`N2` to ground for a line over a shared
   reference); `z0` (`"50"`), `td` (`"1n"`; from frequency and electrical
-  length `td:"{0.25/1G}"`). SPICE `T`, Spectre `tline`; VACASK has none.
+  length `td:"{0.25/1G}"`). SPICE `T`, Spectre `tline`.
 - `set-terminal-net {target, pin, net}` sets a terminal no pin of the part's
   symbol draws, as its Properties row does: a block's or Circuit Component's
   `VDD`/`VSS` (fixes `MISSING_BLOCK_SUPPLY`), a SKY130 substrate (`B`, `SUB`,

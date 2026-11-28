@@ -15,7 +15,7 @@ async function openExperimentJson(page: Page) {
 }
 
 // What each Helper entry, completion and diagnostic writes is the language
-// modules' tests (vacask-language, code-native-language, spec-results). These
+// modules' tests (code-spice-language, simulation-language, spec-results). These
 // cases keep what only a browser shows: keyboard, focus, scroll and layout.
 test.beforeEach(async ({ page }) => {
   await page.route("**/code-component-check", (route) =>
@@ -34,11 +34,11 @@ test.beforeEach(async ({ page }) => {
   await expect(sourceEditor(page)).toBeVisible();
 });
 
-test("native save and dc arguments open automatically and preview their Canvas target", async ({
+test("SPICE save and dc arguments open automatically and preview their Canvas target", async ({
   page,
 }) => {
   const editor = sourceEditor(page);
-  await editor.fill("* test\ncontrol\nsave");
+  await editor.fill("* test\n.control\nsave");
   await page.keyboard.press("End");
   await page.keyboard.type(" ");
   const body = page.locator("body");
@@ -62,13 +62,13 @@ test("native save and dc arguments open automatically and preview their Canvas t
   await expect(body).toHaveAttribute("data-focused-signal", "v(out)");
   await page.keyboard.press("Escape");
   await expect(body).toHaveAttribute("data-focused-signal", "");
-  await editor.fill("* test\ncontrol\nsave v(out)");
+  await editor.fill("* test\n.control\nsave v(out)");
   await page.keyboard.press("End");
   await page.keyboard.press("ArrowLeft");
   await expect(body).toHaveAttribute("data-focused-signal", "v(out)");
   await editor.blur();
   await expect(body).toHaveAttribute("data-focused-signal", "");
-  await editor.fill("* test\ncontrol\nsweep bias instance=");
+  await editor.fill("* test\n.control\ndc");
   await page.keyboard.press("End");
   await page.keyboard.type(" ");
   await expect(
@@ -93,7 +93,7 @@ test("Helper finds commands by purpose, Tab fills ghost arguments that never rea
   await page.keyboard.press("Escape");
   await expect(popup).toHaveCount(0);
   // Unknown input offers help explicitly.
-  await editor.fill("* test\ncontrol\n频响");
+  await editor.fill("* test\n.control\n频响");
   await expect(
     page.getByRole("button", { name: "Find a helper…" }),
   ).toBeVisible();
@@ -101,37 +101,35 @@ test("Helper finds commands by purpose, Tab fills ghost arguments that never rea
   await expect(popup).toBeVisible();
   await page.keyboard.press("Escape");
   // A purpose finds the analysis; Tab moves through its ghost arguments.
-  await editor.fill("* test\ncontrol\n");
+  await editor.fill("* test\n.control\n");
   await page.getByRole("button", { name: "Helper", exact: true }).click();
   await page
     .getByRole("textbox", { name: "Search commands or purpose" })
     .fill("频响");
   await page.getByRole("option").click();
-  await expect(ghost).toContainText("from=start Hz");
+  await expect(ghost).toContainText("dec|oct|lin");
   await expect(page.getByTestId("draft-source")).toHaveText(
-    JSON.stringify("* test\r\ncontrol\r\nanalysis ac1 ac "),
+    JSON.stringify("* test\r\n.control\r\nac "),
   );
-  await page.keyboard.insertText("from=10");
+  await page.keyboard.insertText("dec");
   await page.keyboard.press("Tab");
-  await page.keyboard.insertText("to=1M");
+  await page.keyboard.insertText("20");
   await page.keyboard.press("Tab");
-  await page.keyboard.insertText('mode="dec"');
+  await page.keyboard.insertText("10");
   await page.keyboard.press("Tab");
-  await page.keyboard.insertText("points=20");
+  await page.keyboard.insertText("1M");
   await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByTestId("saved-source")).toHaveText(
-    JSON.stringify(
-      '* test\r\ncontrol\r\nanalysis ac1 ac from=10 to=1M mode="dec" points=20',
-    ),
+    JSON.stringify("* test\r\n.control\r\nac dec 20 10 1M"),
   );
   // Escape suppresses the ghosts for the rest of the line.
-  await editor.fill("* test\ncontrol\nanalysis ac1 ac ");
+  await editor.fill("* test\n.control\nac ");
   await expect(ghost).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(ghost).toHaveCount(0);
   await page.keyboard.insertText("dec");
   await expect(ghost).toHaveCount(0);
-  // VACASK rejects a SPICE `*` comment; `//` is its comment (#1315).
+  // SPICE uses `*` line comments for `@spec` annotations.
   await editor.fill("* test\n.control\nmeas tran peak MAX v(out)");
   await page.getByRole("button", { name: "Helper", exact: true }).click();
   await page
@@ -141,7 +139,7 @@ test("Helper finds commands by purpose, Tab fills ghost arguments that never rea
   await page.keyboard.insertText("peak");
   await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByTestId("saved-source")).toContainText(
-    "// @spec peak <= 1 unit=V",
+    "* @spec peak <= 1 unit=V",
   );
   await expect(editor).toContainText("meas tran peak MAX v(out)");
 });
@@ -151,18 +149,16 @@ test("diagnostics stay on their line: an invalid Spec before any run, invalid te
 }) => {
   const editor = sourceEditor(page);
   // The run's parser checks the annotation as it is written (#1311).
-  await editor.fill("Wien bridge\n// @spec per10 range 9.0ms 11.1ms unit=s\n");
+  await editor.fill("Wien bridge\n* @spec per10 range 9.0ms 11.1ms unit=s\n");
   await page.locator(".cm-lintRange").first().hover();
   await expect(page.locator(".cm-tooltip-lint")).toContainText(
     'Bound "9.0ms" is not a decimal or scientific number or one with a SPICE suffix (f p n u m k meg g t); write 9.0e-3.',
   );
-  await editor.fill("* test\ncontrol\nanalysis\nendc\n");
+  await editor.fill("* test\n.control\nac dec 10\n.endc\n");
   await expect(page.locator(".cm-lintRange-error")).toHaveCount(1);
   await page.getByRole("button", { name: "Save source" }).click();
-  await expect(page.getByTestId("saved-source")).toContainText("analysis");
-  await editor.fill(
-    "* test\ncontrol\nanalysis response tran step=1n stop=10u\nendc\n",
-  );
+  await expect(page.getByTestId("saved-source")).toContainText("ac dec 10");
+  await editor.fill("* test\n.control\nac dec 10 10 1M\n.endc\n");
   await expect(page.locator(".cm-lintRange-error")).toHaveCount(0);
 });
 

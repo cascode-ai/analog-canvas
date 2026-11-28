@@ -3,10 +3,7 @@ import type {
   ProjectSimulationFolder,
   SimulationRunVariant,
 } from "@icm/model";
-import {
-  compileSourceSimulation,
-  compileNgspiceSourceSimulation,
-} from "@icm/netlist";
+import { compileNgspiceSourceSimulation } from "@icm/netlist";
 import { sha256 } from "./content-digest.js";
 
 function canonicalJson(value: unknown): string {
@@ -29,7 +26,7 @@ function canonicalJson(value: unknown): string {
 export function sourceInputRevision(
   folder: ProjectSimulationFolder,
   compiled: Pick<
-    Extract<ReturnType<typeof compileSourceSimulation>, { ok: true }>,
+    Extract<ReturnType<typeof compileNgspiceSourceSimulation>, { ok: true }>,
     "electricalHash" | "files" | "outputs" | "deviceOperatingPoints" | "config"
   >,
 ) {
@@ -57,7 +54,7 @@ export class ProjectInputIdentity {
     project: CircuitProject,
     folderId: string,
     variant?: SimulationRunVariant,
-    engine: "ngspice" | "vacask" = "vacask",
+    engine: "ngspice" = "ngspice",
   ): Promise<string | null> {
     // Document edits (including W/L) need not advance structureRevision.
     const revision = JSON.stringify([
@@ -76,10 +73,7 @@ export class ProjectInputIdentity {
       (item) => item.id === folderId,
     );
     if (!folder) return Promise.resolve(null);
-    const compiled =
-      engine === "ngspice"
-        ? compileNgspiceSourceSimulation(project, folder, variant)
-        : compileSourceSimulation(project, folder, variant);
+    const compiled = compileNgspiceSourceSimulation(project, folder, variant);
     const reading = compiled.ok
       ? sourceInputRevision(folder, compiled)
       : Promise.resolve(null);

@@ -11,11 +11,11 @@ import { WorkspaceInteractions } from "../../src/features/simulation/workspace-i
 import "../../src/styles/editor-entry.css";
 
 const initial =
-  'Native 🧪\r\nload "resistor.osdi"\r\nmodel res resistor\nmodel vs vsource\r\nV1 (in 0) vs dc=1\r\nR1 (in out) res r=1k\nR2 (out 0) res r=1k\r\ncontrol\r\nanalysis bias op\r\nendc\r\n';
+  "SPICE 🧪\r\nV1 in 0 DC 1\r\nR1 in out 1k\nR2 out 0 1k\r\n.control\r\nop\r\n.endc\r\n.end\r\n";
 function Harness() {
   const [files, setFiles] = useState<Record<string, string>>({
     "run.cir": initial,
-    "circuit.spice": "R1 (in out) res r=1k\n",
+    "circuit.spice": "R1 in out 1k\n",
     "experiment.json": '{"version":1}',
   });
   const [path, setPath] = useState("run.cir");
@@ -66,16 +66,14 @@ function Harness() {
             text={files[path] ?? ""}
             historyKey={String(revision)}
             entry={path === "run.cir"}
-            mode={path.endsWith(".json") ? "json" : "native"}
+            mode={path.endsWith(".json") ? "json" : "ngspice"}
             readOnly={path === "circuit.spice"}
             onChange={(text) =>
               setFiles((current) => ({ ...current, [path]: text }))
             }
             onSave={save}
             onCursor={setCursor}
-            relatedSources={[
-              "model vs vsource\nVBIAS (vdd 0) vs dc=1.8\nR1 (vdd out) res r=1k",
-            ]}
+            relatedSources={["* bias\nVBIAS vdd 0 DC 1.8\nR1 vdd out 1k"]}
             signalNames={() => ({ "v(out)": "Output" })}
             onFocusSignal={(vector) => {
               document.body.dataset.focusedSignal = vector ?? "";

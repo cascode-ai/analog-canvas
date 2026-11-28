@@ -17,20 +17,11 @@ export function decodeHostedExecutionPayload(
   input: ExecutionInput,
   body: HostedExecutionPayload,
 ) {
-  const {
-    rawfile,
-    rawfiles,
-    executedFiles,
-    executedDeck,
-    cancelled,
-    collectionStatus,
-    ...value
-  } = body ?? {};
+  const { rawfile, executedDeck, cancelled, collectionStatus, ...value } =
+    body ?? {};
   const output = validateExecutionOutput(input, {
     result: value,
     rawfile,
-    rawfiles,
-    executedFiles,
     executedDeck,
     cancelled,
     collectionStatus,

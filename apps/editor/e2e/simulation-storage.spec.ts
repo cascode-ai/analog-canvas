@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { openProject } from "./editor-fixtures.js";
 import { unzipSync } from "fflate";
-import { createAgentNativeExecutor } from "./native-simulation-executor.mjs";
 import {
+  completedNgspiceRun,
   downloadClicked,
-  nativeRcProject,
+  ngspiceCapabilities,
+  ngspiceDividerProject,
   openSimulation,
   rcExample,
 } from "./simulation-e2e-fixtures.js";
@@ -18,73 +19,66 @@ const lockUrl = harnessModuleUrl("browser-simulation-storage-lock");
 test("GUI retries failed evidence storage and downloads a complete run without executing again", async ({
   page,
 }) => {
-  const project = await nativeRcProject("storage-retry", "Storage retry");
-  const executor = await createAgentNativeExecutor();
+  const project = await ngspiceDividerProject("storage-retry", "Storage retry");
   let executions = 0;
-  try {
-    await page.route("**/api/simulate", async (route) => {
-      const input = route.request().postDataJSON();
-      if (input.operation === "capabilities")
-        return route.fulfill({ json: executor.capabilities });
-      executions++;
-      return route.fulfill({ json: await executor.execute(input) });
-    });
-    await page.addInitScript(() => {
-      (window as any).refuseEvidence = true;
-      const put = IDBObjectStore.prototype.put;
-      IDBObjectStore.prototype.put = function (value, key) {
-        if (
-          (window as any).refuseEvidence &&
-          this.name === "files" &&
-          value?.ref?.name === "result.json"
-        )
-          throw new DOMException("Test origin quota", "QuotaExceededError");
-        return put.call(this, value, key);
-      };
-    });
-    const panel = await openSimulation(
-      page,
-      project,
-      "storage-retry.icproj.json",
-    );
-    const retry = panel.getByRole("button", { name: "Retry saving results" });
-    const persistence = panel.getByLabel("Run evidence persistence");
-    await panel.getByRole("button", { name: "Run", exact: true }).click();
-    await expect(retry).toBeVisible();
-    await expect(persistence).toContainText("Collection: complete");
-    await expect(persistence).toContainText("Persistence: failed");
-    expect(executions).toBe(1);
-    await retry.click();
-    await expect(retry).toBeEnabled();
-    expect(executions).toBe(1);
-    await page.evaluate(() => {
-      (window as any).refuseEvidence = false;
-    });
-    await panel
-      .getByRole("treeitem", { name: /Storage retry/ })
-      .click({ button: "right" });
-    const zipped = unzipSync(
-      await downloadClicked(
-        page.getByRole("menuitem", {
-          name: "Download complete run…",
-          exact: true,
-        }),
-      ),
-    );
-    expect(Object.keys(zipped)).toContain("evidence/result.json");
-    expect(Object.keys(zipped)).toContain("evidence/evidence-manifest.json");
-    expect(Object.keys(zipped).some((name) => name.endsWith(".raw"))).toBe(
-      true,
-    );
-    expect(
-      JSON.parse(new TextDecoder().decode(zipped["evidence/result.json"]!)).data
-        .analyses.length,
-    ).toBeGreaterThan(0);
-    await expect(retry).toHaveCount(0);
-    expect(executions).toBe(1);
-  } finally {
-    await executor.close();
-  }
+  await page.route("**/api/simulate", async (route) => {
+    const input = route.request().postDataJSON();
+    if (input.operation === "capabilities")
+      return route.fulfill({ json: ngspiceCapabilities() });
+    executions++;
+    return route.fulfill({ json: await completedNgspiceRun(input) });
+  });
+  await page.addInitScript(() => {
+    (window as any).refuseEvidence = true;
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (value, key) {
+      if (
+        (window as any).refuseEvidence &&
+        this.name === "files" &&
+        value?.ref?.name === "result.json"
+      )
+        throw new DOMException("Test origin quota", "QuotaExceededError");
+      return put.call(this, value, key);
+    };
+  });
+  const panel = await openSimulation(
+    page,
+    project,
+    "storage-retry.icproj.json",
+  );
+  const retry = panel.getByRole("button", { name: "Retry saving results" });
+  const persistence = panel.getByLabel("Run evidence persistence");
+  await panel.getByRole("button", { name: "Run", exact: true }).click();
+  await expect(retry).toBeVisible();
+  await expect(persistence).toContainText("Collection: complete");
+  await expect(persistence).toContainText("Persistence: failed");
+  expect(executions).toBe(1);
+  await retry.click();
+  await expect(retry).toBeEnabled();
+  expect(executions).toBe(1);
+  await page.evaluate(() => {
+    (window as any).refuseEvidence = false;
+  });
+  await panel
+    .getByRole("treeitem", { name: /Storage retry/ })
+    .click({ button: "right" });
+  const zipped = unzipSync(
+    await downloadClicked(
+      page.getByRole("menuitem", {
+        name: "Download complete run…",
+        exact: true,
+      }),
+    ),
+  );
+  expect(Object.keys(zipped)).toContain("evidence/result.json");
+  expect(Object.keys(zipped)).toContain("evidence/evidence-manifest.json");
+  expect(Object.keys(zipped).some((name) => name.endsWith(".raw"))).toBe(true);
+  expect(
+    JSON.parse(new TextDecoder().decode(zipped["evidence/result.json"]!)).data
+      .analyses.length,
+  ).toBeGreaterThan(0);
+  await expect(retry).toHaveCount(0);
+  expect(executions).toBe(1);
 });
 
 test("Run history can reveal browser results from other folders without changing the selected folder", async ({

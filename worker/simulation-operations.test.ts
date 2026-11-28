@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import { createManagedHostedExecutor } from "@icm/simulation-service";
 
 import {
-  nativeWorkerEnv,
-  nativeInput,
-  nativeHealth,
-  nativeStreamingReply,
+  ngspiceWorkerEnv,
+  ngspiceInput,
+  ngspiceHealth,
+  ngspiceStreamingReply,
 } from "./simulation.test-fixture";
 
 import {
@@ -24,7 +24,7 @@ function startRequest() {
       requestId: "request-a",
       preparedId: "prepared-a",
       preparedDigest: "a".repeat(64),
-      input: nativeInput(),
+      input: ngspiceInput(),
     }),
   });
 }
@@ -34,9 +34,9 @@ describe("managed simulation operations", () => {
     const h = harness("alarm");
     try {
       const execute = vi.fn(async (_url: string, init?: RequestInit) =>
-        nativeStreamingReply(JSON.parse(String(init?.body)), false),
+        ngspiceStreamingReply(JSON.parse(String(init?.body)), false),
       );
-      h.env.VACASK = nativeWorkerEnv(execute).VACASK;
+      h.env.NGSPICE = ngspiceWorkerEnv(execute).NGSPICE;
       const response = await routeManagedSimulationRequest(
         startRequest(),
         h.env,
@@ -88,9 +88,9 @@ describe("managed simulation operations", () => {
       });
       const execute = vi.fn(async (_url: string, init?: RequestInit) => {
         await wait;
-        return nativeStreamingReply(JSON.parse(String(init?.body)), false);
+        return ngspiceStreamingReply(JSON.parse(String(init?.body)), false);
       });
-      h.env.VACASK = nativeWorkerEnv(execute).VACASK;
+      h.env.NGSPICE = ngspiceWorkerEnv(execute).NGSPICE;
       await routeManagedSimulationRequest(startRequest(), h.env, h.runtime);
       const alarm = h.control.alarm();
       await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
@@ -154,9 +154,9 @@ describe("managed simulation operations", () => {
     async (mode) => {
       const { env, jobs, runtime, bucket, control, close } = harness();
       const execute = vi.fn(async (_url: string, init?: RequestInit) =>
-        nativeStreamingReply(JSON.parse(String(init?.body)), false),
+        ngspiceStreamingReply(JSON.parse(String(init?.body)), false),
       );
-      env.VACASK = nativeWorkerEnv(execute).VACASK;
+      env.NGSPICE = ngspiceWorkerEnv(execute).NGSPICE;
       try {
         const accepted = await routeManagedSimulationRequest(
           startRequest(),
@@ -274,9 +274,9 @@ describe("managed simulation operations", () => {
     async (corrupt) => {
       const { env, jobs, runtime, bucket, close } = harness();
       const execute = vi.fn(async (_url: string, init?: RequestInit) =>
-        nativeStreamingReply(JSON.parse(String(init?.body)), corrupt),
+        ngspiceStreamingReply(JSON.parse(String(init?.body)), corrupt),
       );
-      env.VACASK = nativeWorkerEnv(execute).VACASK;
+      env.NGSPICE = ngspiceWorkerEnv(execute).NGSPICE;
       try {
         const accepted = await routeManagedSimulationRequest(
           startRequest(),
@@ -391,7 +391,7 @@ describe("managed simulation operations", () => {
   it("reports queued cancellation as terminal, not result-not-ready, without dispatching", async () => {
     const { env, jobs, runtime, close } = harness();
     const execute = vi.fn();
-    env.VACASK = nativeWorkerEnv(execute).VACASK;
+    env.NGSPICE = ngspiceWorkerEnv(execute).NGSPICE;
     try {
       const accepted = await routeManagedSimulationRequest(
         startRequest(),
@@ -467,19 +467,19 @@ describe("managed simulation operations", () => {
     try {
       await expect(
         executor.execute(
-          { ...nativeInput(), preparedDeck: "changed" },
+          { ...ngspiceInput(), preparedDeck: "changed" },
           "bad-request",
           undefined,
           identity,
         ),
       ).rejects.toMatchObject({
         problem: {
-          code: "prepared-input-changed",
+          code: "prepared-environment-changed",
           recovery: "reprepare",
         },
       });
       await expect(
-        executor.execute(nativeInput(), "fixed-request", undefined, identity),
+        executor.execute(ngspiceInput(), "fixed-request", undefined, identity),
       ).resolves.toMatchObject({
         result: { outcome: { status: "completed" } },
       });
@@ -516,7 +516,7 @@ describe("managed simulation operations", () => {
       .mockRejectedValueOnce(new Error("read interrupted"));
     env.SIMULATION_CONTROL = { getByName: () => ({ fetch: fetchControl }) };
     const execute = vi.fn();
-    env.VACASK = nativeWorkerEnv(execute).VACASK;
+    env.NGSPICE = ngspiceWorkerEnv(execute).NGSPICE;
     const delivery = { body: jobs[0]!, ack: vi.fn(), retry: vi.fn() };
     await consumeSimulationJobs({ messages: [delivery] }, env, runtime);
     expect(execute).not.toHaveBeenCalled();
@@ -532,9 +532,9 @@ describe("managed simulation operations", () => {
   });
   it("can retry a storage failure before any executor dispatch", async () => {
     const { env, jobs, runtime, bucket } = harness();
-    const original = env.VACASK!.getByName("test");
+    const original = env.NGSPICE!.getByName("test");
     const execute = vi.fn(original.fetch);
-    env.VACASK = nativeWorkerEnv(execute).VACASK;
+    env.NGSPICE = ngspiceWorkerEnv(execute).NGSPICE;
     const started = await routeManagedSimulationRequest(
       startRequest(),
       env,
@@ -563,14 +563,14 @@ describe("managed simulation operations", () => {
     "does not execute again after %s, including duplicate Queue delivery",
     async (failure) => {
       const { env, jobs, runtime, bucket } = harness();
-      const original = env.VACASK!.getByName("test");
+      const original = env.NGSPICE!.getByName("test");
       const execute = vi.fn(async (url: string, init?: RequestInit) => {
         if (failure === "lost-response")
           throw new Error("response lost after admission");
         if (failure === "invalid-response") return new Response("broken JSON");
         return original.fetch(url, init);
       });
-      env.VACASK = nativeWorkerEnv(execute).VACASK;
+      env.NGSPICE = ngspiceWorkerEnv(execute).NGSPICE;
       const started = await routeManagedSimulationRequest(
         startRequest(),
         env,
@@ -607,7 +607,7 @@ describe("managed simulation operations", () => {
     async (cancelling) => {
       const { env, jobs, runtime, control } = harness();
       const execute = vi.fn();
-      env.VACASK = nativeWorkerEnv(execute).VACASK;
+      env.NGSPICE = ngspiceWorkerEnv(execute).NGSPICE;
       const started = await routeManagedSimulationRequest(
         startRequest(),
         env,
@@ -797,11 +797,11 @@ describe("managed simulation operations", () => {
 
   it("requeues infrastructure refusal under the same run", async () => {
     const { env, jobs, runtime } = harness();
-    env.VACASK = {
+    env.NGSPICE = {
       getByName: () => ({
         fetch: async (url) =>
           new URL(url).pathname === "/health"
-            ? Response.json(nativeHealth)
+            ? Response.json(ngspiceHealth)
             : Response.json(
                 { error: "simulator-busy", message: "one circuit at a time" },
                 { status: 503 },

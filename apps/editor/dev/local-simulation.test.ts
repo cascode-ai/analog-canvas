@@ -103,7 +103,7 @@ it("forwards configured native requests through the existing adapter without rew
   try {
     await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
     const port = (server.address() as { port: number }).port;
-    const body = '{ "language": "vacask", "preparedDeck": "Native test" }';
+    const body = '{ "mode": "raw", "preparedDeck": "SPICE test\\n.end\\n" }';
     const response = await fetch(`http://127.0.0.1:${port}/api/simulate`, {
       method: "POST",
       headers: { "content-type": "application/json" },

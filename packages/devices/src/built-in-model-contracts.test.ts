@@ -60,17 +60,10 @@ describe("built-in model registration", () => {
         expect(model.backends).toEqual({
           spice: "external",
           spectre: "external",
-          vacask: "external",
         });
         continue;
       }
       expect(model.backends.spice).toBe("included");
-      // VACASK has no transmission line device.
-      expect(model.backends.vacask).toBe(
-        model.implementation === "transmission-line"
-          ? "unsupported"
-          : "included",
-      );
       expect(model.backends.spectre).toBe(
         model.family === "signal" || model.implementation === "flip-flop"
           ? "external"
