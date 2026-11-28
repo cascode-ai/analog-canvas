@@ -180,7 +180,10 @@ export default {
     } finally {
       // The simulation checks the Owner queued (#1545) take the rest of
       // the tick, one folder at a time; with none queued, one read.
-      await advanceSimulationChecks(env);
+      // Never let a simulation-check failure starve regional pull monitoring.
+      await advanceSimulationChecks(env).catch((error) => {
+        console.error("simulation-checks:", error);
+      });
       await watchRegionalPulls(env).catch(() => null);
     }
   },
@@ -199,6 +202,16 @@ async function route(request: Request, env: Env): Promise<Response> {
   // The Arena host serves only AnalogArena; the former /arena pages move there.
   const hostRedirect = routeArenaHosts(request);
   if (hostRedirect) return hostRedirect;
+
+  // Content-hashed build assets and MCP tarballs never match API or regional
+  // routes; short-circuit before running API routers.
+  if (
+    (request.method === "GET" || request.method === "HEAD") &&
+    (url.pathname.startsWith("/assets/") ||
+      url.pathname.startsWith("/downloads/mcp/"))
+  ) {
+    return serveAsset(request, env.ASSETS);
+  }
 
   // Authenticate the fixed peer before the per-client flood limiter: all
   // remote sessions otherwise share one server IP. Session limits still apply.

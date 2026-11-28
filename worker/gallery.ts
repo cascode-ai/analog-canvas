@@ -857,8 +857,8 @@ export async function routeGalleryRequest(
       return readerCopy(response, served.svg, request, runtime);
     }
     const allowed =
-      (await canReview(request, env)) ||
-      readsAsOwner(await sessionUserOf(request, env), payload);
+      (await canReview(request, env, readSession)) ||
+      readsAsOwner(await readSession(), payload);
     if (!allowed) {
       return Response.json(
         { error: "not-found" },
@@ -895,8 +895,8 @@ export async function routeGalleryRequest(
     if (status !== 200) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
-    const curator = await canReview(request, env);
-    const viewer = await sessionUserOf(request, env);
+    const curator = await canReview(request, env, readSession);
+    const viewer = await readSession();
     const held = {
       ownerUserId: payload.ownerUserId,
       author: payload.entry?.author,
@@ -1113,9 +1113,9 @@ export async function routeGalleryRequest(
     // Admins curate anything. An ordinary owner may withdraw a public entry
     // or restore a voluntary withdrawal, but cannot undo an Owner rejection
     // or an Owner's withdrawal of it (#1540), whoever owns it since.
-    const viewer = await sessionUserOf(request, env);
+    const viewer = await readSession();
     const admin = viewer?.isAdmin === true;
-    const access = await entryManager(request, env, id);
+    const access = await entryManager(request, env, id, readSession);
     if (!access.found) {
       return Response.json({ error: "not-found" }, { status: 404 });
     }
@@ -1152,9 +1152,14 @@ export async function routeGalleryRequest(
     // An author owns their own work: removing it is theirs to do, not a
     // favour to ask a curator for. The daily quota counts entries that still
     // exist, so deleting gives the allowance back — that is the point.
-    const admin = await isAdmin(request, env);
+    const admin = await isAdmin(request, env, readSession);
     if (!admin) {
-      const access = await entryManager(request, env, segments[0]!);
+      const access = await entryManager(
+        request,
+        env,
+        segments[0]!,
+        readSession,
+      );
       if (!access.found) {
         return Response.json({ error: "not-found" }, { status: 404 });
       }

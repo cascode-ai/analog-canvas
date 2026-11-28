@@ -179,4 +179,87 @@ describe("the scheduled pass", () => {
       "simulation-check-next",
     ]);
   });
+
+  it("still runs regional pull monitoring when simulation checks throw", async () => {
+    const { default: worker } = await import("./index");
+    const operations: string[] = [];
+    const env = {
+      PROJECT_REGION: "overseas",
+      PROJECT_SYNC_TOKEN: "sync-token",
+      RESEND_API_KEY: "rk",
+      AUTH_EMAIL_FROM: "noreply@canvas.test",
+      ADMIN_EMAILS: "owner@canvas.test",
+      GALLERY: {
+        getByName: () => ({
+          fetch: async (input: string) => {
+            const operation = new URL(input).pathname.slice(1);
+            operations.push(operation);
+            if (operation === "simulation-check-next")
+              throw new Error("sim check failed");
+            if (operation === "sync-watchdog")
+              return Response.json({ action: null, lastPullAt: null });
+            return Response.json({
+              updated: 0,
+              remaining: 0,
+              forgotten: true,
+              pending: 0,
+            });
+          },
+        }),
+      },
+    };
+    await expect(
+      worker.scheduled(
+        { scheduledTime: 0, cron: "*/5 * * * *" },
+        env as unknown as Parameters<typeof worker.scheduled>[1],
+      ),
+    ).resolves.toBeUndefined();
+    expect(operations).toContain("simulation-check-next");
+    expect(operations).toContain("sync-watchdog");
+  });
+
+  it("short-circuits /assets/ and /downloads/mcp/ straight to ASSETS before API limiters", async () => {
+    const { default: worker } = await import("./index");
+    let rateLimiterCalls = 0;
+    const assetPaths: string[] = [];
+    const env = {
+      API_RATE_LIMITER: {
+        limit: async () => {
+          rateLimiterCalls += 1;
+          return { success: false };
+        },
+      },
+      ASSETS: {
+        fetch: async (request: Request) => {
+          const path = new URL(request.url).pathname;
+          assetPaths.push(path);
+          return new Response("asset-body", {
+            status: 200,
+            headers: { "content-type": "text/javascript; charset=utf-8" },
+          });
+        },
+      },
+    } as unknown as Parameters<typeof worker.fetch>[1];
+
+    const js = await worker.fetch(
+      new Request("https://canvas.test/assets/app-12345678.js", {
+        headers: { "cf-connecting-ip": "203.0.113.9" },
+      }),
+      env,
+    );
+    const mcp = await worker.fetch(
+      new Request("https://canvas.test/downloads/mcp/pkg.tgz", {
+        method: "HEAD",
+        headers: { "cf-connecting-ip": "203.0.113.9" },
+      }),
+      env,
+    );
+    expect(js.status).toBe(200);
+    expect(mcp.status).toBe(200);
+    expect(rateLimiterCalls).toBe(0);
+    expect(assetPaths).toEqual([
+      "/assets/app-12345678.js",
+      "/downloads/mcp/pkg.tgz",
+    ]);
+  });
 });
