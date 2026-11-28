@@ -6,6 +6,7 @@ import {
   AUTH_DISPLAY_NAME_MAX,
   AUTH_SESSION_TTL_SECONDS,
   AUTH_EMAIL_DAILY_LIMIT,
+  AUTH_EMAIL_IP_DAILY_LIMIT,
   AUTH_LOGIN_CODE_ATTEMPTS,
   AuthDO,
   OWNER_ACCOUNT_IDS,
@@ -648,6 +649,35 @@ describe("emailed sign-in code", () => {
       body: JSON.stringify({ email: "someone-else@example.com" }),
     });
     expect(other.status).toBe(202);
+  });
+
+  it("rate-limits email sign-in starts per client IP across distinct addresses", async () => {
+    const sent: { to: string; text: string }[] = [];
+    const auth = harness({ RESEND_API_KEY: "rk" }, [resendCapture(sent)]);
+    const ip = "203.0.113.42";
+    for (let index = 0; index < AUTH_EMAIL_IP_DAILY_LIMIT; index += 1) {
+      const ok = await auth.call("/api/auth/email/start", {
+        method: "POST",
+        headers: { "cf-connecting-ip": ip },
+        body: JSON.stringify({ email: `victim-${index}@example.com` }),
+      });
+      expect(ok.status).toBe(202);
+    }
+    const blocked = await auth.call("/api/auth/email/start", {
+      method: "POST",
+      headers: { "cf-connecting-ip": ip },
+      body: JSON.stringify({ email: "another-victim@example.com" }),
+    });
+    expect(blocked.status).toBe(429);
+    expect(await blocked.json()).toEqual({ error: "rate-limited" });
+
+    // Another client IP is unaffected.
+    const otherIp = await auth.call("/api/auth/email/start", {
+      method: "POST",
+      headers: { "cf-connecting-ip": "198.51.100.7" },
+      body: JSON.stringify({ email: "another-victim@example.com" }),
+    });
+    expect(otherIp.status).toBe(202);
   });
 
   it("rejects a rename that is empty, oversized, or anonymous", async () => {

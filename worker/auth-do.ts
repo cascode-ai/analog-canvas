@@ -115,6 +115,7 @@ export const AUTH_HANDOFF_TTL_MS = 60 * 1000;
 /** Wrong guesses one code takes before it stops working. */
 export const AUTH_LOGIN_CODE_ATTEMPTS = 5;
 export const AUTH_EMAIL_DAILY_LIMIT = 5;
+export const AUTH_EMAIL_IP_DAILY_LIMIT = 20;
 export const AUTH_DISPLAY_NAME_MAX = 40;
 /** The provider of AI accounts, which nothing signs in to directly. */
 export const AI_ACCOUNT_PROVIDER = "ai";
@@ -596,6 +597,12 @@ export class AuthDO {
         expires_at TEXT NOT NULL
       ) WITHOUT ROWID
     `);
+    this.sql.exec(
+      "CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)",
+    );
+    this.sql.exec(
+      "CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)",
+    );
     // Emailed links gave way to codes typed into the asking browser; the
     // links' short-lived tokens have no further use.
     this.sql.exec("DROP TABLE IF EXISTS login_tokens");
@@ -625,6 +632,9 @@ export class AuthDO {
         expires_at TEXT NOT NULL
       ) WITHOUT ROWID
     `);
+    this.sql.exec(
+      "CREATE INDEX IF NOT EXISTS idx_arena_handoffs_expires_at ON arena_handoffs(expires_at)",
+    );
     // API tokens (#1769): a bearer per machine. Any account's edits the
     // selection board; only the Owner's also opens the dataset imports.
     this.sql.exec(`
@@ -637,6 +647,9 @@ export class AuthDO {
         last_used_at TEXT
       ) WITHOUT ROWID
     `);
+    this.sql.exec(
+      "CREATE INDEX IF NOT EXISTS idx_owner_tokens_user_id ON owner_tokens(user_id)",
+    );
     // Gallery reads are public: the read keys that stood in for a session
     // are gone.
     this.sql.exec("DROP TABLE IF EXISTS read_keys");
@@ -1430,6 +1443,8 @@ export class AuthDO {
     const now = this.now();
     const day = now.toISOString().slice(0, 10);
     const emailHash = await sha256(`login:${email}`);
+    const clientIp = request.headers.get("cf-connecting-ip")?.trim();
+    const ipHash = clientIp ? await sha256(`login-ip:${clientIp}`) : null;
     // The limit is per day; earlier days' counts serve no purpose.
     this.sql.exec("DELETE FROM login_rates WHERE day < ?", day);
     const used =
@@ -1443,12 +1458,33 @@ export class AuthDO {
     if (used >= AUTH_EMAIL_DAILY_LIMIT) {
       return Response.json({ error: "rate-limited" }, { status: 429 });
     }
+    if (ipHash) {
+      const ipUsed =
+        this.sql
+          .exec<{ count: number }>(
+            "SELECT count FROM login_rates WHERE day = ? AND email_hash = ?",
+            day,
+            ipHash,
+          )
+          .toArray()[0]?.count ?? 0;
+      if (ipUsed >= AUTH_EMAIL_IP_DAILY_LIMIT) {
+        return Response.json({ error: "rate-limited" }, { status: 429 });
+      }
+    }
     this.sql.exec(
       `INSERT INTO login_rates(day, email_hash, count) VALUES (?, ?, 1)
        ON CONFLICT(day, email_hash) DO UPDATE SET count = count + 1`,
       day,
       emailHash,
     );
+    if (ipHash) {
+      this.sql.exec(
+        `INSERT INTO login_rates(day, email_hash, count) VALUES (?, ?, 1)
+         ON CONFLICT(day, email_hash) DO UPDATE SET count = count + 1`,
+        day,
+        ipHash,
+      );
+    }
     const code = randomCode();
     this.sql.exec(
       "DELETE FROM login_codes WHERE expires_at <= ?",

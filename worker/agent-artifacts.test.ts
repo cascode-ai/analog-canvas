@@ -910,4 +910,17 @@ describe("an ended session's downloads", () => {
     await object.alarm();
     expect(s.deletes).toHaveLength(1);
   });
+
+  it("keeps the 60s cleanup retry alarm ahead of a later live session expiry alarm", async () => {
+    const s = await session();
+    await s.storage.put("agent-artifact-cleanup", ["stale/key"]);
+    s.failDeletes(true);
+    const object = s.open();
+    const before = Date.now();
+    await object.alarm();
+    // Session expires much later (~15m+); the failed R2 delete retry (~60s)
+    // must win Math.min() instead of being overwritten by the expiry alarm.
+    expect(s.alarm()).toBeGreaterThan(before);
+    expect(s.alarm()).toBeLessThanOrEqual(before + 65_000);
+  });
 });

@@ -233,7 +233,9 @@ describe("Arena forwarding", () => {
     expect(cookie).toMatch(/^icm_session=/u);
 
     await visit("/schematic", {
-      headers: { Cookie: `theme=dark; ${cookie}; arena_seen=1` },
+      headers: {
+        Cookie: `theme=dark; ${cookie}; icm_regional_session=reg-secret; arena_seen=1`,
+      },
     });
     await visit("/api/arena/session", { headers: { Cookie: cookie } });
 
@@ -266,6 +268,10 @@ describe("Arena forwarding", () => {
         headers.append(
           "set-cookie",
           "icm_owner_session=arena; Path=/api/auth; HttpOnly",
+        );
+        headers.append(
+          "set-cookie",
+          "icm_regional_session=arena; Path=/; HttpOnly",
         );
         headers.append("set-cookie", "arena_seen=1; Path=/schematic");
         return new Response("<h1>AnalogArena</h1>", { status, headers });

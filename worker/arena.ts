@@ -18,7 +18,10 @@ import {
   regionalArenaUser,
   REGIONAL_ARENA_CAPABILITY,
 } from "./regional-arena-auth";
-import { regionalConfig } from "./regional-auth-contract";
+import {
+  REGIONAL_SESSION_COOKIE,
+  regionalConfig,
+} from "./regional-auth-contract";
 import {
   ARENA_HOST,
   ARENA_ORIGIN,
@@ -36,6 +39,7 @@ export type ArenaEnv = Partial<AuthEnv>;
 const CANVAS_SESSION_COOKIES = new Set([
   AUTH_SESSION_COOKIE,
   AUTH_OWNER_COOKIE,
+  REGIONAL_SESSION_COOKIE,
 ]);
 
 /** The name of a `Cookie` pair or a `Set-Cookie` value. */
@@ -45,7 +49,7 @@ function cookieName(cookie: string): string {
 
 /**
  * The headers Arena receives. The account travels only as the vouched
- * header, so Analog Canvas's credentials stay here: the session cookie is
+ * header, so Analog Canvas's credentials stay here: the session cookies are
  * removed from `Cookie` (other cookies are kept) and `Authorization` is
  * dropped. Otherwise Arena could replay them against Analog Canvas.
  */
@@ -56,7 +60,11 @@ function forwardedHeaders(request: Request): Headers {
   const cookies = (headers.get("cookie") ?? "")
     .split(";")
     .map((pair) => pair.trim())
-    .filter((pair) => pair && cookieName(pair) !== AUTH_SESSION_COOKIE);
+    .filter((pair) => {
+      if (!pair) return false;
+      const name = cookieName(pair);
+      return name !== AUTH_SESSION_COOKIE && name !== REGIONAL_SESSION_COOKIE;
+    });
   if (cookies.length > 0) headers.set("cookie", cookies.join("; "));
   else headers.delete("cookie");
   return headers;

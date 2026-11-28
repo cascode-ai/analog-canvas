@@ -39,8 +39,10 @@ export async function callGallery<T>(
 export async function isAdmin(
   request: Request,
   env: GalleryEnv,
+  readSession: () => Promise<SessionUser | null> = () =>
+    sessionUserOf(request, env),
 ): Promise<boolean> {
-  const user = await sessionUserOf(request, env);
+  const user = await readSession();
   return user?.isAdmin === true;
 }
 
@@ -82,8 +84,10 @@ export function isAutomatedBackup(segments: readonly string[]): boolean {
 export async function canReview(
   request: Request,
   env: GalleryEnv,
+  readSession: () => Promise<SessionUser | null> = () =>
+    sessionUserOf(request, env),
 ): Promise<boolean> {
-  const user = await sessionUserOf(request, env);
+  const user = await readSession();
   return user?.isAdmin === true || user?.role === "moderator";
 }
 
@@ -133,6 +137,8 @@ export async function entryManager(
   request: Request,
   env: GalleryEnv,
   id: string,
+  readSession: () => Promise<SessionUser | null> = () =>
+    sessionUserOf(request, env),
 ): Promise<{
   found: boolean;
   reviewer: boolean;
@@ -162,8 +168,8 @@ export async function entryManager(
       withdrawnByCurator: false,
     };
   }
-  const reviewer = await canReview(request, env);
-  const user = await sessionUserOf(request, env);
+  const user = await readSession();
+  const reviewer = user?.isAdmin === true || user?.role === "moderator";
   const owner =
     user !== null &&
     existing.payload.ownerUserId != null &&

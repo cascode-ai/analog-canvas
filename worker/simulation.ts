@@ -219,28 +219,36 @@ export async function routeSimulationRequest(
     !response?.ok
   )
     return response;
-  // Discovery advertises both Profiles. Prepare must fetch selected-Profile caps;
-  // global limits and collection protocol here describe the default ngspice path.
-  const native = nativeId
-    ? await routeVacaskSimulationRequest(
-        new Request(request.url, {
-          method: "POST",
-          body: JSON.stringify({ operation: "capabilities" }),
-        }),
-        nativeEnv,
-      )
-    : null;
-  const defaults = (await response.json()) as {
-    configured: boolean;
-    profiles: unknown[];
-  };
-  for (const entry of ngspiceProfiles.slice(1)) {
-    const additional = await routeNgspiceSimulationRequest(
-      new Request(request.url, { method: "POST", body: text }),
-      entry.environment,
-      runnerKey,
-      entry.profile,
-    );
+  // Discovery advertises all configured Profiles in parallel so one degraded
+  // upstream does not multiply probe latency across every other engine.
+  const [defaults, additionalResponses, native] = await Promise.all([
+    response.json() as Promise<{
+      configured: boolean;
+      profiles: unknown[];
+    }>,
+    Promise.all(
+      ngspiceProfiles
+        .slice(1)
+        .map((entry) =>
+          routeNgspiceSimulationRequest(
+            new Request(request.url, { method: "POST", body: text }),
+            entry.environment,
+            runnerKey,
+            entry.profile,
+          ),
+        ),
+    ),
+    nativeId
+      ? routeVacaskSimulationRequest(
+          new Request(request.url, {
+            method: "POST",
+            body: JSON.stringify({ operation: "capabilities" }),
+          }),
+          nativeEnv,
+        )
+      : Promise.resolve(null),
+  ]);
+  for (const additional of additionalResponses) {
     if (additional?.ok) {
       const caps = (await additional.json()) as {
         configured: boolean;

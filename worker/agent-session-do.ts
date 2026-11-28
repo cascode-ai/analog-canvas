@@ -794,32 +794,37 @@ export class AgentSessionDO {
   async alarm(): Promise<void> {
     await this.ready;
     await this.artifacts.maintenance();
+    let retryAt = Infinity;
     const left = await this.state.storage.get<string[]>(ARTIFACT_CLEANUP_KEY);
     if (left?.length) {
       const still = await this.artifacts.deleteObjects(left);
       await this.state.storage.put(ARTIFACT_CLEANUP_KEY, still);
-      if (still.length)
-        await this.state.storage.setAlarm?.(
-          Date.now() + ARTIFACT_CLEANUP_RETRY_MS,
-        );
+      if (still.length) {
+        retryAt = Date.now() + ARTIFACT_CLEANUP_RETRY_MS;
+      }
     }
+    const scheduleNext = async (nextAt: number): Promise<void> => {
+      const target = Math.min(retryAt, nextAt);
+      if (Number.isFinite(target)) await this.state.storage.setAlarm?.(target);
+    };
     const tombstone = this.replacedUntil || this.deviceRevokedUntil;
     if (tombstone) {
       if (Date.now() < tombstone) {
-        await this.state.storage.setAlarm?.(tombstone);
+        await scheduleNext(tombstone);
       } else {
         this.replacedUntil = 0;
         this.deviceRevokedUntil = 0;
         this.deviceRevokedTrust = undefined;
         this.machine = null;
         await this.clearStoredSession();
+        if (Number.isFinite(retryAt)) await scheduleNext(Infinity);
       }
       return;
     }
     const machine = await this.loadMachine();
     const live = machine && machine.statusAt(Date.now()) !== "revoked";
     if (live && Date.now() < machine.expiresAt - EXPIRY_WARNING_MS) {
-      await this.state.storage.setAlarm?.(
+      await scheduleNext(
         Math.min(
           machine.expiresAt - EXPIRY_WARNING_MS,
           (await this.artifacts.nextMaintenanceAt()) ?? Infinity,
@@ -835,7 +840,7 @@ export class AgentSessionDO {
       };
       this.emit(event);
       this.notifyEditor(event);
-      await this.state.storage.setAlarm?.(
+      await scheduleNext(
         Math.min(
           machine.expiresAt,
           (await this.artifacts.nextMaintenanceAt()) ?? Infinity,
@@ -843,6 +848,7 @@ export class AgentSessionDO {
       );
       return;
     }
+    if (Number.isFinite(retryAt)) await scheduleNext(Infinity);
     if (machine) {
       machine.revoke();
       this.emit({ type: "session.expired", sessionId: machine.sessionId });
