@@ -84,6 +84,8 @@ interface EditorShortcutDependencies {
   visualSelection: SelectionController["selection"];
   selectionFilterOpen: boolean;
   setSelectionFilterOpen: Dispatch<SetStateAction<boolean>>;
+  shortcutHintsVisible?: boolean;
+  setShortcutHintsVisible?: Dispatch<SetStateAction<boolean>>;
   viewBox: GridRect;
   documentSettingsOpen: boolean;
   setDocumentSettingsOpen: Dispatch<SetStateAction<boolean>>;
@@ -244,6 +246,8 @@ function createEditorShortcutHandler({
   visualSelection,
   selectionFilterOpen,
   setSelectionFilterOpen,
+  shortcutHintsVisible,
+  setShortcutHintsVisible,
   viewBox,
   documentSettingsOpen,
   setDocumentSettingsOpen,
@@ -428,6 +432,20 @@ function createEditorShortcutHandler({
       return;
     }
     const currentInteraction = getCurrentInteractionState();
+    if (
+      event.key === "Escape" &&
+      shortcutHintsVisible &&
+      tool === "pointer" &&
+      currentInteraction.kind === "idle" &&
+      !hasInspectableSelection &&
+      highlightedNetOrigin === null
+    ) {
+      // Hints stay up while Escape cancels an active placement/tool or clears
+      // selection; an idle Escape dismisses the overlay.
+      event.preventDefault();
+      setShortcutHintsVisible?.(false);
+      return;
+    }
     const shortcut = resolveEditorShortcut(event, {
       isTyping: isTypingTarget(event.target),
       hasUnsavedWork: hasUnsafeWork(),

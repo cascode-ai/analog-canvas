@@ -142,9 +142,23 @@ export async function createHeadlessFormalExportSource(
 export async function rasterizeFormalSvgHeadless(
   source: FormalExportSource,
   scale = DEFAULT_EXPORT_SCALE,
+  options: { maxPixels?: number; maxDimension?: number } = {},
 ): Promise<RasterExport> {
   if (!Number.isInteger(scale) || scale < 1 || scale > 8)
     throw new Error("Export scale must be an integer from 1 through 8");
+  const width = Math.max(1, Math.round(source.bounds.width * scale));
+  const height = Math.max(1, Math.round(source.bounds.height * scale));
+  if (
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width > (options.maxDimension ?? 16384) ||
+    height > (options.maxDimension ?? 16384) ||
+    width * height > (options.maxPixels ?? 64_000_000)
+  ) {
+    throw new Error(
+      "Image is too large to rasterize safely; select fewer objects or use SVG",
+    );
+  }
   const resvg = await renderer(source.svg, { mode: "zoom", value: scale });
   const image = resvg.render();
   resvg.free();
@@ -160,7 +174,7 @@ export async function rasterizeFormalSvgHeadless(
 
 const headlessFontSources: SvgFontEmbedSources = {
   wasm: loadHarfBuzzSubsetWasm,
-  readFont: (file) => loadHeadlessFont({ source: "exporters", file }),
+  readFont: (file) => fontBytes({ source: "exporters", file }),
 };
 
 /**

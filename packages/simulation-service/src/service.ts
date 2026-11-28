@@ -1020,14 +1020,22 @@ export class SimulationService {
         unit: string | null;
         value?: number | number[];
         real?: number[];
+        imag?: number[];
       }>;
       const probes =
         analysis.analysis === "ac"
-          ? sourceProbes.map((probe) => ({
-              name: probe.name,
-              unit: probe.unit,
-              values: probe.real ?? [],
-            }))
+          ? sourceProbes.map((probe) => {
+              const real = probe.real ?? [];
+              const imag = probe.imag;
+              const values = imag
+                ? real.map((re, index) => Math.hypot(re, imag[index] ?? 0))
+                : real;
+              return {
+                name: probe.name,
+                unit: probe.unit,
+                values,
+              };
+            })
           : analysis.analysis === "op"
             ? sourceProbes.map((probe) => ({
                 name: probe.name,
@@ -1048,8 +1056,15 @@ export class SimulationService {
         })),
       ];
       for (const candidate of candidates) {
-        const finite = candidate.values.filter(Number.isFinite);
-        const value = finite.at(-1);
+        let value: number | undefined;
+        let minimum = Infinity;
+        let maximum = -Infinity;
+        for (const entry of candidate.values) {
+          if (!Number.isFinite(entry)) continue;
+          value = entry;
+          if (entry < minimum) minimum = entry;
+          if (entry > maximum) maximum = entry;
+        }
         if (value === undefined) continue;
         summaries.push({
           status: "available",
@@ -1062,8 +1077,8 @@ export class SimulationService {
           ...(analysis.analysis === "op"
             ? {}
             : {
-                minimum: Math.min(...finite),
-                maximum: Math.max(...finite),
+                minimum,
+                maximum,
               }),
         });
       }

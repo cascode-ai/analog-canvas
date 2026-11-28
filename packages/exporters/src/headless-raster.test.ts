@@ -9,6 +9,7 @@ import {
   measureFormalExportSourceHeadless,
   rasterizeFormalSvgHeadless,
 } from "./headless-raster.js";
+import { withHeadlessSerif } from "./headless-text.js";
 import { createFormalExportSource } from "./index.js";
 import { exportFormalArtifacts } from "./node.js";
 
@@ -59,5 +60,20 @@ describe("WebAssembly formal raster", () => {
       expect(Math.abs(measured.bounds[key] - source.bounds[key])).toBeLessThan(
         20,
       );
+  });
+
+  it("replaces every browser serif font stack occurrence and refuses oversized rasters", async () => {
+    expect(
+      withHeadlessSerif(
+        `font-family:Georgia,'Times New Roman',serif; /* again */ font-family:Georgia,'Times New Roman',serif`,
+      ),
+    ).toBe("font-family:DejaVu Serif; /* again */ font-family:DejaVu Serif");
+    const source = differentialStage();
+    await expect(
+      rasterizeFormalSvgHeadless(
+        { ...source, bounds: { x: 0, y: 0, width: 20_000, height: 100 } },
+        1,
+      ),
+    ).rejects.toThrow(/too large to rasterize/u);
   });
 });

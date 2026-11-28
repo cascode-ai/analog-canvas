@@ -237,6 +237,7 @@ const SPICE_SUFFIX: Readonly<Record<string, number>> = {
   g: 1e9,
   meg: 1e6,
   k: 1e3,
+  mil: 25.4e-6,
   m: 1e-3,
   u: 1e-6,
   n: 1e-9,
@@ -257,7 +258,11 @@ function parseSpiceNumber(value: string): number {
     throw new Error(`Geometry is not a SPICE number: ${value}`);
   }
   if (!suffix) return magnitude;
-  const known = suffix.startsWith("meg") ? "meg" : suffix[0]!;
+  const known = suffix.startsWith("meg")
+    ? "meg"
+    : suffix.startsWith("mil")
+      ? "mil"
+      : suffix[0]!;
   const factor = SPICE_SUFFIX[known];
   if (factor === undefined) {
     throw new Error(`Geometry has an unknown SPICE suffix: ${value}`);

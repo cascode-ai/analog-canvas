@@ -361,12 +361,12 @@ export function ProjectDiagnosticsSection({
           {checkStatus !== "current" ? (
             <p data-testid="diagnostic-check-state" role="status">
               {checkStatus === "stale"
-                ? "Last check is out of date. Use Check and Save to check again."
+                ? "Last check is out of date. Use File → Check and Save to check again."
                 : checkStatus === "failed"
                   ? `Check failed: ${checkError ?? "Unknown error"}. Saving is independent.`
                   : checkStatus === "checking"
                     ? "Checking…"
-                    : "Not checked. Use Check and Save to check ERC and visual issues."}
+                    : "Not checked. Use File → Check and Save to check ERC and visual issues."}
             </p>
           ) : null}
           {observationCount > 0 ? (

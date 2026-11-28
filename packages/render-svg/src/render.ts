@@ -369,8 +369,8 @@ function assembleScene(
     const ownerColors = new Set(
       family.instanceIds.map(
         (instanceId) =>
-          document.instances.find((instance) => instance.id === instanceId)
-            ?.styleOverride?.foreground ?? profile.foreground,
+          instancesById.get(instanceId)?.styleOverride?.foreground ??
+          profile.foreground,
       ),
     );
     const color =
@@ -534,21 +534,31 @@ function assembleScene(
       return `<polyline data-object-id="${escapeXml(route.id)}" data-net-id="${escapeXml(route.netId)}"${presentationAttribute} points="${pointList(geometry.centerline)}" fill="none" stroke="none"/>${directionArrow}${taps}`;
     })
     .join("");
+  const routesByJunctionId = objectIds
+    ? (() => {
+        const map = new Map<string, string[]>();
+        for (const route of document.routes) {
+          const end = route.legs.at(-1)?.to;
+          if (route.start.kind === "junction") {
+            const list = map.get(route.start.junctionId) ?? [];
+            list.push(route.id);
+            map.set(route.start.junctionId, list);
+          }
+          if (end?.kind === "endpoint" && end.endpoint.kind === "junction") {
+            const list = map.get(end.endpoint.junctionId) ?? [];
+            list.push(route.id);
+            map.set(end.endpoint.junctionId, list);
+          }
+        }
+        return map;
+      })()
+    : undefined;
   for (const bridge of junctionMiterBridgePaths(
     routingGeometry.endpointJoins.filter((join) => {
-      if (!objectIds || join.kind !== "junction-miter") return true;
-      return document.routes
-        .filter((route) => {
-          const end = route.legs.at(-1)?.to;
-          return (
-            (route.start.kind === "junction" &&
-              route.start.junctionId === join.junctionId) ||
-            (end?.kind === "endpoint" &&
-              end.endpoint.kind === "junction" &&
-              end.endpoint.junctionId === join.junctionId)
-          );
-        })
-        .every((route) => included(route.id));
+      if (!routesByJunctionId || join.kind !== "junction-miter") return true;
+      return (routesByJunctionId.get(join.junctionId) ?? []).every((routeId) =>
+        included(routeId),
+      );
     }),
     junctionProfile,
     junctionBridgeColors,
@@ -685,6 +695,16 @@ function assembleScene(
         return [instance.id, before + primitives + after] as const;
       }),
   );
+  const globalNetLabelAnnotationIds = new Set<string>();
+  for (const evidence of document.connectivityEvidence) {
+    if (
+      evidence.kind === "name-claim" &&
+      evidence.scope === "global" &&
+      evidence.owner.kind === "net-label"
+    ) {
+      globalNetLabelAnnotationIds.add(evidence.owner.annotationId);
+    }
+  }
   const annotations = new Map(
     resolvedAnnotations.map((resolved) => [
       resolved.annotation.id,
@@ -722,13 +742,7 @@ function assembleScene(
         : resolvedColor;
     const globalLabel =
       annotation.kind === "net-label" &&
-      document.connectivityEvidence.some(
-        (evidence) =>
-          evidence.kind === "name-claim" &&
-          evidence.scope === "global" &&
-          evidence.owner.kind === "net-label" &&
-          evidence.owner.annotationId === annotation.id,
-      );
+      globalNetLabelAnnotationIds.has(annotation.id);
     const globalBadge = globalLabel
       ? `<g data-role="global-net-badge" transform="${transform}"><rect x="${position.x - 8}" y="${position.y - annotationFontSize - 2}" width="7" height="7" rx="2" fill="${annotationProfile.background}" stroke="${annotationProfile.foreground}" stroke-width="0.8"/><text x="${position.x - 4.5}" y="${position.y - annotationFontSize + 3.3}" text-anchor="middle" font-size="5px" font-weight="700">G</text></g>`
       : "";

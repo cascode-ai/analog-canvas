@@ -527,14 +527,24 @@ export function RichTextEditor({
 
   useEffect(() => {
     if (sourceOnly && sourceInputRef.current) {
-      sourceInputRef.current.focus();
-      sourceInputRef.current.select();
-      return;
+      const input = sourceInputRef.current;
+      const frame = requestAnimationFrame(() => {
+        if (!input.isConnected) return;
+        input.focus();
+        input.select();
+      });
+      return () => cancelAnimationFrame(frame);
     }
     if (editableRef.current) {
-      editableRef.current.innerHTML = toEditableHtml(content, disabled);
-      editableRef.current.focus();
+      const editable = editableRef.current;
+      editable.innerHTML = toEditableHtml(content, disabled);
       refreshActiveStyles();
+      const frame = requestAnimationFrame(() => {
+        if (!editable.isConnected) return;
+        editable.focus();
+        refreshActiveStyles();
+      });
+      return () => cancelAnimationFrame(frame);
     }
   }, [sourceOnly, targetKey, disabled, refreshActiveStyles]);
 

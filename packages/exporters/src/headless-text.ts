@@ -97,7 +97,7 @@ export function headlessFontPlan(svg: string): {
 
 /** The formal SVG's browser serif stack, which resvg draws as DejaVu Serif. */
 export function withHeadlessSerif(svg: string): string {
-  return svg.replace("Georgia,'Times New Roman',serif", "DejaVu Serif");
+  return svg.replaceAll("Georgia,'Times New Roman',serif", "DejaVu Serif");
 }
 
 /** resvg can reshape a mixed-family run with one fallback face. The composed

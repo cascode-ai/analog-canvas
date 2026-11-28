@@ -260,4 +260,10 @@ describe("mcp tool surface", () => {
     expect(reference).toContain("idempotencyKey");
     expect(reference).toContain("publicationVersion:1");
   });
+
+  it("caches listToolDefinitions so repeated calls return the cached catalog", () => {
+    const first = listToolDefinitions();
+    const second = listToolDefinitions();
+    expect(second).toBe(first);
+  });
 });

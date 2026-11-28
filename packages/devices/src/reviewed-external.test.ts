@@ -382,6 +382,7 @@ describe("reviewed external device bindings", () => {
       ),
     ).toBe("{WIDTH * 2}");
     expect(projectLengthToSky130Micrometres("5.5u")).toBe("5.5");
+    expect(projectLengthToSky130Micrometres("1mil")).toBe("25.4");
     expect(sky130MicrometresToProjectLength("0.15")).toBe("150n");
     expect(sky130MicrometresToProjectLength("5.5")).toBe("5.5u");
     expect(() => sky130MicrometresToProjectLength("150n")).toThrow(

@@ -958,9 +958,21 @@ export function usePropertiesEditor(options: UsePropertiesEditorOptions) {
     position: Point,
     target: NetLabelPlacementTarget | null,
   ): void => {
-    setNetLabelPlacement((current) =>
-      current?.phase === "placing" ? { ...current, position, target } : current,
-    );
+    setNetLabelPlacement((current) => {
+      if (current?.phase !== "placing") return current;
+      if (
+        current.position.x === position.x &&
+        current.position.y === position.y &&
+        current.target?.routeId === target?.routeId &&
+        current.target?.alignment === target?.alignment &&
+        current.target?.rotation === target?.rotation &&
+        current.target?.labelPosition.x === target?.labelPosition.x &&
+        current.target?.labelPosition.y === target?.labelPosition.y
+      ) {
+        return current;
+      }
+      return { ...current, position, target };
+    });
   };
 
   /** R while placing: the label turns a quarter, retargeted on its wire. */

@@ -123,17 +123,30 @@ function diagnosticKey(diagnostic: SimulationDiagnostic): string {
   ]);
 }
 
+const diagnosticIndexByList = new WeakMap<
+  SimulationDiagnostic[],
+  Map<string, SimulationDiagnostic>
+>();
+
 function appendDiagnostic(
   diagnostics: SimulationDiagnostic[],
   diagnostic: SimulationDiagnostic,
 ): void {
-  const previous = diagnostics.find(
-    (candidate) => diagnosticKey(candidate) === diagnosticKey(diagnostic),
-  );
+  let byKey = diagnosticIndexByList.get(diagnostics);
+  if (!byKey) {
+    byKey = new Map();
+    for (const existing of diagnostics) {
+      byKey.set(diagnosticKey(existing), existing);
+    }
+    diagnosticIndexByList.set(diagnostics, byKey);
+  }
+  const key = diagnosticKey(diagnostic);
+  const previous = byKey.get(key);
   if (previous) {
     previous.count = (previous.count ?? 1) + 1;
     return;
   }
+  byKey.set(key, diagnostic);
   diagnostics.push(diagnostic);
 }
 

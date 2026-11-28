@@ -5,8 +5,11 @@ import { declarationSchema } from "./declaration-schema.js";
 import { inlineSchema } from "./inline-schema.js";
 import { compactSchema } from "./compact-schema.js";
 
+let cachedToolDefinitions: ContractTool[] | undefined;
+
 export function listToolDefinitions(): ContractTool[] {
-  return operationDefinitions().map((definition) => {
+  if (cachedToolDefinitions) return cachedToolDefinitions;
+  cachedToolDefinitions = operationDefinitions().map((definition) => {
     let schema = definition.inputSchema;
     if (FOCUSED_TOOLS.some((tool) => tool.name === definition.name))
       return {
@@ -54,4 +57,5 @@ export function listToolDefinitions(): ContractTool[] {
       inputSchema: advertised,
     };
   });
+  return cachedToolDefinitions;
 }

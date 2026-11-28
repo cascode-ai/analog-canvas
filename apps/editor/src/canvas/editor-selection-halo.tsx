@@ -83,34 +83,46 @@ export function EditorSelectionHalo({
       wouldMoveIds,
     ],
   );
-  if (selected === "" && wouldMove === "" && owners === "") return null;
+  const ownersHtml = useMemo(
+    () => (owners === "" ? null : { __html: owners }),
+    [owners],
+  );
+  const wouldMoveHtml = useMemo(
+    () => (wouldMove === "" ? null : { __html: wouldMove }),
+    [wouldMove],
+  );
+  const selectedHtml = useMemo(
+    () => (selected === "" ? null : { __html: selected }),
+    [selected],
+  );
+  if (!selectedHtml && !wouldMoveHtml && !ownersHtml) return null;
   return (
     <g
       data-layer="selection-halo"
       className="selection-halo"
       aria-hidden="true"
     >
-      {owners === "" ? null : (
+      {ownersHtml ? (
         <g
           data-testid="selection-halo-label-owner"
           className="selection-halo-body selection-halo-body--label-owner"
-          dangerouslySetInnerHTML={{ __html: owners }}
+          dangerouslySetInnerHTML={ownersHtml}
         />
-      )}
-      {wouldMove === "" ? null : (
+      ) : null}
+      {wouldMoveHtml ? (
         <g
           data-testid="selection-halo-would-move"
           className="selection-halo-body selection-halo-body--would-move"
-          dangerouslySetInnerHTML={{ __html: wouldMove }}
+          dangerouslySetInnerHTML={wouldMoveHtml}
         />
-      )}
-      {selected === "" ? null : (
+      ) : null}
+      {selectedHtml ? (
         <g
           data-testid="selection-halo-selected"
           className="selection-halo-body selection-halo-body--selected"
-          dangerouslySetInnerHTML={{ __html: selected }}
+          dangerouslySetInnerHTML={selectedHtml}
         />
-      )}
+      ) : null}
     </g>
   );
 }
