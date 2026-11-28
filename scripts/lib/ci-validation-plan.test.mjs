@@ -269,6 +269,20 @@ describe("CI validation planning", () => {
       browserNeedsMcp: false,
     });
 
+    // Every source of a published interface version reaches the
+    // mcp-release-interfaces check (#2708).
+    for (const path of [
+      "packages/project-protocol/src/version.ts",
+      "packages/project-protocol/src/file-format.json",
+      "packages/rnl/src/rnl-version-line.json",
+      "packages/agent-adapter/src/schema.ts",
+      "apps/mcp-server/interfaces.json",
+    ])
+      expect(ciPlan([path]), path).toMatchObject({
+        release: true,
+        releaseMcp: true,
+      });
+
     // Simulation runner package runs standalone tests without triggering release packaging.
     expect(ciPlan(["packages/spice-run/src/rawfile.ts"])).toMatchObject({
       build: true,

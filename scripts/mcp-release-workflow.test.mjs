@@ -20,4 +20,10 @@ describe("MCP release publication", () => {
     ])
       expect(steps[find(text)]).toContain("if: ${{ !inputs.package_only }}");
   });
+
+  it("publishes the plugin interfaces beside the assets SHA256SUMS.txt lists", () => {
+    expect(steps[find("name: Publish immutable GitHub Release")]).toContain(
+      '"output/mcp/interfaces.json"',
+    );
+  });
 });

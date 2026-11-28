@@ -42,6 +42,7 @@ Proposed regional deployment contract:
 | [`community-gallery.md`](community-gallery.md)                     | Gallery feed, accounts, moderation                                    |
 | [`selection-boards.md`](selection-boards.md)                       | Link-shared lists of Gallery entries, changes and their record        |
 | [`analog-arena.md`](analog-arena.md)                               | Contract with the AnalogArena Worker (cross-repo)                     |
+| [`plugins.md`](plugins.md)                                         | What MCP releases publish for plugins (cross-repo)                    |
 
 ## Writing a spec
 
